@@ -1,0 +1,59 @@
+.
+├── backend
+│   ├── app
+│   │   ├── __init__.py
+│   │   ├── api
+│   │   ├── core
+│   │   ├── main.py
+│   │   ├── models
+│   │   ├── schemas
+│   │   ├── services
+│   │   └── utils
+│   ├── init_db.py
+│   ├── README.md
+│   ├── requirements.txt
+│   ├── server.log
+│   ├── server.pid
+│   └── tests
+├── db整理.md
+├── docs
+├── frontend
+│   ├── App.vue
+│   ├── main.js
+│   ├── manifest.json
+│   ├── package.json
+│   ├── pages
+│   │   ├── category
+│   │   ├── index
+│   │   ├── login
+│   │   ├── order
+│   │   ├── project
+│   │   ├── register
+│   │   └── user
+│   ├── pages.json
+│   ├── pagesA
+│   │   └── certification
+│   ├── README.md
+│   ├── store
+│   │   └── index.js
+│   ├── uni.promisify.adaptor.js
+│   └── utils
+│       ├── api.js
+│       └── request.js
+├── README.md
+├── server.pid
+├── 第二迭代开发计划.md
+├── 第一迭代完成总结.md
+├── 开发计划.md
+├── 开发进度.md
+├── 开发进度总览.md
+├── 科研百测商品链接.docx
+├── 快速命令.sh
+├── 快速启动指南.md
+├── 实验室管理.png
+├── 数据库配置说明.md
+├── 项目启动检查清单.md
+├── 项目文件结构.txt
+└── 用户端小程序网站.png
+
+24 directories, 33 files
