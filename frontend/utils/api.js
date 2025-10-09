@@ -68,6 +68,72 @@ export default {
 	// 获取项目详情
 	getProjectDetail(id) {
 		return request.get(`/api/v1/projects/${id}`)
+	},
+	
+	// ========== 订单相关 ==========
+	
+	// 计算订单费用
+	calculateOrder(data) {
+		return request.post('/api/v1/orders/calculate', data)
+	},
+	
+	// 创建订单
+	createOrder(data) {
+		return request.post('/api/v1/orders/create', data)
+	},
+	
+	// 获取订单列表
+	getOrders(params) {
+		return request.get('/api/v1/orders/list', params)
+	},
+	
+	// 获取订单详情
+	getOrderDetail(id) {
+		return request.get(`/api/v1/orders/${id}`)
+	},
+	
+	// 取消订单
+	cancelOrder(id, data) {
+		return request.post(`/api/v1/orders/${id}/cancel`, data)
+	},
+	
+	// ========== 地址相关 ==========
+	
+	// 获取地址列表
+	getAddresses() {
+		return request.get('/api/v1/addresses/list')
+	},
+	
+	// 添加地址
+	addAddress(data) {
+		return request.post('/api/v1/addresses/add', data)
+	},
+	
+	// 更新地址
+	updateAddress(id, data) {
+		return request.put(`/api/v1/addresses/${id}`, data)
+	},
+	
+	// 删除地址
+	deleteAddress(id) {
+		return request.delete(`/api/v1/addresses/${id}`)
+	},
+	
+	// 设置默认地址
+	setDefaultAddress(id) {
+		return request.post(`/api/v1/addresses/${id}/set-default`)
+	},
+	
+	// ========== 支付相关 ==========
+	
+	// 创建支付
+	createPayment(data) {
+		return request.post('/api/v1/payments/create', data)
+	},
+	
+	// 查询支付状态
+	getPaymentStatus(id) {
+		return request.get(`/api/v1/payments/${id}/status`)
 	}
 }
 

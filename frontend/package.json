@@ -2,27 +2,28 @@
   "name": "eceshi-frontend",
   "version": "1.0.0",
   "description": "科研检测服务平台-前端",
-  "main": "main.js",
+  "type": "module",
   "scripts": {
-    "dev:app": "uni -p app",
-    "dev:h5": "uni",
-    "dev:mp-weixin": "uni -p mp-weixin",
-    "dev:mp-alipay": "uni -p mp-alipay",
-    "build:app": "uni build -p app",
-    "build:h5": "uni build",
-    "build:mp-weixin": "uni build -p mp-weixin",
-    "build:mp-alipay": "uni build -p mp-alipay"
+    "dev:h5": "vite",
+    "dev:mp-weixin": "vite build --watch --mode development",
+    "build:h5": "vite build",
+    "build:mp-weixin": "vite build"
   },
   "dependencies": {
-    "@dcloudio/uni-app": "^3.0.0",
-    "@dcloudio/uni-app-plus": "^3.0.0",
-    "@dcloudio/uni-h5": "^3.0.0",
-    "@dcloudio/uni-mp-alipay": "^3.0.0",
-    "@dcloudio/uni-mp-weixin": "^3.0.0",
+    "@dcloudio/uni-app": "3.0.0-alpha-3081020230817001",
+    "@dcloudio/uni-app-plus": "3.0.0-alpha-3081020230817001",
+    "@dcloudio/uni-h5": "3.0.0-alpha-3081020230817001",
+    "@dcloudio/uni-mp-alipay": "3.0.0-alpha-3081020230817001",
+    "@dcloudio/uni-mp-weixin": "3.0.0-alpha-3081020230817001",
+    "vue": "^3.2.47",
     "vuex": "^4.0.2"
   },
   "devDependencies": {
-    "@dcloudio/vite-plugin-uni": "^3.0.0",
+    "@dcloudio/types": "^3.0.0",
+    "@dcloudio/uni-automator": "3.0.0-alpha-3081020230817001",
+    "@dcloudio/uni-cli-shared": "3.0.0-alpha-3081020230817001",
+    "@dcloudio/vite-plugin-uni": "3.0.0-alpha-3081020230817001",
+    "@babel/plugin-proposal-private-property-in-object": "^7.21.11",
     "sass": "^1.56.0",
     "vite": "^4.0.0"
   }
