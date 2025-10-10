@@ -3,7 +3,10 @@
 		<!-- 用户信息卡片 -->
 		<view class="user-card">
 			<view v-if="hasLogin" class="user-info">
-				<image :src="userInfo.avatar || '/static/default-avatar.png'" mode="aspectFill" class="avatar"></image>
+				<view v-if="userInfo.avatar" class="avatar">
+					<image :src="userInfo.avatar" mode="aspectFill" class="avatar-img"></image>
+				</view>
+				<view v-else class="avatar avatar-placeholder">👤</view>
 				<view class="info">
 					<text class="nickname">{{ userInfo.nickname || '未设置昵称' }}</text>
 					<text class="phone">{{ userInfo.phone }}</text>
@@ -13,7 +16,7 @@
 				</view>
 			</view>
 			<view v-else class="user-info" @click="goLogin">
-				<image src="/static/default-avatar.png" mode="aspectFill" class="avatar"></image>
+				<view class="avatar avatar-placeholder">👤</view>
 				<view class="info">
 					<text class="nickname">点击登录/注册</text>
 					<text class="phone">登录后享受更多服务</text>
@@ -224,6 +227,21 @@
 				height: 120rpx;
 				border-radius: 60rpx;
 				border: 4rpx solid rgba(255, 255, 255, 0.3);
+				overflow: hidden;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				background-color: rgba(255, 255, 255, 0.2);
+				
+				&-placeholder {
+					font-size: 60rpx;
+					line-height: 1;
+				}
+				
+				&-img {
+					width: 100%;
+					height: 100%;
+				}
 			}
 			
 			.info {

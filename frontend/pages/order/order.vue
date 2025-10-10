@@ -84,7 +84,7 @@
 			
 			<!-- 空状态 -->
 			<view v-else class="empty-state">
-				<image src="/static/empty-order.png" mode="aspectFit" class="empty-image"></image>
+				<view class="empty-icon">📦</view>
 				<text class="empty-text">暂无订单</text>
 				<button class="btn-goto" @click="goIndex">去看看</button>
 			</view>
@@ -380,10 +380,10 @@
 			align-items: center;
 			padding-top: 200rpx;
 			
-			.empty-image {
-				width: 400rpx;
-				height: 300rpx;
+			.empty-icon {
+				font-size: 200rpx;
 				margin-bottom: 40rpx;
+				opacity: 0.5;
 			}
 			
 			.empty-text {
