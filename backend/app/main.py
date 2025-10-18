@@ -5,7 +5,9 @@ FastAPI Application
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from app.core.config import settings
 from app.core.database import engine, Base
@@ -91,6 +93,17 @@ async def health_check():
 
 # 注册API路由
 app.include_router(router, prefix="/api/v1")
+
+
+# 挂载静态文件目录
+static_dir = Path("static")
+static_dir.mkdir(exist_ok=True)
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# 挂载后台管理页面
+admin_dir = Path("admin")
+if admin_dir.exists():
+    app.mount("/admin", StaticFiles(directory="admin", html=True), name="admin")
 
 
 if __name__ == "__main__":

@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>科研检测服务平台 - 后台管理</title>
+    <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/element-plus"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/element-plus/dist/index.css">
+    <style>
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB',
+                'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+        }
+        .login-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .login-box {
+            width: 400px;
+            padding: 40px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+        }
+        .admin-container {
+            min-height: 100vh;
+        }
+        .header {
+            background: #409EFF;
+            color: white;
+            padding: 0 20px;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .main-content {
+            padding: 20px;
+        }
+        .upload-demo {
+            margin-top: 20px;
+        }
+        .image-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 16px;
+            margin-top: 20px;
+        }
+        .image-item {
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .image-item img {
+            width: 100%;
+            height: 150px;
+            object-fit: cover;
+        }
+        .image-item-footer {
+            padding: 8px;
+            background: #f5f5f5;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <!-- 登录页面 -->
+        <div v-if="!token" class="login-container">
+            <div class="login-box">
+                <h2 style="text-align: center; margin-bottom: 30px;">后台管理登录</h2>
+                <el-form :model="loginForm" @submit.prevent="handleLogin">
+                    <el-form-item label="手机号">
+                        <el-input v-model="loginForm.phone" placeholder="请输入手机号"></el-input>
+                    </el-form-item>
+                    <el-form-item label="验证码">
+                        <el-input v-model="loginForm.sms_code" placeholder="请输入验证码">
+                            <template #append>
+                                <el-button @click="sendSms" :disabled="countdown > 0">
+                                    {{ countdown > 0 ? `${countdown}秒后重试` : '获取验证码' }}
+                                </el-button>
+                            </template>
+                        </el-input>
+                    </el-form-item>
+                    <el-form-item>
+                        <el-button type="primary" @click="handleLogin" style="width: 100%;" :loading="loading">
+                            登录
+                        </el-button>
+                    </el-form-item>
+                </el-form>
+            </div>
+        </div>
+
+        <!-- 管理页面 -->
+        <div v-else class="admin-container">
+            <div class="header">
+                <div>
+                    <h2 style="margin: 0;">🔬 科研检测服务平台 - 后台管理</h2>
+                </div>
+                <div>
+                    <span>欢迎，{{ userInfo.nickname }}</span>
+                    <el-button @click="logout" type="text" style="color: white; margin-left: 20px;">
+                        退出登录
+                    </el-button>
+                </div>
+            </div>
+
+            <div class="main-content">
+                <el-tabs v-model="activeTab">
+                    <!-- 图片上传 -->
+                    <el-tab-pane label="图片上传" name="upload">
+                        <el-upload
+                            class="upload-demo"
+                            :action="uploadUrl"
+                            :headers="uploadHeaders"
+                            :on-success="handleUploadSuccess"
+                            :on-error="handleUploadError"
+                            :before-upload="beforeUpload"
+                            multiple
+                            :limit="10"
+                            list-type="picture-card">
+                            <el-icon><Plus /></el-icon>
+                        </el-upload>
+
+                        <el-divider>已上传的图片</el-divider>
+                        
+                        <div class="image-list">
+                            <div v-for="(image, index) in uploadedImages" :key="index" class="image-item">
+                                <img :src="baseUrl + image.url" :alt="image.filename">
+                                <div class="image-item-footer">
+                                    <div>{{ image.filename }}</div>
+                                    <div style="margin-top: 4px;">
+                                        <el-button type="text" size="small" @click="copyUrl(image.url)">
+                                            复制URL
+                                        </el-button>
+                                        <el-button type="text" size="small" danger @click="deleteImage(image.url)">
+                                            删除
+                                        </el-button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </el-tab-pane>
+
+                    <!-- 用户管理 -->
+                    <el-tab-pane label="用户管理" name="users">
+                        <el-table :data="users" style="width: 100%">
+                            <el-table-column prop="id" label="ID" width="80"></el-table-column>
+                            <el-table-column prop="nickname" label="昵称"></el-table-column>
+                            <el-table-column prop="phone" label="手机号"></el-table-column>
+                            <el-table-column prop="credit_limit" label="信用额度"></el-table-column>
+                            <el-table-column prop="status" label="状态"></el-table-column>
+                            <el-table-column prop="created_at" label="注册时间"></el-table-column>
+                        </el-table>
+                    </el-tab-pane>
+
+                    <!-- 订单管理 -->
+                    <el-tab-pane label="订单管理" name="orders">
+                        <p>订单管理功能开发中...</p>
+                    </el-tab-pane>
+                </el-tabs>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp } = Vue
+        const { ElMessage, ElMessageBox } = ElementPlus
+
+        createApp({
+            data() {
+                return {
+                    baseUrl: 'https://catdog.dachaonet.com',
+                    token: localStorage.getItem('admin_token') || '',
+                    userInfo: JSON.parse(localStorage.getItem('admin_user') || '{}'),
+                    loginForm: {
+                        phone: '',
+                        sms_code: ''
+                    },
+                    countdown: 0,
+                    loading: false,
+                    activeTab: 'upload',
+                    uploadedImages: [],
+                    users: []
+                }
+            },
+            computed: {
+                uploadUrl() {
+                    return `${this.baseUrl}/api/v1/upload/image`
+                },
+                uploadHeaders() {
+                    return {
+                        'Authorization': `Bearer ${this.token}`
+                    }
+                }
+            },
+            mounted() {
+                if (this.token) {
+                    this.loadUsers()
+                }
+            },
+            methods: {
+                async sendSms() {
+                    if (!this.loginForm.phone) {
+                        ElMessage.error('请输入手机号')
+                        return
+                    }
+                    try {
+                        const res = await axios.post(`${this.baseUrl}/api/v1/auth/send-sms`, {
+                            phone: this.loginForm.phone,
+                            scene: 'login'
+                        })
+                        ElMessage.success(res.data.message)
+                        if (res.data.data && res.data.data.code) {
+                            ElMessage.info(`开发模式验证码：${res.data.data.code}`)
+                        }
+                        this.countdown = 60
+                        const timer = setInterval(() => {
+                            this.countdown--
+                            if (this.countdown <= 0) {
+                                clearInterval(timer)
+                            }
+                        }, 1000)
+                    } catch (error) {
+                        ElMessage.error(error.response?.data?.detail || '发送失败')
+                    }
+                },
+                async handleLogin() {
+                    this.loading = true
+                    try {
+                        const res = await axios.post(`${this.baseUrl}/api/v1/auth/sms-login`, this.loginForm)
+                        this.token = res.data.data.access_token
+                        this.userInfo = {
+                            id: res.data.data.user_id,
+                            phone: res.data.data.phone,
+                            nickname: res.data.data.nickname
+                        }
+                        localStorage.setItem('admin_token', this.token)
+                        localStorage.setItem('admin_user', JSON.stringify(this.userInfo))
+                        ElMessage.success('登录成功')
+                        this.loadUsers()
+                    } catch (error) {
+                        ElMessage.error(error.response?.data?.detail || '登录失败')
+                    } finally {
+                        this.loading = false
+                    }
+                },
+                logout() {
+                    localStorage.removeItem('admin_token')
+                    localStorage.removeItem('admin_user')
+                    this.token = ''
+                    this.userInfo = {}
+                    ElMessage.success('已退出登录')
+                },
+                beforeUpload(file) {
+                    const isImage = file.type.startsWith('image/')
+                    const isLt10M = file.size / 1024 / 1024 < 10
+                    if (!isImage) {
+                        ElMessage.error('只能上传图片文件!')
+                    }
+                    if (!isLt10M) {
+                        ElMessage.error('图片大小不能超过10MB!')
+                    }
+                    return isImage && isLt10M
+                },
+                handleUploadSuccess(response, file) {
+                    if (response.code === 200) {
+                        ElMessage.success('上传成功')
+                        this.uploadedImages.unshift(response.data)
+                    } else {
+                        ElMessage.error(response.message || '上传失败')
+                    }
+                },
+                handleUploadError(error) {
+                    ElMessage.error('上传失败：' + error.message)
+                },
+                copyUrl(url) {
+                    const fullUrl = this.baseUrl + url
+                    navigator.clipboard.writeText(fullUrl).then(() => {
+                        ElMessage.success('URL已复制到剪贴板')
+                    })
+                },
+                async deleteImage(url) {
+                    try {
+                        await ElMessageBox.confirm('确定要删除这张图片吗?', '提示', {
+                            type: 'warning'
+                        })
+                        await axios.delete(`${this.baseUrl}/api/v1/upload/image?url=${url}`, {
+                            headers: this.uploadHeaders
+                        })
+                        ElMessage.success('删除成功')
+                        this.uploadedImages = this.uploadedImages.filter(img => img.url !== url)
+                    } catch (error) {
+                        if (error !== 'cancel') {
+                            ElMessage.error(error.response?.data?.detail || '删除失败')
+                        }
+                    }
+                },
+                async loadUsers() {
+                    // 这里需要添加用户列表API
+                    // 暂时使用空数据
+                    this.users = []
+                }
+            }
+        }).use(ElementPlus).mount('#app')
+    </script>
+</body>
+</html>
+
