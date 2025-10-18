@@ -11,7 +11,8 @@ from app.core.security import verify_password, get_password_hash, create_access_
 from app.core.response import Response
 from app.core.config import settings
 from app.models.user import User
-from app.schemas.user import UserRegister, UserLogin, SMSCodeRequest, TokenResponse
+from app.schemas.user import UserRegister, UserLogin, SMSCodeRequest, SMSLoginRequest, TokenResponse
+from app.services.sms_service import sms_service
 
 
 router = APIRouter()
@@ -30,22 +31,44 @@ async def send_sms_code(
     - login: 登录
     - reset_password: 重置密码
     """
-    # TODO: 集成阿里云短信服务
-    # 这里先返回模拟验证码（开发环境）
+    # 如果是注册场景，检查手机号是否已注册
+    if request.scene == "register":
+        existing_user = db.query(User).filter(User.phone == request.phone).first()
+        if existing_user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="该手机号已注册"
+            )
     
-    if settings.DEBUG:
-        # 开发环境返回固定验证码
-        sms_code = "123456"
-        # TODO: 存储到Redis，设置5分钟过期
-        return Response.success(
-            data={"code": sms_code},  # 生产环境不返回验证码
-            message="验证码发送成功（开发模式）"
+    # 如果是登录或重置密码场景，检查手机号是否存在
+    if request.scene in ["login", "reset_password"]:
+        existing_user = db.query(User).filter(User.phone == request.phone).first()
+        if not existing_user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="该手机号未注册"
+            )
+    
+    # 发送短信验证码
+    result = await sms_service.send_verification_code(
+        phone=request.phone,
+        db=db,
+        scene=request.scene
+    )
+    
+    if result["success"]:
+        # 开发环境返回验证码
+        if settings.DEBUG and "code" in result:
+            return Response.success(
+                data={"code": result["code"]},
+                message=result["message"]
+            )
+        return Response.success(message=result["message"])
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=result["message"]
         )
-    
-    # 生产环境调用短信API
-    # sms_service.send_code(request.phone, request.scene)
-    
-    return Response.success(message="验证码发送成功")
 
 
 @router.post("/register", response_model=TokenResponse, summary="用户注册")
@@ -61,11 +84,18 @@ async def register(
     3. 创建用户
     4. 返回JWT令牌
     """
-    # TODO: 验证短信验证码（从Redis获取）
-    if settings.DEBUG and request.sms_code != "123456":
+    # 验证短信验证码
+    is_valid = await sms_service.verify_code(
+        phone=request.phone,
+        code=request.sms_code,
+        db=db,
+        scene="register"
+    )
+    
+    if not is_valid:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="验证码错误"
+            detail="验证码错误或已过期"
         )
     
     # 检查手机号是否已注册
@@ -126,6 +156,77 @@ async def login(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="手机号或密码错误"
         )
+    
+    # 检查用户状态
+    if user.status.value != "active":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="账号已被禁用"
+        )
+    
+    # 更新最后登录时间
+    from datetime import datetime
+    user.last_login_at = datetime.utcnow()
+    db.commit()
+    
+    # 生成JWT令牌
+    access_token = create_access_token(
+        data={"user_id": user.id, "phone": user.phone}
+    )
+    
+    return TokenResponse(
+        access_token=access_token,
+        user_id=user.id,
+        phone=user.phone,
+        nickname=user.nickname
+    )
+
+
+@router.post("/sms-login", response_model=TokenResponse, summary="短信验证码登录")
+async def sms_login(
+    request: SMSLoginRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    短信验证码登录
+    
+    1. 验证短信验证码
+    2. 查找用户，不存在则自动注册
+    3. 返回JWT令牌
+    """
+    # 验证短信验证码
+    is_valid = await sms_service.verify_code(
+        phone=request.phone,
+        code=request.sms_code,
+        db=db,
+        scene="login"
+    )
+    
+    if not is_valid:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="验证码错误或已过期"
+        )
+    
+    # 查找用户
+    user = db.query(User).filter(User.phone == request.phone).first()
+    
+    # 如果用户不存在，自动注册
+    if not user:
+        # 生成随机密码（用户不会用到，后续可以通过"重置密码"功能设置）
+        import time
+        random_password = f"sms_{request.phone}_{int(time.time())}"
+        
+        user = User(
+            phone=request.phone,
+            password=get_password_hash(random_password),
+            nickname=f"用户{request.phone[-4:]}",
+            credit_limit=3000.00
+        )
+        
+        db.add(user)
+        db.commit()
+        db.refresh(user)
     
     # 检查用户状态
     if user.status.value != "active":

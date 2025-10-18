@@ -45,11 +45,19 @@ class Settings(BaseSettings):
     WECHAT_APPID: str = ""
     WECHAT_SECRET: str = ""
     
+    # 阿里云短信配置
+    SMS_ACCESS_KEY: str = ""
+    SMS_SECRET_KEY: str = ""
+    SMS_SIGN_NAME: str = "科研检测"
+    SMS_TEMPLATE_ID: str = ""  # 验证码短信模板ID
+    SMS_REGION: str = "cn-hangzhou"
+    
     # 支付宝配置
-    ALIPAY_APPID: str = ""
-    ALIPAY_PRIVATE_KEY_PATH: str = "./keys/alipay_private_key.pem"
-    ALIPAY_PUBLIC_KEY_PATH: str = "./keys/alipay_public_key.pem"
-    ALIPAY_GATEWAY: str = "https://openapi.alipay.com/gateway.do"
+    ALIPAY_APP_ID: str = ""
+    ALIPAY_PRIVATE_KEY: str = ""  # 应用私钥字符串
+    ALIPAY_PUBLIC_KEY: str = ""  # 支付宝公钥字符串
+    ALIPAY_GATEWAY: str = "https://openapi.alipay.com/gateway.do"  # 正式环境
+    # ALIPAY_GATEWAY: str = "https://openapi.alipaydev.com/gateway.do"  # 沙箱环境
     
     # CORS配置
     CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:8080"]

@@ -32,6 +32,24 @@ class SMSCodeRequest(BaseModel):
     """发送短信验证码请求"""
     phone: str = Field(..., min_length=11, max_length=11, description="手机号")
     scene: str = Field(..., description="场景: register/login/reset_password")
+    
+    @validator('phone')
+    def validate_phone(cls, v):
+        if not v.isdigit():
+            raise ValueError('手机号必须是数字')
+        return v
+
+
+class SMSLoginRequest(BaseModel):
+    """短信验证码登录请求"""
+    phone: str = Field(..., min_length=11, max_length=11, description="手机号")
+    sms_code: str = Field(..., min_length=6, max_length=6, description="短信验证码")
+    
+    @validator('phone')
+    def validate_phone(cls, v):
+        if not v.isdigit():
+            raise ValueError('手机号必须是数字')
+        return v
 
 
 class TokenResponse(BaseModel):

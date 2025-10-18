@@ -22,8 +22,10 @@ pydantic-extra-types==2.1.0
 
 # 阿里云服务
 oss2==2.18.3
-aliyun-python-sdk-core==2.14.0
-aliyun-python-sdk-dysmsapi==3.0.0
+# 阿里云短信服务 (新版SDK)
+alibabacloud_dysmsapi20170525==2.0.24
+alibabacloud_tea_openapi==0.3.9
+alibabacloud_tea_util==0.3.13
 
 # 支付
 alipay-sdk-python==3.7.3

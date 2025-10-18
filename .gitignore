@@ -68,3 +68,6 @@ keys/
 # 上传文件
 uploads/
 
+# 参考项目（不提交）
+backend/backendtemp/
+
