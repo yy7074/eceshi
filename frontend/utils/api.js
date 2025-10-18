@@ -21,6 +21,11 @@ export default {
 		return request.post('/api/v1/auth/login', data)
 	},
 	
+	// 短信验证码登录
+	smsLogin(data) {
+		return request.post('/api/v1/auth/sms-login', data)
+	},
+	
 	// 微信登录
 	wechatLogin(code) {
 		return request.post('/api/v1/auth/wechat-login', { code })

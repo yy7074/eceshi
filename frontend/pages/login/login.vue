@@ -2,7 +2,7 @@
 	<view class="login-container">
 		<!-- 顶部装饰 -->
 		<view class="header">
-			<image src="/static/logo.png" mode="aspectFit" class="logo"></image>
+			<view class="logo">🔬</view>
 			<text class="title">科研检测服务平台</text>
 			<text class="subtitle">一站式科研检测服务</text>
 		</view>
@@ -136,7 +136,7 @@
 			</view>
 			<view class="login-icons">
 				<view class="icon-item" @click="wechatLogin">
-					<image src="/static/icon-wechat.png" mode="aspectFit" class="icon"></image>
+					<view class="icon">💬</view>
 					<text class="icon-text">微信</text>
 				</view>
 			</view>
@@ -232,8 +232,12 @@
 			
 			// 验证码登录
 			async handleSmsLogin() {
+				// 验证
 				if (!this.smsForm.phone) {
 					return uni.showToast({ title: '请输入手机号', icon: 'none' })
+				}
+				if (!/^1[3-9]\d{9}$/.test(this.smsForm.phone)) {
+					return uni.showToast({ title: '手机号格式不正确', icon: 'none' })
 				}
 				if (!this.smsForm.sms_code) {
 					return uni.showToast({ title: '请输入验证码', icon: 'none' })
@@ -242,11 +246,37 @@
 					return uni.showToast({ title: '请先阅读并同意用户协议', icon: 'none' })
 				}
 				
-				// TODO: 实现验证码登录
-				uni.showToast({
-					title: '验证码登录功能开发中',
-					icon: 'none'
-				})
+				this.loading = true
+				try {
+					const res = await api.smsLogin(this.smsForm)
+					
+					// 保存登录信息
+					this.$store.dispatch('login', {
+						token: res.data.access_token,
+						userInfo: {
+							id: res.data.user_id,
+							phone: res.data.phone,
+							nickname: res.data.nickname
+						}
+					})
+					
+					uni.showToast({
+						title: '登录成功',
+						icon: 'success'
+					})
+					
+					// 跳转到首页
+					setTimeout(() => {
+						uni.switchTab({
+							url: '/pages/index/index'
+						})
+					}, 1500)
+					
+				} catch (error) {
+					console.error('登录失败', error)
+				} finally {
+					this.loading = false
+				}
 			},
 			
 			// 发送验证码
@@ -291,19 +321,41 @@
 					success: async (loginRes) => {
 						try {
 							const res = await api.wechatLogin(loginRes.code)
-							// 处理登录成功
+							
+							// 保存登录信息
+							this.$store.dispatch('login', {
+								token: res.data.access_token,
+								userInfo: {
+									id: res.data.user_id,
+									phone: res.data.phone,
+									nickname: res.data.nickname
+								}
+							})
+							
 							uni.showToast({
 								title: '登录成功',
 								icon: 'success'
 							})
+							
+							// 跳转到首页
+							setTimeout(() => {
+								uni.switchTab({
+									url: '/pages/index/index'
+								})
+							}, 1500)
+							
 						} catch (error) {
 							console.error('微信登录失败', error)
+							uni.showToast({
+								title: '微信登录失败',
+								icon: 'none'
+							})
 						}
 					},
 					fail: (error) => {
-						console.error('微信登录失败', error)
+						console.error('微信授权失败', error)
 						uni.showToast({
-							title: '微信登录失败',
+							title: '微信授权失败',
 							icon: 'none'
 						})
 					}
@@ -354,9 +406,9 @@
 		margin-bottom: 80rpx;
 		
 		.logo {
-			width: 160rpx;
-			height: 160rpx;
+			font-size: 120rpx;
 			margin-bottom: 30rpx;
+			text-align: center;
 		}
 		
 		.title {
@@ -536,8 +588,7 @@
 				align-items: center;
 				
 				.icon {
-					width: 88rpx;
-					height: 88rpx;
+					font-size: 80rpx;
 					margin-bottom: 12rpx;
 				}
 				

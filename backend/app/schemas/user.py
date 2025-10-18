@@ -52,12 +52,17 @@ class SMSLoginRequest(BaseModel):
         return v
 
 
+class WechatLoginRequest(BaseModel):
+    """微信登录请求"""
+    code: str = Field(..., description="微信登录code")
+
+
 class TokenResponse(BaseModel):
     """登录响应（JWT令牌）"""
     access_token: str
     token_type: str = "bearer"
     user_id: int
-    phone: str
+    phone: Optional[str] = None  # 微信登录用户可能没有手机号
     nickname: Optional[str] = None
 
 
@@ -65,7 +70,7 @@ class TokenResponse(BaseModel):
 
 class UserBase(BaseModel):
     """用户基础信息"""
-    phone: str
+    phone: Optional[str] = None  # 微信登录用户可能没有手机号
     nickname: Optional[str] = None
     avatar: Optional[str] = None
     email: Optional[EmailStr] = None

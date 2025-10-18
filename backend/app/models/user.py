@@ -28,11 +28,15 @@ class User(Base):
     __tablename__ = "users"
     
     id = Column(Integer, primary_key=True, index=True, comment="用户ID")
-    phone = Column(String(20), unique=True, index=True, nullable=False, comment="手机号")
-    password = Column(String(255), nullable=False, comment="密码哈希")
+    phone = Column(String(20), unique=True, index=True, nullable=True, comment="手机号")
+    password = Column(String(255), nullable=True, comment="密码哈希")
     nickname = Column(String(50), comment="昵称")
     avatar = Column(String(255), comment="头像URL")
     email = Column(String(100), comment="邮箱")
+    
+    # 微信信息
+    wechat_openid = Column(String(100), unique=True, index=True, comment="微信OpenID")
+    wechat_unionid = Column(String(100), comment="微信UnionID")
     
     # 认证信息
     is_certified = Column(Boolean, default=False, comment="是否实名认证")

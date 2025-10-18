@@ -3,9 +3,9 @@
  */
 
 // 开发环境API地址
-const DEV_BASE_URL = 'http://localhost:8000'
+const DEV_BASE_URL = 'https://catdog.dachaonet.com'
 // 生产环境API地址
-const PROD_BASE_URL = 'https://api.yourdomain.com'
+const PROD_BASE_URL = 'https://catdog.dachaonet.com'
 
 // 根据环境选择API地址
 const BASE_URL = process.env.NODE_ENV === 'development' ? DEV_BASE_URL : PROD_BASE_URL

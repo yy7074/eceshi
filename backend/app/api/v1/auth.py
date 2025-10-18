@@ -11,8 +11,9 @@ from app.core.security import verify_password, get_password_hash, create_access_
 from app.core.response import Response
 from app.core.config import settings
 from app.models.user import User
-from app.schemas.user import UserRegister, UserLogin, SMSCodeRequest, SMSLoginRequest, TokenResponse
+from app.schemas.user import UserRegister, UserLogin, SMSCodeRequest, SMSLoginRequest, WechatLoginRequest, TokenResponse
 from app.services.sms_service import sms_service
+from app.services.wechat_service import wechat_service
 
 
 router = APIRouter()
@@ -40,8 +41,9 @@ async def send_sms_code(
                 detail="该手机号已注册"
             )
     
-    # 如果是登录或重置密码场景，检查手机号是否存在
-    if request.scene in ["login", "reset_password"]:
+    # login场景：不检查用户是否存在，支持自动注册
+    # reset_password场景：检查用户是否存在
+    if request.scene == "reset_password":
         existing_user = db.query(User).filter(User.phone == request.phone).first()
         if not existing_user:
             raise HTTPException(
@@ -253,9 +255,9 @@ async def sms_login(
     )
 
 
-@router.post("/wechat-login", summary="微信小程序登录")
+@router.post("/wechat-login", response_model=TokenResponse, summary="微信小程序登录")
 async def wechat_login(
-    code: str,
+    request: WechatLoginRequest,
     db: Session = Depends(get_db)
 ):
     """
@@ -265,10 +267,62 @@ async def wechat_login(
     2. 查询或创建用户
     3. 返回JWT令牌
     """
-    # TODO: 实现微信登录逻辑
     # 1. 调用微信API获取openid
-    # 2. 根据openid查询用户，不存在则创建
-    # 3. 返回JWT令牌
+    session_data = await wechat_service.code_to_session(request.code)
     
-    return Response.success(message="微信登录功能开发中")
+    if "errcode" in session_data and session_data["errcode"] != 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"微信登录失败: {session_data.get('errmsg', '未知错误')}"
+        )
+    
+    openid = session_data.get("openid")
+    unionid = session_data.get("unionid")
+    
+    if not openid:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="获取微信OpenID失败"
+        )
+    
+    # 2. 根据openid查询用户
+    user = db.query(User).filter(User.wechat_openid == openid).first()
+    
+    # 如果用户不存在，自动创建
+    if not user:
+        import time
+        user = User(
+            wechat_openid=openid,
+            wechat_unionid=unionid,
+            nickname=f"微信用户{openid[-6:]}",
+            credit_limit=3000.00
+        )
+        
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+    
+    # 检查用户状态
+    if user.status.value != "active":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="账号已被禁用"
+        )
+    
+    # 更新最后登录时间
+    from datetime import datetime
+    user.last_login_at = datetime.utcnow()
+    db.commit()
+    
+    # 3. 生成JWT令牌
+    access_token = create_access_token(
+        data={"user_id": user.id, "openid": openid}
+    )
+    
+    return TokenResponse(
+        access_token=access_token,
+        user_id=user.id,
+        phone=user.phone,
+        nickname=user.nickname
+    )
 
