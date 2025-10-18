@@ -53,3 +53,16 @@ class Response:
             "data": None
         }
 
+
+# 兼容性：为旧代码提供别名
+class SuccessResponse(dict):
+    """成功响应（兼容性）"""
+    def __init__(self, data: Any = None, message: str = "操作成功", code: int = 200):
+        super().__init__(code=code, message=message, data=data)
+
+
+class ErrorResponse(dict):
+    """错误响应（兼容性）"""
+    def __init__(self, message: str = "操作失败", code: int = 400, data: Any = None):
+        super().__init__(code=code, message=message, data=data)
+

@@ -25,7 +25,7 @@ def generate_order_no() -> str:
     return f"ORD{int(time.time())}{int(time.time() * 1000000) % 1000000}"
 
 
-@router.post("/calculate", response_model=SuccessResponse)
+@router.post("/calculate")
 async def calculate_order(
     data: OrderCalculate,
     db: Session = Depends(get_db),
@@ -88,7 +88,7 @@ async def calculate_order(
     return SuccessResponse(data=result)
 
 
-@router.post("/create", response_model=SuccessResponse)
+@router.post("/create")
 async def create_order(
     data: OrderCreate,
     db: Session = Depends(get_db),
@@ -204,7 +204,7 @@ async def create_order(
     }, message="订单创建成功")
 
 
-@router.get("/list", response_model=SuccessResponse)
+@router.get("/list")
 async def get_order_list(
     status: Optional[str] = Query("all", description="订单状态"),
     page: int = Query(1, ge=1),
@@ -246,7 +246,7 @@ async def get_order_list(
     return SuccessResponse(data=result)
 
 
-@router.get("/{order_id}", response_model=SuccessResponse)
+@router.get("/{order_id}")
 async def get_order_detail(
     order_id: int,
     db: Session = Depends(get_db),
@@ -275,7 +275,7 @@ async def get_order_detail(
     return SuccessResponse(data=detail)
 
 
-@router.post("/{order_id}/cancel", response_model=SuccessResponse)
+@router.post("/{order_id}/cancel")
 async def cancel_order(
     order_id: int,
     data: OrderCancel,
@@ -319,7 +319,7 @@ async def cancel_order(
     return SuccessResponse(message="订单已取消")
 
 
-@router.post("/{order_id}/confirm-receipt", response_model=SuccessResponse)
+@router.post("/{order_id}/confirm-receipt")
 async def confirm_receipt(
     order_id: int,
     db: Session = Depends(get_db),

@@ -23,7 +23,7 @@ def generate_payment_no() -> str:
     return f"PAY{int(time.time())}{int(time.time() * 1000000) % 1000000}"
 
 
-@router.post("/create", response_model=SuccessResponse)
+@router.post("/create")
 async def create_payment(
     data: PaymentCreate,
     db: Session = Depends(get_db),
@@ -189,7 +189,7 @@ async def create_payment(
         raise HTTPException(status_code=400, detail="不支持的支付方式")
 
 
-@router.get("/{payment_id}/status", response_model=SuccessResponse)
+@router.get("/{payment_id}/status")
 async def get_payment_status(
     payment_id: int,
     db: Session = Depends(get_db),
@@ -251,7 +251,7 @@ async def alipay_notify(
         return PlainTextResponse("fail")
 
 
-@router.post("/wechat/notify", response_model=SuccessResponse)
+@router.post("/wechat/notify")
 async def wechat_notify(
     db: Session = Depends(get_db)
 ):

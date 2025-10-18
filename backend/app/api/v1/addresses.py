@@ -14,7 +14,7 @@ from app.core.response import SuccessResponse
 router = APIRouter()
 
 
-@router.get("/list", response_model=SuccessResponse)
+@router.get("/list")
 async def get_address_list(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -30,7 +30,7 @@ async def get_address_list(
     return SuccessResponse(data=result)
 
 
-@router.post("/add", response_model=SuccessResponse)
+@router.post("/add")
 async def add_address(
     data: AddressCreate,
     db: Session = Depends(get_db),
@@ -65,7 +65,7 @@ async def add_address(
     return SuccessResponse(data=AddressInDB.from_orm(address), message="地址添加成功")
 
 
-@router.put("/{address_id}", response_model=SuccessResponse)
+@router.put("/{address_id}")
 async def update_address(
     address_id: int,
     data: AddressUpdate,
@@ -102,7 +102,7 @@ async def update_address(
     return SuccessResponse(data=AddressInDB.from_orm(address), message="地址更新成功")
 
 
-@router.delete("/{address_id}", response_model=SuccessResponse)
+@router.delete("/{address_id}")
 async def delete_address(
     address_id: int,
     db: Session = Depends(get_db),
@@ -125,7 +125,7 @@ async def delete_address(
     return SuccessResponse(message="地址删除成功")
 
 
-@router.post("/{address_id}/set-default", response_model=SuccessResponse)
+@router.post("/{address_id}/set-default")
 async def set_default_address(
     address_id: int,
     db: Session = Depends(get_db),

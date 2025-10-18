@@ -12,8 +12,10 @@ class Settings(BaseSettings):
     # 应用配置
     APP_NAME: str = "科研检测服务平台"
     APP_VERSION: str = "1.0.0"
+    VERSION: str = "1.0.0"  # 兼容性
     DEBUG: bool = True
     SECRET_KEY: str = "dev-secret-key-change-in-production"
+    ALLOWED_HOSTS: List[str] = ["*"]
     
     # 服务器配置
     HOST: str = "0.0.0.0"
@@ -29,6 +31,7 @@ class Settings(BaseSettings):
     REDIS_PORT: int = 6379
     REDIS_DB: int = 0
     REDIS_PASSWORD: str = ""
+    REDIS_URL: str = "redis://localhost:6379/0"  # 兼容性
     
     # JWT配置
     JWT_SECRET_KEY: str = "jwt-secret-key"
@@ -59,12 +62,18 @@ class Settings(BaseSettings):
     ALIPAY_GATEWAY: str = "https://openapi.alipay.com/gateway.do"  # 正式环境
     # ALIPAY_GATEWAY: str = "https://openapi.alipaydev.com/gateway.do"  # 沙箱环境
     
+    # 文件上传配置（兼容性）
+    UPLOAD_DIR: str = "static/uploads"
+    MAX_FILE_SIZE: int = 10485760  # 10MB
+    ALLOWED_EXTENSIONS: str = ".jpg,.jpeg,.png,.gif,.webp"
+    
     # CORS配置
     CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:8080"]
     
     class Config:
         env_file = ".env"
         case_sensitive = True
+        extra = "ignore"  # 忽略额外的配置项，避免验证错误
 
 
 # 创建全局配置实例
