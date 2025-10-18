@@ -255,7 +255,7 @@ async def sms_login(
     )
 
 
-@router.post("/wechat-login", response_model=TokenResponse, summary="微信小程序登录")
+@router.post("/wechat-login", summary="微信小程序登录")
 async def wechat_login(
     request: WechatLoginRequest,
     db: Session = Depends(get_db)
@@ -319,10 +319,14 @@ async def wechat_login(
         data={"user_id": user.id, "openid": openid}
     )
     
-    return TokenResponse(
-        access_token=access_token,
-        user_id=user.id,
-        phone=user.phone,
-        nickname=user.nickname
+    return Response.success(
+        data={
+            "access_token": access_token,
+            "token_type": "bearer",
+            "user_id": user.id,
+            "phone": user.phone,
+            "nickname": user.nickname
+        },
+        message="登录成功"
     )
 
