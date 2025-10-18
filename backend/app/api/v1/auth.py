@@ -5,6 +5,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from datetime import timedelta
+from pydantic import BaseModel
 
 from app.core.database import get_db
 from app.core.security import verify_password, get_password_hash, create_access_token
@@ -17,6 +18,12 @@ from app.services.wechat_service import wechat_service
 
 
 router = APIRouter()
+
+
+class AdminLoginRequest(BaseModel):
+    """管理员登录请求"""
+    username: str
+    password: str
 
 
 @router.post("/send-sms", summary="发送短信验证码")
@@ -329,4 +336,62 @@ async def wechat_login(
         },
         message="登录成功"
     )
+
+
+@router.post("/admin-login", summary="管理员登录")
+async def admin_login(
+    request: AdminLoginRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    管理员登录（用户名+密码）
+    
+    固定管理员账号：
+    - 用户名：admin
+    - 密码：123456
+    """
+    # 验证管理员账号
+    if request.username == "admin" and request.password == "123456":
+        # 查找或创建管理员用户
+        admin_user = db.query(User).filter(User.phone == "admin").first()
+        
+        if not admin_user:
+            # 创建管理员用户
+            admin_user = User(
+                phone="admin",
+                password=get_password_hash("123456"),
+                nickname="管理员",
+                credit_limit=999999.00,
+                is_certified=True
+            )
+            db.add(admin_user)
+            db.commit()
+            db.refresh(admin_user)
+        
+        # 更新最后登录时间
+        from datetime import datetime
+        admin_user.last_login_at = datetime.utcnow()
+        db.commit()
+        
+        # 生成JWT令牌
+        access_token = create_access_token(
+            data={"user_id": admin_user.id, "phone": admin_user.phone, "is_admin": True}
+        )
+        
+        return Response.success(
+            data={
+                "access_token": access_token,
+                "token_type": "bearer",
+                "user_id": admin_user.id,
+                "phone": admin_user.phone,
+                "nickname": admin_user.nickname,
+                "is_admin": True
+            },
+            message="登录成功"
+        )
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="用户名或密码错误"
+        )
 

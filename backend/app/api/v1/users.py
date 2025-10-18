@@ -140,3 +140,148 @@ async def get_balance(
         "membership_level": current_user.membership_level.value  # 会员等级
     })
 
+
+@router.get("/list", summary="获取用户列表（管理员）")
+async def get_users_list(
+    page: int = 1,
+    page_size: int = 20,
+    search: str = None,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    获取用户列表（仅管理员可用）
+    
+    - page: 页码，从1开始
+    - page_size: 每页数量，默认20
+    - search: 搜索关键词（手机号、昵称）
+    """
+    # 构建查询
+    query = db.query(User)
+    
+    # 搜索过滤
+    if search:
+        query = query.filter(
+            (User.phone.like(f"%{search}%")) | 
+            (User.nickname.like(f"%{search}%"))
+        )
+    
+    # 总数
+    total = query.count()
+    
+    # 分页
+    offset = (page - 1) * page_size
+    users = query.order_by(User.created_at.desc()).offset(offset).limit(page_size).all()
+    
+    # 转换为字典
+    users_data = []
+    for user in users:
+        users_data.append({
+            "id": user.id,
+            "phone": user.phone,
+            "nickname": user.nickname,
+            "avatar": user.avatar,
+            "email": user.email,
+            "wechat_openid": user.wechat_openid,
+            "is_certified": user.is_certified,
+            "membership_level": user.membership_level.value,
+            "credit_limit": float(user.credit_limit),
+            "used_credit": float(user.used_credit),
+            "prepaid_balance": float(user.prepaid_balance),
+            "points_balance": user.points_balance,
+            "total_spent": float(user.total_spent),
+            "total_orders": user.total_orders,
+            "status": user.status.value,
+            "created_at": user.created_at.isoformat() if user.created_at else None,
+            "last_login_at": user.last_login_at.isoformat() if user.last_login_at else None
+        })
+    
+    return Response.success(data={
+        "list": users_data,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "total_pages": (total + page_size - 1) // page_size
+    })
+
+
+@router.get("/{user_id}", summary="获取用户详情（管理员）")
+async def get_user_detail(
+    user_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """获取指定用户的详细信息（仅管理员可用）"""
+    user = db.query(User).filter(User.id == user_id).first()
+    
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="用户不存在"
+        )
+    
+    return Response.success(data={
+        "id": user.id,
+        "phone": user.phone,
+        "nickname": user.nickname,
+        "avatar": user.avatar,
+        "email": user.email,
+        "wechat_openid": user.wechat_openid,
+        "wechat_unionid": user.wechat_unionid,
+        "is_certified": user.is_certified,
+        "real_name": user.real_name,
+        "id_card": user.id_card,
+        "membership_level": user.membership_level.value,
+        "credit_limit": float(user.credit_limit),
+        "used_credit": float(user.used_credit),
+        "prepaid_balance": float(user.prepaid_balance),
+        "points_balance": user.points_balance,
+        "total_points_earned": user.total_points_earned,
+        "total_points_used": user.total_points_used,
+        "total_spent": float(user.total_spent),
+        "total_orders": user.total_orders,
+        "status": user.status.value,
+        "created_at": user.created_at.isoformat() if user.created_at else None,
+        "updated_at": user.updated_at.isoformat() if user.updated_at else None,
+        "last_login_at": user.last_login_at.isoformat() if user.last_login_at else None
+    })
+
+
+@router.put("/{user_id}/status", summary="更新用户状态（管理员）")
+async def update_user_status(
+    user_id: int,
+    status: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    更新用户状态（仅管理员可用）
+    
+    - status: active（激活）/ inactive（未激活）/ banned（禁用）
+    """
+    user = db.query(User).filter(User.id == user_id).first()
+    
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="用户不存在"
+        )
+    
+    # 更新状态
+    from app.models.user import UserStatus
+    if status == "active":
+        user.status = UserStatus.ACTIVE
+    elif status == "inactive":
+        user.status = UserStatus.INACTIVE
+    elif status == "banned":
+        user.status = UserStatus.BANNED
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="无效的状态值"
+        )
+    
+    db.commit()
+    
+    return Response.success(message="状态更新成功")
+

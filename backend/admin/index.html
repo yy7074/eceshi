@@ -75,25 +75,53 @@
         <div v-if="!token" class="login-container">
             <div class="login-box">
                 <h2 style="text-align: center; margin-bottom: 30px;">后台管理登录</h2>
-                <el-form :model="loginForm" @submit.prevent="handleLogin">
-                    <el-form-item label="手机号">
-                        <el-input v-model="loginForm.phone" placeholder="请输入手机号"></el-input>
-                    </el-form-item>
-                    <el-form-item label="验证码">
-                        <el-input v-model="loginForm.sms_code" placeholder="请输入验证码">
-                            <template #append>
-                                <el-button @click="sendSms" :disabled="countdown > 0">
-                                    {{ countdown > 0 ? `${countdown}秒后重试` : '获取验证码' }}
+                
+                <el-tabs v-model="loginType">
+                    <!-- 管理员登录 -->
+                    <el-tab-pane label="管理员登录" name="admin">
+                        <el-form :model="adminLoginForm" @submit.prevent="handleAdminLogin">
+                            <el-form-item label="用户名">
+                                <el-input v-model="adminLoginForm.username" placeholder="请输入用户名"></el-input>
+                            </el-form-item>
+                            <el-form-item label="密码">
+                                <el-input 
+                                    v-model="adminLoginForm.password" 
+                                    type="password" 
+                                    placeholder="请输入密码"
+                                    show-password
+                                    @keyup.enter="handleAdminLogin"></el-input>
+                            </el-form-item>
+                            <el-form-item>
+                                <el-button type="primary" @click="handleAdminLogin" style="width: 100%;" :loading="loading">
+                                    登录
                                 </el-button>
-                            </template>
-                        </el-input>
-                    </el-form-item>
-                    <el-form-item>
-                        <el-button type="primary" @click="handleLogin" style="width: 100%;" :loading="loading">
-                            登录
-                        </el-button>
-                    </el-form-item>
-                </el-form>
+                            </el-form-item>
+                        </el-form>
+                    </el-tab-pane>
+                    
+                    <!-- 短信登录 -->
+                    <el-tab-pane label="短信登录" name="sms">
+                        <el-form :model="loginForm" @submit.prevent="handleLogin">
+                            <el-form-item label="手机号">
+                                <el-input v-model="loginForm.phone" placeholder="请输入手机号"></el-input>
+                            </el-form-item>
+                            <el-form-item label="验证码">
+                                <el-input v-model="loginForm.sms_code" placeholder="请输入验证码">
+                                    <template #append>
+                                        <el-button @click="sendSms" :disabled="countdown > 0">
+                                            {{ countdown > 0 ? `${countdown}秒后重试` : '获取验证码' }}
+                                        </el-button>
+                                    </template>
+                                </el-input>
+                            </el-form-item>
+                            <el-form-item>
+                                <el-button type="primary" @click="handleLogin" style="width: 100%;" :loading="loading">
+                                    登录
+                                </el-button>
+                            </el-form-item>
+                        </el-form>
+                    </el-tab-pane>
+                </el-tabs>
             </div>
         </div>
 
@@ -150,14 +178,131 @@
 
                     <!-- 用户管理 -->
                     <el-tab-pane label="用户管理" name="users">
-                        <el-table :data="users" style="width: 100%">
+                        <div style="margin-bottom: 20px;">
+                            <el-input 
+                                v-model="userSearch" 
+                                placeholder="搜索手机号或昵称"
+                                style="width: 300px; margin-right: 10px;"
+                                @change="loadUsers">
+                                <template #prefix>
+                                    <el-icon><Search /></el-icon>
+                                </template>
+                            </el-input>
+                            <el-button type="primary" @click="loadUsers">搜索</el-button>
+                            <el-button @click="userSearch=''; loadUsers()">重置</el-button>
+                        </div>
+
+                        <el-table :data="users" style="width: 100%" v-loading="usersLoading">
                             <el-table-column prop="id" label="ID" width="80"></el-table-column>
-                            <el-table-column prop="nickname" label="昵称"></el-table-column>
-                            <el-table-column prop="phone" label="手机号"></el-table-column>
-                            <el-table-column prop="credit_limit" label="信用额度"></el-table-column>
-                            <el-table-column prop="status" label="状态"></el-table-column>
-                            <el-table-column prop="created_at" label="注册时间"></el-table-column>
+                            <el-table-column prop="nickname" label="昵称" width="120"></el-table-column>
+                            <el-table-column prop="phone" label="手机号" width="130">
+                                <template #default="scope">
+                                    {{ scope.row.phone || '未绑定' }}
+                                </template>
+                            </el-table-column>
+                            <el-table-column label="登录方式" width="100">
+                                <template #default="scope">
+                                    <el-tag v-if="scope.row.wechat_openid" type="success" size="small">微信</el-tag>
+                                    <el-tag v-if="scope.row.phone" type="info" size="small">手机</el-tag>
+                                </template>
+                            </el-table-column>
+                            <el-table-column prop="credit_limit" label="信用额度" width="100">
+                                <template #default="scope">
+                                    ¥{{ scope.row.credit_limit }}
+                                </template>
+                            </el-table-column>
+                            <el-table-column prop="total_spent" label="累计消费" width="100">
+                                <template #default="scope">
+                                    ¥{{ scope.row.total_spent }}
+                                </template>
+                            </el-table-column>
+                            <el-table-column prop="total_orders" label="订单数" width="80"></el-table-column>
+                            <el-table-column label="状态" width="80">
+                                <template #default="scope">
+                                    <el-tag 
+                                        :type="scope.row.status === 'active' ? 'success' : 'danger'" 
+                                        size="small">
+                                        {{ getStatusText(scope.row.status) }}
+                                    </el-tag>
+                                </template>
+                            </el-table-column>
+                            <el-table-column prop="created_at" label="注册时间" width="170">
+                                <template #default="scope">
+                                    {{ formatDate(scope.row.created_at) }}
+                                </template>
+                            </el-table-column>
+                            <el-table-column prop="last_login_at" label="最后登录" width="170">
+                                <template #default="scope">
+                                    {{ formatDate(scope.row.last_login_at) }}
+                                </template>
+                            </el-table-column>
+                            <el-table-column label="操作" width="200" fixed="right">
+                                <template #default="scope">
+                                    <el-button type="primary" size="small" @click="viewUser(scope.row)">
+                                        查看详情
+                                    </el-button>
+                                    <el-button 
+                                        v-if="scope.row.status === 'active'"
+                                        type="danger" 
+                                        size="small" 
+                                        @click="updateUserStatus(scope.row.id, 'banned')">
+                                        禁用
+                                    </el-button>
+                                    <el-button 
+                                        v-else
+                                        type="success" 
+                                        size="small" 
+                                        @click="updateUserStatus(scope.row.id, 'active')">
+                                        激活
+                                    </el-button>
+                                </template>
+                            </el-table-column>
                         </el-table>
+
+                        <el-pagination
+                            v-model:current-page="userPage"
+                            v-model:page-size="userPageSize"
+                            :page-sizes="[10, 20, 50, 100]"
+                            :total="userTotal"
+                            layout="total, sizes, prev, pager, next, jumper"
+                            @size-change="loadUsers"
+                            @current-change="loadUsers"
+                            style="margin-top: 20px; justify-content: center;">
+                        </el-pagination>
+
+                        <!-- 用户详情对话框 -->
+                        <el-dialog v-model="userDialogVisible" title="用户详情" width="600px">
+                            <el-descriptions :column="2" border v-if="selectedUser">
+                                <el-descriptions-item label="用户ID">{{ selectedUser.id }}</el-descriptions-item>
+                                <el-descriptions-item label="昵称">{{ selectedUser.nickname }}</el-descriptions-item>
+                                <el-descriptions-item label="手机号">{{ selectedUser.phone || '未绑定' }}</el-descriptions-item>
+                                <el-descriptions-item label="邮箱">{{ selectedUser.email || '未填写' }}</el-descriptions-item>
+                                <el-descriptions-item label="微信OpenID" :span="2">
+                                    {{ selectedUser.wechat_openid || '未绑定' }}
+                                </el-descriptions-item>
+                                <el-descriptions-item label="实名认证">
+                                    <el-tag :type="selectedUser.is_certified ? 'success' : 'info'" size="small">
+                                        {{ selectedUser.is_certified ? '已认证' : '未认证' }}
+                                    </el-tag>
+                                </el-descriptions-item>
+                                <el-descriptions-item label="会员等级">
+                                    {{ getMemberLevelText(selectedUser.membership_level) }}
+                                </el-descriptions-item>
+                                <el-descriptions-item label="信用额度">¥{{ selectedUser.credit_limit }}</el-descriptions-item>
+                                <el-descriptions-item label="已用额度">¥{{ selectedUser.used_credit }}</el-descriptions-item>
+                                <el-descriptions-item label="预付余额">¥{{ selectedUser.prepaid_balance }}</el-descriptions-item>
+                                <el-descriptions-item label="积分余额">{{ selectedUser.points_balance }}</el-descriptions-item>
+                                <el-descriptions-item label="累计消费">¥{{ selectedUser.total_spent }}</el-descriptions-item>
+                                <el-descriptions-item label="订单总数">{{ selectedUser.total_orders }}</el-descriptions-item>
+                                <el-descriptions-item label="账户状态">
+                                    <el-tag :type="selectedUser.status === 'active' ? 'success' : 'danger'" size="small">
+                                        {{ getStatusText(selectedUser.status) }}
+                                    </el-tag>
+                                </el-descriptions-item>
+                                <el-descriptions-item label="注册时间">{{ formatDate(selectedUser.created_at) }}</el-descriptions-item>
+                                <el-descriptions-item label="最后登录">{{ formatDate(selectedUser.last_login_at) }}</el-descriptions-item>
+                            </el-descriptions>
+                        </el-dialog>
                     </el-tab-pane>
 
                     <!-- 订单管理 -->
@@ -179,6 +324,11 @@
                     baseUrl: 'https://catdog.dachaonet.com',
                     token: localStorage.getItem('admin_token') || '',
                     userInfo: JSON.parse(localStorage.getItem('admin_user') || '{}'),
+                    loginType: 'admin', // 默认管理员登录
+                    adminLoginForm: {
+                        username: '',
+                        password: ''
+                    },
                     loginForm: {
                         phone: '',
                         sms_code: ''
@@ -187,7 +337,14 @@
                     loading: false,
                     activeTab: 'upload',
                     uploadedImages: [],
-                    users: []
+                    users: [],
+                    usersLoading: false,
+                    userSearch: '',
+                    userPage: 1,
+                    userPageSize: 20,
+                    userTotal: 0,
+                    userDialogVisible: false,
+                    selectedUser: null
                 }
             },
             computed: {
@@ -251,6 +408,31 @@
                         this.loading = false
                     }
                 },
+                async handleAdminLogin() {
+                    if (!this.adminLoginForm.username || !this.adminLoginForm.password) {
+                        ElMessage.error('请输入用户名和密码')
+                        return
+                    }
+                    this.loading = true
+                    try {
+                        const res = await axios.post(`${this.baseUrl}/api/v1/auth/admin-login`, this.adminLoginForm)
+                        this.token = res.data.data.access_token
+                        this.userInfo = {
+                            id: res.data.data.user_id,
+                            phone: res.data.data.phone,
+                            nickname: res.data.data.nickname,
+                            is_admin: res.data.data.is_admin
+                        }
+                        localStorage.setItem('admin_token', this.token)
+                        localStorage.setItem('admin_user', JSON.stringify(this.userInfo))
+                        ElMessage.success('登录成功')
+                        this.loadUsers()
+                    } catch (error) {
+                        ElMessage.error(error.response?.data?.detail || '登录失败')
+                    } finally {
+                        this.loading = false
+                    }
+                },
                 logout() {
                     localStorage.removeItem('admin_token')
                     localStorage.removeItem('admin_user')
@@ -303,9 +485,84 @@
                     }
                 },
                 async loadUsers() {
-                    // 这里需要添加用户列表API
-                    // 暂时使用空数据
-                    this.users = []
+                    this.usersLoading = true
+                    try {
+                        const res = await axios.get(`${this.baseUrl}/api/v1/users/list`, {
+                            headers: this.uploadHeaders,
+                            params: {
+                                page: this.userPage,
+                                page_size: this.userPageSize,
+                                search: this.userSearch || undefined
+                            }
+                        })
+                        this.users = res.data.data.list
+                        this.userTotal = res.data.data.total
+                    } catch (error) {
+                        ElMessage.error(error.response?.data?.detail || '加载用户列表失败')
+                    } finally {
+                        this.usersLoading = false
+                    }
+                },
+                async viewUser(user) {
+                    try {
+                        const res = await axios.get(`${this.baseUrl}/api/v1/users/${user.id}`, {
+                            headers: this.uploadHeaders
+                        })
+                        this.selectedUser = res.data.data
+                        this.userDialogVisible = true
+                    } catch (error) {
+                        ElMessage.error(error.response?.data?.detail || '加载用户详情失败')
+                    }
+                },
+                async updateUserStatus(userId, status) {
+                    const action = status === 'active' ? '激活' : '禁用'
+                    try {
+                        await ElMessageBox.confirm(`确定要${action}该用户吗?`, '提示', {
+                            type: 'warning'
+                        })
+                        await axios.put(
+                            `${this.baseUrl}/api/v1/users/${userId}/status`, 
+                            null,
+                            {
+                                headers: this.uploadHeaders,
+                                params: { status }
+                            }
+                        )
+                        ElMessage.success(`${action}成功`)
+                        this.loadUsers()
+                    } catch (error) {
+                        if (error !== 'cancel') {
+                            ElMessage.error(error.response?.data?.detail || `${action}失败`)
+                        }
+                    }
+                },
+                getStatusText(status) {
+                    const statusMap = {
+                        'active': '正常',
+                        'inactive': '未激活',
+                        'banned': '已禁用'
+                    }
+                    return statusMap[status] || status
+                },
+                getMemberLevelText(level) {
+                    const levelMap = {
+                        0: '普通会员',
+                        1: '银卡会员',
+                        2: '金卡会员',
+                        3: '白金会员'
+                    }
+                    return levelMap[level] || '普通会员'
+                },
+                formatDate(dateStr) {
+                    if (!dateStr) return '-'
+                    const date = new Date(dateStr)
+                    return date.toLocaleString('zh-CN', {
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    })
                 }
             }
         }).use(ElementPlus).mount('#app')
