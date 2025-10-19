@@ -113,6 +113,7 @@
 					<text class="text">客服</text>
 				</view>
 			</view>
+			<button class="btn-group" @click="createGroup">发起团购</button>
 			<button class="btn-booking" @click="goBooking">立即预约</button>
 		</view>
 	</view>
@@ -215,15 +216,40 @@ export default {
 				return
 			}
 			
-			uni.navigateTo({
-				url: `/pagesA/booking/booking?projectId=${this.projectId}&projectName=${encodeURIComponent(this.project.name)}`
+		uni.navigateTo({
+			url: `/pagesA/booking/booking?projectId=${this.projectId}&projectName=${encodeURIComponent(this.project.name)}`
+		})
+	},
+	
+	// 创建团购
+	createGroup() {
+		// 检查登录
+		const token = uni.getStorageSync('token')
+		if (!token) {
+			uni.showModal({
+				title: '提示',
+				content: '请先登录',
+				success: (res) => {
+					if (res.confirm) {
+						uni.navigateTo({
+							url: '/pages/login/login'
+						})
+					}
+				}
 			})
-		},
-		
-		// 返回
-		goBack() {
-			uni.navigateBack()
+			return
 		}
+		
+		// 跳转到创建团购页面
+		uni.navigateTo({
+			url: `/pagesA/create-group/create-group?projectId=${this.projectId}&projectName=${encodeURIComponent(this.project.name)}&price=${this.project.current_price}`
+		})
+	},
+	
+	// 返回
+	goBack() {
+		uni.navigateBack()
+	}
 	}
 }
 </script>
@@ -489,12 +515,29 @@ export default {
 		}
 	}
 	
-	.btn-booking {
-		flex: 1;
-		margin-left: 30rpx;
+	.btn-group {
+		margin-left: 20rpx;
 		height: 80rpx;
 		line-height: 80rpx;
-		background: #4facfe;
+		padding: 0 30rpx;
+		background: white;
+		color: #667eea;
+		border: 2rpx solid #667eea;
+		border-radius: 40rpx;
+		font-size: 26rpx;
+		font-weight: bold;
+		
+		&::after {
+			border: none;
+		}
+	}
+	
+	.btn-booking {
+		flex: 1;
+		margin-left: 20rpx;
+		height: 80rpx;
+		line-height: 80rpx;
+		background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 		color: white;
 		border-radius: 40rpx;
 		font-size: 30rpx;

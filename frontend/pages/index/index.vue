@@ -110,9 +110,9 @@
 		data() {
 			return {
 				quickNavs: [
-					{ icon: '🔬', name: '送测样品', bg: '#eef2ff', color: '#667eea' },
+					{ icon: '🤝', name: '邀请好友', bg: '#e6fcf5', color: '#12b886' },
 					{ icon: '🎯', name: '优惠券', bg: '#fff4e6', color: '#ff922b' },
-					{ icon: '👥', name: '创建团体', bg: '#e6fcf5', color: '#12b886' },
+					{ icon: '👥', name: '创建团体', bg: '#eef2ff', color: '#667eea' },
 					{ icon: '📍', name: '我的积分', bg: '#e7f5ff', color: '#4dabf7' }
 				],
 				categories: [],
@@ -186,11 +186,22 @@
 			const token = uni.getStorageSync('token')
 			
 			switch(item.name) {
-				case '送测样品':
-					// 跳转到分类页
-					uni.switchTab({
-						url: '/pages/category/category'
-					})
+				case '邀请好友':
+					// 检查登录
+					if (!token) {
+						uni.showModal({
+							title: '提示',
+							content: '请先登录',
+							success: (res) => {
+								if (res.confirm) {
+									uni.navigateTo({ url: '/pages/login/login' })
+								}
+							}
+						})
+						return
+					}
+					// 跳转到邀请好友页面
+					uni.navigateTo({ url: '/pagesA/invite/invite' })
 					break
 				case '优惠券':
 					// 检查登录
@@ -324,22 +335,29 @@
 		display: flex;
 		justify-content: space-around;
 		background: white;
-		padding: 30rpx 0;
-		margin-bottom: 20rpx;
+		padding: 24rpx 10rpx;
+		margin: 0 30rpx 20rpx;
+		border-radius: 16rpx;
 		
 		.nav-item {
 			display: flex;
 			flex-direction: column;
 			align-items: center;
 			
-			.nav-icon {
-				font-size: 50rpx;
+			.nav-icon-wrap {
+				width: 90rpx;
+				height: 90rpx;
+				border-radius: 20rpx;
+				display: flex;
+				align-items: center;
+				justify-content: center;
 				margin-bottom: 10rpx;
 			}
+			.nav-icon { font-size: 46rpx; }
 			
 			.nav-text {
 				font-size: 24rpx;
-				color: #666;
+				color: #333;
 			}
 		}
 	}
@@ -565,13 +583,12 @@
 						white-space: nowrap;
 					}
 					
-					.project-meta {
+				.project-meta {
 						margin-bottom: 15rpx;
-						
-						.project-views {
-							font-size: 22rpx;
-							color: #999;
-						}
+					.project-meta-row { display: flex; align-items: center; gap: 8rpx; }
+					.tested { font-size: 22rpx; color: #666; }
+					.dot { color: #ccc; }
+					.cycle { font-size: 22rpx; color: #999; }
 					}
 					
 					.project-footer {

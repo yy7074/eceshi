@@ -1,128 +1,148 @@
 <template>
 	<view class="invite-page">
-		<!-- 头部Banner -->
-		<view class="header-banner">
-			<text class="banner-title">邀请好友</text>
-			<text class="banner-subtitle">送好礼 享返利</text>
-			<view class="invite-code-card">
-				<text class="code-label">我的邀请码</text>
-				<text class="code-value">{{ inviteCode }}</text>
-				<button class="copy-btn" @click="copyInviteCode">复制邀请码</button>
+		<!-- 顶部统计卡片 -->
+		<view class="top-card">
+			<view class="card-left">
+				<text class="card-label">可提现奖励(元)</text>
+				<text class="card-amount">{{ withdrawable.toFixed(2) }}</text>
+				<text class="card-link" @click="handleWithdraw">立即提现 ›</text>
+			</view>
+			<view class="card-right">
+				<text class="bag-emoji">💰</text>
+			</view>
+			<view class="rule-badge" @click="showRulesModal">规则</view>
+		</view>
+		
+		<!-- 四项指标 -->
+		<view class="stats-grid">
+			<view class="stat-item">
+				<text class="stat-value">{{ myInvites }}</text>
+				<text class="stat-label">我的邀请(人)</text>
+			</view>
+			<view class="stat-item">
+				<text class="stat-value">{{ predictedOrders }}</text>
+				<text class="stat-label">预测收益(单)</text>
+			</view>
+			<view class="stat-item">
+				<text class="stat-value">{{ predictedRewards.toFixed(2) }}</text>
+				<text class="stat-label">预测奖励(元)</text>
+			</view>
+			<view class="stat-item">
+				<text class="stat-value">{{ earnedRewards.toFixed(2) }}</text>
+				<text class="stat-label">已得奖励(元)</text>
 			</view>
 		</view>
 		
-		<!-- 返利规则 -->
-		<view class="rules-section">
-			<view class="section-title">
-				<text class="title-icon">💰</text>
-				<text class="title-text">返利规则</text>
+		<!-- 邀请奖励 -->
+		<view class="reward-panel">
+			<view class="panel-header orange">
+				<text>邀请奖励</text>
+				<text class="header-emoji">🎁</text>
 			</view>
-			<view class="rules-list">
-				<view class="rule-item">
-					<text class="rule-number">1</text>
-					<view class="rule-content">
-						<text class="rule-title">好友注册</text>
-						<text class="rule-desc">好友通过您的邀请码注册，您可获得10积分</text>
+			<view class="panel-body">
+				<view class="reward-item">
+					<text class="reward-tag">奖励一</text>
+				</view>
+				<text class="reward-text">好友注册30天内下单（不限量），邀请人可获得订单金额的 <text class="highlight orange">8%</text>现金奖励；</text>
+				
+				<view class="reward-item">
+					<text class="reward-tag">奖励二</text>
+				</view>
+				<text class="reward-text">好友注册31—100天内下单（不限量），邀请人可获得订单金额的 <text class="highlight orange">4%</text>现金奖励；</text>
+			</view>
+		</view>
+		
+		<!-- 好友福利 -->
+		<view class="reward-panel">
+			<view class="panel-header blue">
+				<text>好友福利</text>
+				<text class="header-emoji">👥</text>
+			</view>
+			<view class="panel-body">
+				<view class="reward-item">
+					<text class="reward-tag blue">福利一</text>
+				</view>
+				<text class="reward-text">好友注册30天内并下单，好友可获得订单金额<text class="highlight blue">2%</text>的现金奖励；好友注册31—100天内并下单，好友可获得订单金额<text class="highlight blue">1%</text>的现金奖励；</text>
+				
+				<view class="reward-item">
+					<text class="reward-tag blue">福利二</text>
+				</view>
+				<text class="reward-text">注册即得首样免费<text class="highlight orange">200元</text>门槛券 + 新客专区<text class="highlight orange">6折</text>起测试优惠（价值500元）</text>
+			</view>
+		</view>
+		
+		<!-- 邀请好友流程 -->
+		<view class="flow-section">
+			<view class="section-title">邀请好友流程</view>
+			<view class="flow-list">
+				<view class="flow-item">
+					<text class="flow-number">01.</text>
+					<view class="flow-content">
+						<view class="flow-step">邀请好友完成注册</view>
+						<button class="flow-btn" open-type="share">立即分享好友</button>
 					</view>
 				</view>
-				<view class="rule-item">
-					<text class="rule-number">2</text>
-					<view class="rule-content">
-						<text class="rule-title">好友下单</text>
-						<text class="rule-desc">好友首次下单，您可获得订单金额5%的返利</text>
+				<view class="flow-item">
+					<text class="flow-number">02.</text>
+					<view class="flow-content">
+						<view class="flow-step">好友完成注册</view>
+						<text class="flow-desc">好友获得<text class="highlight orange">200元</text>首样优惠券 + 价值<text class="highlight orange">500元</text>新客专区<text class="highlight orange">6折</text>优惠</text>
 					</view>
 				</view>
-				<view class="rule-item">
-					<text class="rule-number">3</text>
-					<view class="rule-content">
-						<text class="rule-title">持续返利</text>
-						<text class="rule-desc">好友后续消费，您可持续获得3%的返利</text>
+				<view class="flow-item">
+					<text class="flow-number">03.</text>
+					<view class="flow-content">
+						<view class="flow-step">好友注册30天内下单（不限量）</view>
+						<text class="flow-desc">您可获得订单金额的<text class="highlight orange">8%</text>奖励，好友获得订单金额<text class="highlight blue">2%</text>奖励</text>
+					</view>
+				</view>
+				<view class="flow-item">
+					<text class="flow-number">04.</text>
+					<view class="flow-content">
+						<view class="flow-step">好友注册31—100天内下单（不限量）</view>
+						<text class="flow-desc">您可获得订单金额的<text class="highlight orange">4%</text>奖励，好友获得订单金额<text class="highlight blue">1%</text>奖励</text>
+					</view>
+				</view>
+				<view class="flow-item">
+					<text class="flow-number">05.</text>
+					<view class="flow-content">
+						<view class="flow-step">好友订单完成（信用支付需还款）</view>
+						<text class="flow-desc">订单奖励全部解冻</text>
+					</view>
+				</view>
+				<view class="flow-item">
+					<text class="flow-number">06.</text>
+					<view class="flow-content">
+						<view class="flow-step">【钱包】里自动提醒</view>
+						<button class="flow-btn orange">查看钱包</button>
+						<text class="flow-desc">提现需实名认证</text>
 					</view>
 				</view>
 			</view>
 		</view>
 		
-		<!-- 我的收益 -->
-		<view class="earnings-section">
-			<view class="section-title">
-				<text class="title-icon">📊</text>
-				<text class="title-text">我的收益</text>
-			</view>
-			<view class="earnings-stats">
-				<view class="stat-item">
-					<text class="stat-value">{{ totalInvites }}</text>
-					<text class="stat-label">累计邀请</text>
-				</view>
-				<view class="stat-divider"></view>
-				<view class="stat-item">
-					<text class="stat-value">¥{{ totalEarnings.toFixed(2) }}</text>
-					<text class="stat-label">累计收益</text>
-				</view>
-				<view class="stat-divider"></view>
-				<view class="stat-item">
-					<text class="stat-value">¥{{ availableEarnings.toFixed(2) }}</text>
-					<text class="stat-label">可提现收益</text>
-				</view>
-			</view>
-			<button v-if="availableEarnings > 0" class="withdraw-btn" @click="handleWithdraw">
-				立即提现
-			</button>
-		</view>
-		
-		<!-- 邀请记录 -->
-		<view class="records-section">
-			<view class="section-header">
-				<view class="section-title">
-					<text class="title-icon">👥</text>
-					<text class="title-text">邀请记录</text>
-				</view>
-				<view class="tabs">
-					<view 
-						v-for="(tab, index) in tabs" 
-						:key="index"
-						:class="['tab-item', currentTab === index ? 'active' : '']"
-						@click="switchTab(index)"
-					>
-						{{ tab }}
-					</view>
-				</view>
-			</view>
-			
-			<!-- 邀请列表 -->
-			<view v-if="records.length > 0" class="records-list">
-				<view v-for="(item, index) in records" :key="index" class="record-item">
-					<view class="record-avatar">
-						<image v-if="item.avatar" :src="item.avatar" mode="aspectFill"></image>
-						<text v-else class="avatar-text">{{ item.nickname.substring(0, 1) }}</text>
-					</view>
-					<view class="record-info">
-						<text class="record-name">{{ item.nickname }}</text>
-						<text class="record-time">{{ item.time }}</text>
-					</view>
-					<view class="record-reward">
-						<text v-if="currentTab === 0" class="reward-amount">+{{ item.points }}积分</text>
-						<text v-else class="reward-amount">+¥{{ item.amount.toFixed(2) }}</text>
-					</view>
-				</view>
-			</view>
-			
-			<!-- 空状态 -->
-			<view v-else class="empty-state">
-				<text class="empty-icon">👥</text>
-				<text class="empty-text">{{ currentTab === 0 ? '还没有邀请记录' : '还没有返利记录' }}</text>
+		<!-- 活动规则 -->
+		<view class="text-section">
+			<view class="section-title">活动规则</view>
+			<view class="text-content">
+				<text>1. 被邀请人通过邀请人分享的邀请链接注册成功，并在注册后30天内下单（不限平台、不限单量），邀请人即可获得邀请订单金额的现金奖励；被邀请人可获得订单金额2%与1%的现金奖励；</text>
+				<text>2. 现金奖励的计算方式：按订单实际支付金额（含使用抵扣后金额）计算；</text>
+				<text>3. 若被邀请人订单产生退款，系统将自动扣减对应奖励；若存在恶意刷单行为，平台将取消其奖励资格；</text>
+				<text>4. 奖励到账时间为订单完成后T+7日；</text>
 			</view>
 		</view>
 		
-		<!-- 分享按钮 -->
-		<view class="footer-btns">
-			<button class="share-btn wechat" open-type="share">
-				<text class="btn-icon">💬</text>
-				<text class="btn-text">分享给好友</text>
-			</button>
-			<button class="share-btn moments" @click="shareMoments">
-				<text class="btn-icon">📱</text>
-				<text class="btn-text">生成海报</text>
-			</button>
+		<!-- 提现规则 -->
+		<view class="text-section">
+			<view class="section-title">提现规则</view>
+			<view class="text-content">
+				<text>支持在"可提现奖励"处发起提现，需完成实名认证；平台保留规则最终解释权。</text>
+			</view>
+		</view>
+		
+		<!-- 底部分享按钮 -->
+		<view class="footer-btn">
+			<button class="share-btn" open-type="share">立即分享好友</button>
 		</view>
 	</view>
 </template>
@@ -131,101 +151,73 @@
 export default {
 	data() {
 		return {
-			inviteCode: '',
-			totalInvites: 0,
-			totalEarnings: 0,
-			availableEarnings: 0,
-			currentTab: 0,
-			tabs: ['邀请记录', '返利记录'],
-			records: []
+			withdrawable: 0,
+			myInvites: 0,
+			predictedOrders: 0,
+			predictedRewards: 0,
+			earnedRewards: 0
 		}
 	},
 	
 	onLoad() {
-		this.generateInviteCode()
 		this.loadInviteData()
 	},
 	
 	// 分享配置
 	onShareAppMessage() {
+		const userInfo = uni.getStorageSync('userInfo') || {}
 		return {
-			title: `我在科研检测服务平台发现了超好用的检测服务！输入我的邀请码 ${this.inviteCode} 立享优惠！`,
-			path: `/pages/index/index?inviteCode=${this.inviteCode}`
+			title: '我在科研检测服务平台发现了超好用的检测服务！注册即享优惠！',
+			path: `/pages/index/index?inviteUserId=${userInfo.id}`
 		}
 	},
 	
 	methods: {
-		// 生成邀请码
-		generateInviteCode() {
-			// TODO: 从后端获取邀请码
-			const userId = uni.getStorageSync('userInfo')?.id || '000000'
-			this.inviteCode = `INV${userId.toString().padStart(6, '0')}`
-		},
-		
 		// 加载邀请数据
 		async loadInviteData() {
 			try {
 				// TODO: 调用API获取邀请数据
-				this.totalInvites = 0
-				this.totalEarnings = 0
-				this.availableEarnings = 0
-				this.loadRecords()
+				this.withdrawable = 0
+				this.myInvites = 0
+				this.predictedOrders = 0
+				this.predictedRewards = 0
+				this.earnedRewards = 0
 			} catch (error) {
 				console.error('加载邀请数据失败', error)
 			}
 		},
 		
-		// 加载记录
-		async loadRecords() {
-			try {
-				// TODO: 调用API获取邀请/返利记录
-				this.records = []
-			} catch (error) {
-				console.error('加载记录失败', error)
-			}
-		},
-		
-		// 复制邀请码
-		copyInviteCode() {
-			uni.setClipboardData({
-				data: this.inviteCode,
-				success: () => {
-					uni.showToast({
-						title: '邀请码已复制',
-						icon: 'success'
-					})
-				}
-			})
-		},
-		
-		// 切换Tab
-		switchTab(index) {
-			this.currentTab = index
-			this.loadRecords()
-		},
-		
 		// 提现
 		handleWithdraw() {
+			if (this.withdrawable <= 0) {
+				uni.showToast({
+					title: '暂无可提现奖励',
+					icon: 'none'
+				})
+				return
+			}
+			
 			uni.showModal({
 				title: '提现',
-				content: `确认提现 ¥${this.availableEarnings.toFixed(2)} 到钱包吗？`,
+				content: `确认提现 ¥${this.withdrawable.toFixed(2)} 到钱包吗？需要先完成实名认证。`,
 				success: (res) => {
 					if (res.confirm) {
-						uni.showToast({
-							title: '提现功能开发中',
-							icon: 'none'
+						// 检查是否实名
+						uni.navigateTo({
+							url: '/pagesA/certification/certification'
 						})
 					}
 				}
 			})
 		},
 		
-		// 生成海报
-		shareMoments() {
-			uni.showToast({
-				title: '海报生成功能开发中',
-				icon: 'none',
-				duration: 2000
+		// 显示规则
+		showRulesModal() {
+			uni.showModal({
+				title: '邀请活动规则',
+				content: '好友注册30天内下单奖励8%，31-100天内下单奖励4%；好友现金奖励：30天内2%，31-100天内1%。奖励以实际支付金额计算，退款将扣减奖励。订单完成后T+7日到账。',
+				showCancel: false,
+				confirmText: '我知道了'
 			})
 		}
 	}
@@ -235,336 +227,286 @@ export default {
 <style lang="scss" scoped>
 .invite-page {
 	min-height: 100vh;
-	background: #f5f5f5;
-	padding-bottom: 180rpx;
+	background: linear-gradient(180deg, #eef5ff 0%, #f5f5f5 20%);
+	padding-bottom: 140rpx;
 }
 
-.header-banner {
-	background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%);
-	padding: 60rpx 30rpx 80rpx;
-	display: flex;
-	flex-direction: column;
-	align-items: center;
-	
-	.banner-title {
-		font-size: 48rpx;
-		font-weight: bold;
-		color: white;
-		margin-bottom: 10rpx;
-	}
-	
-	.banner-subtitle {
-		font-size: 28rpx;
-		color: white;
-		opacity: 0.9;
-		margin-bottom: 40rpx;
-	}
-	
-	.invite-code-card {
-		background: white;
-		border-radius: 16rpx;
-		padding: 40rpx;
-		width: 600rpx;
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		box-shadow: 0 8rpx 30rpx rgba(0, 0, 0, 0.1);
-		
-		.code-label {
-			font-size: 26rpx;
-			color: #999;
-			margin-bottom: 20rpx;
-		}
-		
-		.code-value {
-			font-size: 56rpx;
-			font-weight: bold;
-			color: #ff9a9e;
-			letter-spacing: 8rpx;
-			margin-bottom: 30rpx;
-		}
-		
-		.copy-btn {
-			background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%);
-			color: white;
-			border: none;
-			border-radius: 50rpx;
-			padding: 20rpx 60rpx;
-			font-size: 28rpx;
-		}
-	}
-}
-
-.rules-section,
-.earnings-section,
-.records-section {
+/* 顶部统计卡片 */
+.top-card {
 	background: white;
 	margin: 20rpx 30rpx;
 	border-radius: 16rpx;
 	padding: 30rpx;
-}
-
-.section-title {
 	display: flex;
 	align-items: center;
-	margin-bottom: 30rpx;
-	
-	.title-icon {
-		font-size: 36rpx;
-		margin-right: 15rpx;
-	}
-	
-	.title-text {
-		font-size: 32rpx;
-		font-weight: bold;
-		color: #333;
-	}
+	position: relative;
+	box-shadow: 0 4rpx 20rpx rgba(0, 0, 0, 0.05);
 }
 
-.rules-list {
-	.rule-item {
-		display: flex;
-		padding: 30rpx 0;
-		border-bottom: 1rpx solid #f5f5f5;
-		
-		&:last-child {
-			border-bottom: none;
-		}
-		
-		.rule-number {
-			width: 60rpx;
-			height: 60rpx;
-			background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%);
-			color: white;
-			border-radius: 50%;
-			display: flex;
-			align-items: center;
-			justify-content: center;
-			font-size: 28rpx;
-			font-weight: bold;
-			margin-right: 20rpx;
-			flex-shrink: 0;
-		}
-		
-		.rule-content {
-			flex: 1;
-			display: flex;
-			flex-direction: column;
-			
-			.rule-title {
-				font-size: 28rpx;
-				font-weight: bold;
-				color: #333;
-				margin-bottom: 10rpx;
-			}
-			
-			.rule-desc {
-				font-size: 26rpx;
-				color: #666;
-				line-height: 1.6;
-			}
-		}
-	}
+.card-left {
+	flex: 1;
 }
 
-.earnings-stats {
+.card-label {
+	font-size: 26rpx;
+	color: #666;
+	display: block;
+	margin-bottom: 10rpx;
+}
+
+.card-amount {
+	font-size: 72rpx;
+	font-weight: 700;
+	color: #333;
+	display: block;
+	line-height: 1.2;
+	margin-bottom: 12rpx;
+}
+
+.card-link {
+	font-size: 24rpx;
+	color: #4dabf7;
+}
+
+.card-right {
+	width: 140rpx;
 	display: flex;
-	justify-content: space-around;
-	padding: 30rpx 0;
-	margin-bottom: 20rpx;
-	
-	.stat-item {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		
-		.stat-value {
-			font-size: 40rpx;
-			font-weight: bold;
-			color: #ff9a9e;
-			margin-bottom: 10rpx;
-		}
-		
-		.stat-label {
-			font-size: 24rpx;
-			color: #999;
-		}
-	}
-	
-	.stat-divider {
-		width: 1rpx;
-		background: #eee;
-	}
+	justify-content: center;
+	align-items: center;
 }
 
-.withdraw-btn {
-	width: 100%;
-	background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%);
-	color: white;
-	border: none;
-	border-radius: 50rpx;
-	padding: 25rpx;
-	font-size: 28rpx;
-	font-weight: bold;
+.bag-emoji {
+	font-size: 110rpx;
 }
 
-.records-section {
-	.section-header {
-		display: flex;
-		flex-direction: column;
-		margin-bottom: 30rpx;
-		
-		.tabs {
-			display: flex;
-			margin-top: 20rpx;
-			border-bottom: 1rpx solid #eee;
-			
-			.tab-item {
-				flex: 1;
-				text-align: center;
-				padding: 20rpx 0;
-				font-size: 28rpx;
-				color: #666;
-				position: relative;
-				
-				&.active {
-					color: #ff9a9e;
-					font-weight: bold;
-					
-					&::after {
-						content: '';
-						position: absolute;
-						bottom: 0;
-						left: 50%;
-						transform: translateX(-50%);
-						width: 60rpx;
-						height: 4rpx;
-						background: #ff9a9e;
-						border-radius: 2rpx;
-					}
-				}
-			}
-		}
-	}
-	
-	.records-list {
-		.record-item {
-			display: flex;
-			align-items: center;
-			padding: 30rpx 0;
-			border-bottom: 1rpx solid #f5f5f5;
-			
-			&:last-child {
-				border-bottom: none;
-			}
-			
-			.record-avatar {
-				width: 80rpx;
-				height: 80rpx;
-				border-radius: 50%;
-				background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%);
-				overflow: hidden;
-				margin-right: 20rpx;
-				display: flex;
-				align-items: center;
-				justify-content: center;
-				
-				image {
-					width: 100%;
-					height: 100%;
-				}
-				
-				.avatar-text {
-					font-size: 32rpx;
-					color: white;
-					font-weight: bold;
-				}
-			}
-			
-			.record-info {
-				flex: 1;
-				display: flex;
-				flex-direction: column;
-				
-				.record-name {
-					font-size: 28rpx;
-					color: #333;
-					margin-bottom: 10rpx;
-				}
-				
-				.record-time {
-					font-size: 24rpx;
-					color: #999;
-				}
-			}
-			
-			.record-reward {
-				.reward-amount {
-					font-size: 28rpx;
-					font-weight: bold;
-					color: #ff9a9e;
-				}
-			}
-		}
-	}
+.rule-badge {
+	position: absolute;
+	top: 20rpx;
+	right: 20rpx;
+	background: #eef2ff;
+	color: #667eea;
+	padding: 8rpx 20rpx;
+	border-radius: 20rpx;
+	font-size: 24rpx;
 }
 
-.empty-state {
+/* 四项指标 */
+.stats-grid {
+	display: grid;
+	grid-template-columns: repeat(4, 1fr);
+	background: white;
+	margin: 0 30rpx 20rpx;
+	border-radius: 12rpx;
+	padding: 24rpx 0;
+	gap: 0;
+}
+
+.stat-item {
 	display: flex;
 	flex-direction: column;
 	align-items: center;
-	padding: 100rpx 0;
-	
-	.empty-icon {
-		font-size: 120rpx;
-		margin-bottom: 30rpx;
-		opacity: 0.5;
-	}
-	
-	.empty-text {
-		font-size: 28rpx;
-		color: #999;
+	border-right: 1rpx solid #f0f0f0;
+}
+
+.stat-item:last-child {
+	border-right: none;
+}
+
+.stat-value {
+	font-size: 36rpx;
+	font-weight: 700;
+	color: #333;
+	margin-bottom: 8rpx;
+}
+
+.stat-label {
+	font-size: 22rpx;
+	color: #666;
+	text-align: center;
+}
+
+/* 奖励面板 */
+.reward-panel {
+	background: white;
+	margin: 0 30rpx 20rpx;
+	border-radius: 16rpx;
+	overflow: hidden;
+}
+
+.panel-header {
+	padding: 20rpx 24rpx;
+	font-size: 28rpx;
+	font-weight: 700;
+	color: white;
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+}
+
+.panel-header.orange {
+	background: linear-gradient(135deg, #ffb86c 0%, #ff7e5f 100%);
+}
+
+.panel-header.blue {
+	background: linear-gradient(135deg, #6ec1ff 0%, #4dabf7 100%);
+}
+
+.header-emoji {
+	font-size: 32rpx;
+}
+
+.panel-body {
+	padding: 24rpx;
+}
+
+.reward-item {
+	margin-bottom: 12rpx;
+}
+
+.reward-tag {
+	background: #ffedd5;
+	color: #ff7e5f;
+	padding: 8rpx 20rpx;
+	border-radius: 30rpx;
+	font-size: 22rpx;
+	display: inline-block;
+}
+
+.reward-tag.blue {
+	background: #e7f5ff;
+	color: #4dabf7;
+}
+
+.reward-text {
+	font-size: 26rpx;
+	color: #333;
+	line-height: 1.8;
+	display: block;
+	margin-bottom: 20rpx;
+}
+
+.highlight {
+	font-weight: 700;
+}
+
+.highlight.orange {
+	color: #ff7e5f;
+}
+
+.highlight.blue {
+	color: #4dabf7;
+}
+
+/* 邀请流程 */
+.flow-section {
+	background: white;
+	margin: 0 30rpx 20rpx;
+	border-radius: 16rpx;
+	padding: 24rpx;
+}
+
+.section-title {
+	font-size: 28rpx;
+	font-weight: 700;
+	color: #333;
+	margin-bottom: 20rpx;
+}
+
+.flow-list {
+}
+
+.flow-item {
+	display: flex;
+	padding: 20rpx 0;
+	border-bottom: 1rpx dashed #e5e5e5;
+}
+
+.flow-item:last-child {
+	border-bottom: none;
+}
+
+.flow-number {
+	color: #4dabf7;
+	font-size: 28rpx;
+	font-weight: 700;
+	width: 70rpx;
+	flex-shrink: 0;
+}
+
+.flow-content {
+	flex: 1;
+}
+
+.flow-step {
+	background: linear-gradient(135deg, #6ec1ff 0%, #4dabf7 100%);
+	color: white;
+	padding: 12rpx 24rpx;
+	border-radius: 40rpx;
+	font-size: 24rpx;
+	display: inline-block;
+	margin-bottom: 8rpx;
+}
+
+.flow-btn {
+	background: linear-gradient(135deg, #ffb86c 0%, #ff7e5f 100%);
+	color: white;
+	border: none;
+	padding: 12rpx 28rpx;
+	border-radius: 40rpx;
+	font-size: 24rpx;
+	display: inline-block;
+	margin-bottom: 8rpx;
+}
+
+.flow-btn.orange {
+	background: linear-gradient(135deg, #ffb86c 0%, #ff7e5f 100%);
+}
+
+.flow-desc {
+	font-size: 24rpx;
+	color: #666;
+	line-height: 1.6;
+	display: block;
+	margin-top: 8rpx;
+}
+
+/* 文字区块 */
+.text-section {
+	background: white;
+	margin: 0 30rpx 20rpx;
+	border-radius: 16rpx;
+	padding: 24rpx;
+}
+
+.text-content {
+	text {
+		font-size: 24rpx;
+		color: #666;
+		line-height: 1.8;
+		display: block;
+		margin-bottom: 12rpx;
 	}
 }
 
-.footer-btns {
+/* 底部按钮 */
+.footer-btn {
 	position: fixed;
 	bottom: 0;
 	left: 0;
 	right: 0;
 	padding: 20rpx 30rpx;
 	background: white;
-	display: flex;
-	gap: 20rpx;
 	box-shadow: 0 -2rpx 10rpx rgba(0, 0, 0, 0.05);
-	
-	.share-btn {
-		flex: 1;
-		border: none;
-		border-radius: 50rpx;
-		padding: 30rpx;
-		font-size: 28rpx;
-		font-weight: bold;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		
-		&.wechat {
-			background: linear-gradient(135deg, #1aad19 0%, #2cc562 100%);
-			color: white;
-		}
-		
-		&.moments {
-			background: white;
-			color: #ff9a9e;
-			border: 2rpx solid #ff9a9e;
-		}
-		
-		.btn-icon {
-			font-size: 32rpx;
-			margin-right: 10rpx;
-		}
-	}
+}
+
+.share-btn {
+	width: 100%;
+	background: linear-gradient(135deg, #ffb86c 0%, #ff7e5f 100%);
+	color: white;
+	border: none;
+	border-radius: 50rpx;
+	padding: 30rpx;
+	font-size: 32rpx;
+	font-weight: 700;
 }
 </style>
-

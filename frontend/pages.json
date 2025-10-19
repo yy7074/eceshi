@@ -174,6 +174,18 @@
 			"style": {
 				"navigationBarTitleText": "评价订单"
 			}
+		},
+		{
+			"path": "group-detail/group-detail",
+			"style": {
+				"navigationBarTitleText": "团体详情"
+			}
+		},
+		{
+			"path": "create-group/create-group",
+			"style": {
+				"navigationBarTitleText": "创建团购"
+			}
 		}
 	]
 }

@@ -455,7 +455,6 @@ async def get_project_detail(
         "introduction": project_db.introduction or "暂无介绍",
         "booking_notice": project_db.booking_notice or "请提前预约，按时送样",
         "sample_requirements": project_db.sample_requirements or "请联系客服了解样品要求",
-        "detection_range": project_db.detection_range,
         "is_hot": project_db.is_hot,
         "is_recommended": project_db.is_recommended,
         "status": project_db.status,
