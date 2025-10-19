@@ -334,41 +334,70 @@ async def get_projects(
     获取检测项目列表
     支持分类筛选、关键词搜索、分页
     """
-    # TODO: 从数据库查询项目列表
-    projects = [
-        {
-            "id": 1,
-            "name": "场发射扫描电镜（SEM）",
-            "category": "电镜专场",
-            "original_price": 400.00,
-            "current_price": 312.00,
-            "satisfaction": 99,
-            "booking_count": 10987,
-            "service_cycle_min": 2.5,
-            "service_cycle_max": 6.0,
-            "equipment_model": "日本 JEOL JSM-7800F",
-            "lab_name": "某985高校材料实验室",
-            "cover_image": "https://example.com/project1.jpg"
-        },
-        {
-            "id": 2,
-            "name": "凝胶渗透色谱（GPC）",
-            "category": "材料测试",
-            "original_price": 350.00,
-            "current_price": 280.00,
-            "satisfaction": 98,
-            "booking_count": 8765,
-            "service_cycle_min": 3.0,
-            "service_cycle_max": 7.0,
-            "equipment_model": "美国 Agilent-1260 Infinity II",
-            "lab_name": "某211高校化学实验室",
-            "cover_image": "https://example.com/project2.jpg"
-        }
-    ]
+    # 从数据库查询项目列表
+    from sqlalchemy import or_
+    from sqlalchemy.orm import joinedload
+    
+    query = db.query(Project).options(
+        joinedload(Project.category),
+        joinedload(Project.laboratory)
+    ).filter(Project.status == "active")
+    
+    # 分类筛选
+    if category_id:
+        query = query.filter(Project.category_id == category_id)
+    
+    # 关键词搜索
+    if keyword:
+        query = query.filter(
+            or_(
+                Project.name.like(f"%{keyword}%"),
+                Project.project_no.like(f"%{keyword}%"),
+                Project.introduction.like(f"%{keyword}%")
+            )
+        )
+    
+    # 总数
+    total = query.count()
+    
+    # 分页查询
+    projects_db = query.order_by(
+        Project.is_hot.desc(),
+        Project.is_recommended.desc(),
+        Project.sort_order,
+        Project.created_at.desc()
+    ).offset((page - 1) * page_size).limit(page_size).all()
+    
+    # 格式化返回数据
+    projects = []
+    for p in projects_db:
+        projects.append({
+            "id": p.id,
+            "project_no": p.project_no,
+            "name": p.name,
+            "category": p.category.name if p.category else None,
+            "category_id": p.category_id,
+            "original_price": float(p.original_price),
+            "current_price": float(p.current_price),
+            "unit": p.unit,
+            "satisfaction": float(p.satisfaction) if p.satisfaction else 100.0,
+            "order_count": p.order_count or 0,
+            "service_cycle_min": p.service_cycle_min,
+            "service_cycle_max": p.service_cycle_max,
+            "equipment_model": p.equipment_model,
+            "equipment_name": p.equipment_name,
+            "lab_name": p.laboratory.name if p.laboratory else None,
+            "lab_id": p.lab_id,
+            "cover_image": p.cover_image,
+            "is_hot": p.is_hot,
+            "is_recommended": p.is_recommended,
+            "introduction": p.introduction
+        })
     
     return Response.success(data={
-        "list": projects,
-        "total": len(projects),
+        "items": projects,
+        "list": projects,  # 兼容旧版本
+        "total": total,
         "page": page,
         "page_size": page_size
     })
