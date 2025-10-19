@@ -72,10 +72,10 @@
 		<!-- 项目列表 -->
 		<view class="project-section">
 			<view class="project-grid">
-				<view class="project-card" v-for="item in projects" :key="item.id" @click="goProjectDetail(item)">
-					<image :src="item.cover_image" mode="aspectFill" class="project-image" :show-menu-by-longpress="true"></image>
+				<view class="project-card" v-for="item in projects" :key="item.id">
+					<image :src="item.cover_image" mode="aspectFill" class="project-image" :show-menu-by-longpress="true" @click="goProjectDetail(item)"></image>
 					<view class="project-info">
-						<text class="project-name">{{ item.name }}</text>
+						<text class="project-name" @click="goProjectDetail(item)">{{ item.name }}</text>
 						<view class="project-meta">
 							<text class="project-views">已{{ item.order_count || 0 }}人 {{ item.service_cycle_min || 3 }}-{{ item.service_cycle_max || 5 }}个工作日</text>
 						</view>
@@ -85,7 +85,7 @@
 								<text class="price-value">{{ item.current_price }}</text>
 								<text class="price-unit">起</text>
 							</view>
-							<view class="book-btn">立即预约</view>
+							<view class="book-btn" @click.stop="goBooking(item)">立即预约</view>
 						</view>
 					</view>
 				</view>
@@ -192,11 +192,17 @@
 					url: `/pages/category/category?id=${item.id}&name=${item.name}`
 				})
 			},
-			goProjectDetail(item) {
-				uni.navigateTo({
-					url: `/pages/project/detail?id=${item.id}`
-				})
-			}
+		goProjectDetail(item) {
+			uni.navigateTo({
+				url: `/pages/project/detail?id=${item.id}`
+			})
+		},
+		goBooking(item) {
+			// 跳转到预约页面
+			uni.navigateTo({
+				url: `/pagesA/booking/booking?projectId=${item.id}&projectName=${encodeURIComponent(item.name)}`
+			})
+		}
 		}
 	}
 </script>
