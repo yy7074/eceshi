@@ -175,23 +175,99 @@
 					})
 				}
 			},
-			handleQuickNav(item) {
-				uni.showToast({
-					title: item.name,
-					icon: 'none'
-				})
-			},
+		handleQuickNav(item) {
+			// 检查登录
+			const token = uni.getStorageSync('token')
+			
+			switch(item.name) {
+				case '送测样品':
+					// 跳转到分类页
+					uni.switchTab({
+						url: '/pages/category/category'
+					})
+					break
+				case '优惠券':
+					// 检查登录
+					if (!token) {
+						uni.showModal({
+							title: '提示',
+							content: '请先登录',
+							success: (res) => {
+								if (res.confirm) {
+									uni.navigateTo({
+										url: '/pages/login/login'
+									})
+								}
+							}
+						})
+						return
+					}
+					// 跳转到优惠券页面
+					uni.navigateTo({
+						url: '/pagesA/coupon/coupon'
+					})
+					break
+				case '创建团体':
+					// 检查登录
+					if (!token) {
+						uni.showModal({
+							title: '提示',
+							content: '请先登录',
+							success: (res) => {
+								if (res.confirm) {
+									uni.navigateTo({
+										url: '/pages/login/login'
+									})
+								}
+							}
+						})
+						return
+					}
+					// 跳转到团体页面
+					uni.navigateTo({
+						url: '/pagesA/group/group'
+					})
+					break
+				case '我的积分':
+					// 检查登录
+					if (!token) {
+						uni.showModal({
+							title: '提示',
+							content: '请先登录',
+							success: (res) => {
+								if (res.confirm) {
+									uni.navigateTo({
+										url: '/pages/login/login'
+									})
+								}
+							}
+						})
+						return
+					}
+					// 跳转到积分页面
+					uni.navigateTo({
+						url: '/pagesA/points/points'
+					})
+					break
+				default:
+					uni.showToast({
+						title: '功能开发中',
+						icon: 'none'
+					})
+			}
+		},
 			goSearch() {
 				uni.showToast({
 					title: '搜索功能开发中',
 					icon: 'none'
 				})
 			},
-			goCategory(item) {
-				uni.navigateTo({
-					url: `/pages/category/category?id=${item.id}&name=${item.name}`
-				})
-			},
+		goCategory(item) {
+			// 跳转到分类页（tabBar页面使用switchTab）
+			uni.switchTab({
+				url: `/pages/category/category`
+			})
+		},
 		goProjectDetail(item) {
 			uni.navigateTo({
 				url: `/pages/project/detail?id=${item.id}`

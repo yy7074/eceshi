@@ -1,456 +1,535 @@
 <template>
-	<view class="certification-container">
-		<!-- 提示信息 -->
-		<view v-if="!certificationInfo || certificationInfo.status === 'pending'" class="tips card">
-			<text class="tips-title">📝 实名认证说明</text>
-			<text class="tips-text">• 实名认证后可获得初始信用额度</text>
-			<text class="tips-text">• 认证信息仅用于平台服务，不会泄露</text>
-			<text class="tips-text">• 审核时间：1-2个工作日</text>
-		</view>
-		
+	<view class="certification-page">
 		<!-- 认证状态 -->
-		<view v-if="certificationInfo" class="status-card card">
-			<view class="status-info">
-				<text class="status-icon">
-					{{ certificationInfo.status === 'approved' ? '✅' : 
-					   certificationInfo.status === 'pending' ? '⏳' : '❌' }}
-				</text>
-				<view class="status-text">
-					<text class="status-title">{{ getStatusText(certificationInfo.status) }}</text>
-					<text v-if="certificationInfo.status === 'rejected'" class="reject-reason">
-						拒绝原因：{{ certificationInfo.reject_reason }}
-					</text>
-				</view>
+		<view class="status-card" v-if="certInfo.status">
+			<view class="status-icon" :class="'status-' + certInfo.status">
+				<text class="icon">{{ getStatusIcon() }}</text>
 			</view>
+			<text class="status-text">{{ getStatusText() }}</text>
+			<text class="status-desc" v-if="certInfo.reject_reason">{{ certInfo.reject_reason }}</text>
 		</view>
 		
 		<!-- 认证表单 -->
-		<view v-if="!certificationInfo || certificationInfo.status === 'rejected'" class="form-container">
-			<view class="form-section card">
-				<text class="section-title">基本信息</text>
-				
-				<view class="form-item">
-					<text class="label"><text class="required">*</text>真实姓名</text>
-					<input 
-						v-model="form.real_name" 
-						placeholder="请输入真实姓名"
-						class="input"
-					/>
-				</view>
-				
-				<view class="form-item">
-					<text class="label"><text class="required">*</text>身份证号</text>
-					<input 
-						v-model="form.id_card" 
-						maxlength="18"
-						placeholder="请输入身份证号"
-						class="input"
-					/>
-				</view>
+		<view class="form-container" v-if="!certInfo.status || certInfo.status === 'rejected'">
+			<!-- 真实姓名 -->
+			<view class="form-item">
+				<text class="label"><text class="required">*</text>真实姓名</text>
+				<input 
+					v-model="form.real_name" 
+					placeholder="请输入真实姓名"
+					class="input"
+					maxlength="20"
+				/>
 			</view>
 			
-			<view class="form-section card">
-				<text class="section-title">学校信息</text>
-				
-				<view class="form-item">
-					<text class="label"><text class="required">*</text>所在地区</text>
-					<picker mode="multiSelector" :range="regionData" @change="onRegionChange">
-						<view class="picker">
-							{{ form.province && form.city ? `${form.province} ${form.city}` : '请选择省市' }}
-						</view>
-					</picker>
-				</view>
-				
-				<view class="form-item">
-					<text class="label"><text class="required">*</text>所在高校</text>
-					<input 
-						v-model="form.university" 
-						placeholder="请输入高校名称"
-						class="input"
-					/>
-				</view>
-				
-				<view class="form-item">
-					<text class="label"><text class="required">*</text>所在院系</text>
-					<input 
-						v-model="form.department" 
-						placeholder="请输入院系名称"
-						class="input"
-					/>
-				</view>
-				
-				<view class="form-item">
-					<text class="label">入学年份</text>
-					<picker mode="date" fields="year" :value="form.enrollment_year" @change="onEnrollmentChange">
-						<view class="picker">
-							{{ form.enrollment_year || '请选择入学年份' }}
-						</view>
-					</picker>
-				</view>
-				
-				<view class="form-item">
-					<text class="label">预计毕业年份</text>
-					<picker mode="date" fields="year" :value="form.graduation_year" @change="onGraduationChange">
-						<view class="picker">
-							{{ form.graduation_year || '请选择毕业年份' }}
-						</view>
-					</picker>
-				</view>
+			<!-- 身份证号 -->
+			<view class="form-item">
+				<text class="label"><text class="required">*</text>身份证号</text>
+				<input 
+					v-model="form.id_card" 
+					placeholder="请输入身份证号"
+					class="input"
+					maxlength="18"
+				/>
 			</view>
 			
-			<view class="form-section card">
-				<text class="section-title">导师信息（选填）</text>
-				
-				<view class="form-item">
-					<text class="label">导师姓名</text>
-					<input 
-						v-model="form.supervisor_name" 
-						placeholder="请输入导师姓名"
-						class="input"
-					/>
-				</view>
-				
-				<view class="form-item">
-					<text class="label">导师职称</text>
-					<picker :range="titleOptions" @change="onTitleChange">
-						<view class="picker">
-							{{ form.supervisor_title || '请选择导师职称' }}
+			<!-- 身份证照片 -->
+			<view class="upload-section">
+				<text class="section-title">身份证照片</text>
+				<view class="upload-grid">
+					<!-- 身份证正面 -->
+					<view class="upload-item">
+						<view class="upload-box" @click="chooseIdCardFront">
+							<image 
+								v-if="form.id_card_front" 
+								:src="form.id_card_front" 
+								mode="aspectFill" 
+								class="upload-image"
+							></image>
+							<view v-else class="upload-placeholder">
+								<text class="upload-icon">📷</text>
+								<text class="upload-text">身份证正面</text>
+							</view>
 						</view>
-					</picker>
-				</view>
-			</view>
-			
-			<view class="form-section card">
-				<text class="section-title">证件上传（选填）</text>
-				
-				<view class="upload-item">
-					<text class="label">学生证照片</text>
-					<view class="upload-btn" @click="uploadImage('student_card')">
-						<image v-if="form.student_card_photo" :src="form.student_card_photo" mode="aspectFill" class="preview-image"></image>
-						<view v-else class="upload-placeholder">
-							<text class="icon">📷</text>
-							<text class="text">点击上传</text>
+						<text class="upload-label">身份证正面</text>
+					</view>
+					
+					<!-- 身份证反面 -->
+					<view class="upload-item">
+						<view class="upload-box" @click="chooseIdCardBack">
+							<image 
+								v-if="form.id_card_back" 
+								:src="form.id_card_back" 
+								mode="aspectFill" 
+								class="upload-image"
+							></image>
+							<view v-else class="upload-placeholder">
+								<text class="upload-icon">📷</text>
+								<text class="upload-text">身份证反面</text>
+							</view>
 						</view>
+						<text class="upload-label">身份证反面</text>
 					</view>
 				</view>
 			</view>
 			
-			<button class="btn-submit" :loading="loading" @click="submitCertification">
-				提交认证
-			</button>
+			<!-- 提示信息 -->
+			<view class="tips-card">
+				<text class="tips-title">⚠️ 温馨提示</text>
+				<text class="tips-text">1. 请确保身份证照片清晰完整</text>
+				<text class="tips-text">2. 请上传本人真实身份证</text>
+				<text class="tips-text">3. 您的信息将严格保密</text>
+			</view>
+			
+			<!-- 提交按钮 -->
+			<view class="submit-btn-wrap">
+				<button class="submit-btn" @click="submitCertification" :disabled="submitting">
+					{{ submitting ? '提交中...' : '提交认证' }}
+				</button>
+			</view>
+		</view>
+		
+		<!-- 已认证信息展示 -->
+		<view class="certified-info" v-if="certInfo.status === 'approved'">
+			<view class="info-item">
+				<text class="info-label">真实姓名</text>
+				<text class="info-value">{{ certInfo.real_name }}</text>
+			</view>
+			<view class="info-item">
+				<text class="info-label">身份证号</text>
+				<text class="info-value">{{ maskIdCard(certInfo.id_card) }}</text>
+			</view>
+			<view class="info-item">
+				<text class="info-label">认证时间</text>
+				<text class="info-value">{{ formatDate(certInfo.approved_at) }}</text>
+			</view>
 		</view>
 	</view>
 </template>
 
 <script>
-	import api from '@/utils/api.js'
-	
-	export default {
-		data() {
-			return {
-				certificationInfo: null,
-				form: {
-					real_name: '',
-					id_card: '',
-					province: '',
-					city: '',
-					university: '',
-					department: '',
-					enrollment_year: '',
-					graduation_year: '',
-					supervisor_name: '',
-					supervisor_title: '',
-					student_card_photo: ''
-				},
-				regionData: [
-					['北京市', '上海市', '广东省', '江苏省', '浙江省'],
-					['北京市', '上海市', '广州市', '南京市', '杭州市']
-				],
-				titleOptions: ['教授', '副教授', '讲师', '助教', '研究员', '副研究员'],
-				loading: false
+import api from '@/utils/api.js'
+
+export default {
+	data() {
+		return {
+			certInfo: {},
+			form: {
+				real_name: '',
+				id_card: '',
+				id_card_front: '',
+				id_card_back: ''
+			},
+			submitting: false
+		}
+	},
+	onLoad() {
+		this.loadCertInfo()
+	},
+	methods: {
+		// 加载认证信息
+		async loadCertInfo() {
+			try {
+				const res = await api.getCertification()
+				if (res.data) {
+					this.certInfo = res.data
+					this.form = {
+						real_name: res.data.real_name || '',
+						id_card: res.data.id_card || '',
+						id_card_front: res.data.id_card_front || '',
+						id_card_back: res.data.id_card_back || ''
+					}
+				}
+			} catch (e) {
+				console.error('加载认证信息失败', e)
 			}
 		},
-		onLoad() {
-			this.loadCertificationInfo()
+		
+		// 选择身份证正面
+		chooseIdCardFront() {
+			this.uploadIdCard('front')
 		},
-		methods: {
-			// 加载认证信息
-			async loadCertificationInfo() {
-				try {
-					const res = await api.getCertification()
-					this.certificationInfo = res.data
-				} catch (error) {
-					// 未认证，不做处理
-					console.log('未认证')
+		
+		// 选择身份证反面
+		chooseIdCardBack() {
+			this.uploadIdCard('back')
+		},
+		
+		// 上传身份证
+		uploadIdCard(type) {
+			uni.chooseImage({
+				count: 1,
+				sizeType: ['compressed'],
+				sourceType: ['album', 'camera'],
+				success: (res) => {
+					const tempFilePath = res.tempFilePaths[0]
+					this.uploadImage(tempFilePath, type)
 				}
-			},
+			})
+		},
+		
+		// 上传图片
+		async uploadImage(filePath, type) {
+			uni.showLoading({ title: '上传中...' })
 			
-			// 地区选择
-			onRegionChange(e) {
-				const values = e.detail.value
-				this.form.province = this.regionData[0][values[0]]
-				this.form.city = this.regionData[1][values[1]]
-			},
-			
-			// 入学年份
-			onEnrollmentChange(e) {
-				this.form.enrollment_year = e.detail.value
-			},
-			
-			// 毕业年份
-			onGraduationChange(e) {
-				this.form.graduation_year = e.detail.value
-			},
-			
-			// 职称选择
-			onTitleChange(e) {
-				this.form.supervisor_title = this.titleOptions[e.detail.value]
-			},
-			
-			// 上传图片
-			uploadImage(type) {
-				uni.chooseImage({
-					count: 1,
-					sizeType: ['compressed'],
-					sourceType: ['camera', 'album'],
-					success: (res) => {
-						// TODO: 上传到服务器
-						// 这里先使用本地路径
-						this.form.student_card_photo = res.tempFilePaths[0]
+			try {
+				const token = uni.getStorageSync('token')
+				
+				uni.uploadFile({
+					url: 'https://catdog.dachaonet.com/api/v1/upload/image',
+					filePath: filePath,
+					name: 'file',
+					header: {
+						'Authorization': `Bearer ${token}`
+					},
+					success: (uploadRes) => {
+						const data = JSON.parse(uploadRes.data)
+						if (data.code === 200) {
+							if (type === 'front') {
+								this.form.id_card_front = data.data.url
+							} else {
+								this.form.id_card_back = data.data.url
+							}
+							uni.showToast({
+								title: '上传成功',
+								icon: 'success'
+							})
+						} else {
+							uni.showToast({
+								title: '上传失败',
+								icon: 'none'
+							})
+						}
+					},
+					fail: () => {
 						uni.showToast({
-							title: '图片上传成功',
-							icon: 'success'
+							title: '上传失败',
+							icon: 'none'
 						})
+					},
+					complete: () => {
+						uni.hideLoading()
 					}
 				})
-			},
-			
-			// 提交认证
-			async submitCertification() {
-				// 验证
-				if (!this.form.real_name) {
-					return uni.showToast({ title: '请输入真实姓名', icon: 'none' })
-				}
-				if (!this.form.id_card) {
-					return uni.showToast({ title: '请输入身份证号', icon: 'none' })
-				}
-				if (!/^\d{17}[\dXx]$/.test(this.form.id_card)) {
-					return uni.showToast({ title: '身份证号格式不正确', icon: 'none' })
-				}
-				if (!this.form.province || !this.form.city) {
-					return uni.showToast({ title: '请选择所在地区', icon: 'none' })
-				}
-				if (!this.form.university) {
-					return uni.showToast({ title: '请输入所在高校', icon: 'none' })
-				}
-				if (!this.form.department) {
-					return uni.showToast({ title: '请输入所在院系', icon: 'none' })
-				}
-				
-				this.loading = true
-				try {
-					await api.submitCertification(this.form)
-					
-					uni.showToast({
-						title: '提交成功，等待审核',
-						icon: 'success'
-					})
-					
-					setTimeout(() => {
-						uni.navigateBack()
-					}, 1500)
-					
-				} catch (error) {
-					console.error('提交认证失败', error)
-				} finally {
-					this.loading = false
-				}
-			},
-			
-			// 获取状态文本
-			getStatusText(status) {
-				const map = {
-					'pending': '审核中',
-					'approved': '已通过',
-					'rejected': '审核未通过'
-				}
-				return map[status] || status
+			} catch (e) {
+				uni.hideLoading()
+				console.error('上传图片失败', e)
 			}
+		},
+		
+		// 提交认证
+		async submitCertification() {
+			// 验证
+			if (!this.form.real_name) {
+				uni.showToast({ title: '请输入真实姓名', icon: 'none' })
+				return
+			}
+			
+			if (!this.form.id_card) {
+				uni.showToast({ title: '请输入身份证号', icon: 'none' })
+				return
+			}
+			
+			// 简单的身份证号验证
+			if (!/^[1-9]\d{5}(18|19|20)\d{2}((0[1-9])|(1[0-2]))(([0-2][1-9])|10|20|30|31)\d{3}[0-9Xx]$/.test(this.form.id_card)) {
+				uni.showToast({ title: '身份证号格式不正确', icon: 'none' })
+				return
+			}
+			
+			if (!this.form.id_card_front) {
+				uni.showToast({ title: '请上传身份证正面', icon: 'none' })
+				return
+			}
+			
+			if (!this.form.id_card_back) {
+				uni.showToast({ title: '请上传身份证反面', icon: 'none' })
+				return
+			}
+			
+			this.submitting = true
+			
+			try {
+				await api.submitCertification({
+					real_name: this.form.real_name,
+					id_card: this.form.id_card,
+					id_card_front: this.form.id_card_front,
+					id_card_back: this.form.id_card_back
+				})
+				
+				uni.showToast({
+					title: '提交成功',
+					icon: 'success'
+				})
+				
+				setTimeout(() => {
+					this.loadCertInfo()
+				}, 1500)
+			} catch (e) {
+				console.error('提交失败', e)
+				uni.showToast({
+					title: e.message || '提交失败',
+					icon: 'none'
+				})
+			} finally {
+				this.submitting = false
+			}
+		},
+		
+		// 获取状态图标
+		getStatusIcon() {
+			const iconMap = {
+				'pending': '⏰',
+				'approved': '✅',
+				'rejected': '❌'
+			}
+			return iconMap[this.certInfo.status] || '📝'
+		},
+		
+		// 获取状态文本
+		getStatusText() {
+			const statusMap = {
+				'pending': '审核中',
+				'approved': '已认证',
+				'rejected': '审核未通过'
+			}
+			return statusMap[this.certInfo.status] || ''
+		},
+		
+		// 隐藏身份证号
+		maskIdCard(idCard) {
+			if (!idCard || idCard.length < 14) return idCard
+			return idCard.replace(/^(.{6})(?:\d+)(.{4})$/, '$1********$2')
+		},
+		
+		// 格式化日期
+		formatDate(dateStr) {
+			if (!dateStr) return ''
+			const date = new Date(dateStr)
+			const Y = date.getFullYear()
+			const M = String(date.getMonth() + 1).padStart(2, '0')
+			const D = String(date.getDate()).padStart(2, '0')
+			return `${Y}-${M}-${D}`
 		}
 	}
+}
 </script>
 
 <style lang="scss" scoped>
-	.certification-container {
-		min-height: 100vh;
-		background-color: #f8f8f8;
-		padding: 20rpx 30rpx 40rpx;
-	}
-	
-	.tips {
-		padding: 30rpx;
-		margin-bottom: 20rpx;
-		background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-		
-		.tips-title {
-			display: block;
-			font-size: 32rpx;
-			font-weight: bold;
-			color: #ffffff;
-			margin-bottom: 20rpx;
-		}
-		
-		.tips-text {
-			display: block;
-			font-size: 26rpx;
-			color: rgba(255, 255, 255, 0.9);
-			line-height: 1.8;
-			margin-bottom: 8rpx;
-		}
-	}
-	
-	.status-card {
-		padding: 40rpx;
-		margin-bottom: 20rpx;
-		
-		.status-info {
-			display: flex;
-			align-items: center;
-			
-			.status-icon {
-				font-size: 60rpx;
-				margin-right: 24rpx;
-			}
-			
-			.status-text {
-				flex: 1;
-				
-				.status-title {
-					display: block;
-					font-size: 32rpx;
-					font-weight: bold;
-					color: #333;
-					margin-bottom: 12rpx;
-				}
-				
-				.reject-reason {
-					display: block;
-					font-size: 26rpx;
-					color: #ff4d4f;
-				}
-			}
-		}
-	}
-	
-	.form-container {
-		.form-section {
-			padding: 30rpx;
-			margin-bottom: 20rpx;
-			
-			.section-title {
-				display: block;
-				font-size: 32rpx;
-				font-weight: bold;
-				color: #333;
-				margin-bottom: 30rpx;
-			}
-			
-			.form-item {
-				margin-bottom: 30rpx;
-				
-				&:last-child {
-					margin-bottom: 0;
-				}
-				
-				.label {
-					display: block;
-					font-size: 28rpx;
-					color: #333;
-					margin-bottom: 16rpx;
-					
-					.required {
-						color: #ff4d4f;
-						margin-right: 4rpx;
-					}
-				}
-				
-				.input {
-					width: 100%;
-					height: 80rpx;
-					padding: 0 24rpx;
-					border: 2rpx solid #e0e0e0;
-					border-radius: 12rpx;
-					font-size: 28rpx;
-					background-color: #ffffff;
-				}
-				
-				.picker {
-					width: 100%;
-					height: 80rpx;
-					line-height: 80rpx;
-					padding: 0 24rpx;
-					border: 2rpx solid #e0e0e0;
-					border-radius: 12rpx;
-					font-size: 28rpx;
-					color: #333;
-					background-color: #ffffff;
-				}
-			}
-			
-			.upload-item {
-				.label {
-					display: block;
-					font-size: 28rpx;
-					color: #333;
-					margin-bottom: 16rpx;
-				}
-				
-				.upload-btn {
-					width: 200rpx;
-					height: 200rpx;
-					border: 2rpx dashed #ccc;
-					border-radius: 12rpx;
-					overflow: hidden;
-					
-					.preview-image {
-						width: 100%;
-						height: 100%;
-					}
-					
-					.upload-placeholder {
-						width: 100%;
-						height: 100%;
-						display: flex;
-						flex-direction: column;
-						align-items: center;
-						justify-content: center;
-						background-color: #fafafa;
-						
-						.icon {
-							font-size: 60rpx;
-							margin-bottom: 12rpx;
-						}
-						
-						.text {
-							font-size: 24rpx;
-							color: #999;
-						}
-					}
-				}
-			}
-		}
-		
-		.btn-submit {
-			width: 100%;
-			height: 88rpx;
-			line-height: 88rpx;
-			background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-			color: #ffffff;
-			border-radius: 12rpx;
-			font-size: 32rpx;
-			border: none;
-			margin-top: 40rpx;
-		}
-	}
-</style>
+.certification-page {
+	min-height: 100vh;
+	background: #f5f5f5;
+	padding-bottom: 40rpx;
+}
 
+/* 状态卡片 */
+.status-card {
+	background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+	padding: 60rpx 30rpx;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	margin-bottom: 20rpx;
+	
+	.status-icon {
+		width: 120rpx;
+		height: 120rpx;
+		border-radius: 60rpx;
+		background: rgba(255, 255, 255, 0.9);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		margin-bottom: 25rpx;
+		
+		.icon {
+			font-size: 60rpx;
+		}
+	}
+	
+	.status-text {
+		font-size: 36rpx;
+		font-weight: bold;
+		color: white;
+		margin-bottom: 15rpx;
+	}
+	
+	.status-desc {
+		font-size: 26rpx;
+		color: rgba(255, 255, 255, 0.9);
+	}
+}
+
+/* 表单容器 */
+.form-container {
+	padding: 20rpx;
+}
+
+.form-item {
+	background: white;
+	padding: 30rpx;
+	margin-bottom: 20rpx;
+	border-radius: 12rpx;
+	display: flex;
+	align-items: center;
+	
+	.label {
+		width: 180rpx;
+		font-size: 28rpx;
+		color: #333;
+		
+		.required {
+			color: #ff0000;
+			margin-right: 5rpx;
+		}
+	}
+	
+	.input {
+		flex: 1;
+		font-size: 28rpx;
+		color: #333;
+		text-align: right;
+	}
+}
+
+/* 上传区域 */
+.upload-section {
+	background: white;
+	padding: 30rpx;
+	margin-bottom: 20rpx;
+	border-radius: 12rpx;
+	
+	.section-title {
+		font-size: 30rpx;
+		font-weight: bold;
+		color: #333;
+		margin-bottom: 30rpx;
+		display: block;
+	}
+	
+	.upload-grid {
+		display: flex;
+		gap: 30rpx;
+		
+		.upload-item {
+			flex: 1;
+			
+			.upload-box {
+				width: 100%;
+				height: 300rpx;
+				border: 2rpx dashed #ddd;
+				border-radius: 12rpx;
+				overflow: hidden;
+				margin-bottom: 15rpx;
+				
+				.upload-image {
+					width: 100%;
+					height: 100%;
+				}
+				
+				.upload-placeholder {
+					width: 100%;
+					height: 100%;
+					display: flex;
+					flex-direction: column;
+					align-items: center;
+					justify-content: center;
+					background: #f5f8ff;
+					
+					.upload-icon {
+						font-size: 60rpx;
+						margin-bottom: 15rpx;
+					}
+					
+					.upload-text {
+						font-size: 24rpx;
+						color: #999;
+					}
+				}
+			}
+			
+			.upload-label {
+				font-size: 24rpx;
+				color: #666;
+				text-align: center;
+				display: block;
+			}
+		}
+	}
+}
+
+/* 提示卡片 */
+.tips-card {
+	background: #fff3e0;
+	padding: 30rpx;
+	margin-bottom: 20rpx;
+	border-radius: 12rpx;
+	
+	.tips-title {
+		font-size: 28rpx;
+		font-weight: bold;
+		color: #ff9500;
+		display: block;
+		margin-bottom: 15rpx;
+	}
+	
+	.tips-text {
+		font-size: 24rpx;
+		color: #666;
+		line-height: 1.8;
+		display: block;
+	}
+}
+
+/* 提交按钮 */
+.submit-btn-wrap {
+	padding: 30rpx;
+	
+	.submit-btn {
+		width: 100%;
+		height: 90rpx;
+		line-height: 90rpx;
+		background: #4facfe;
+		color: white;
+		border-radius: 45rpx;
+		font-size: 32rpx;
+		font-weight: bold;
+		border: none;
+		
+		&::after {
+			border: none;
+		}
+		
+		&[disabled] {
+			opacity: 0.6;
+		}
+	}
+}
+
+/* 已认证信息 */
+.certified-info {
+	background: white;
+	margin: 20rpx;
+	padding: 30rpx;
+	border-radius: 12rpx;
+	
+	.info-item {
+		display: flex;
+		justify-content: space-between;
+		padding: 20rpx 0;
+		border-bottom: 1rpx solid #f0f0f0;
+		
+		&:last-child {
+			border-bottom: none;
+		}
+		
+		.info-label {
+			font-size: 28rpx;
+			color: #666;
+		}
+		
+		.info-value {
+			font-size: 28rpx;
+			color: #333;
+		}
+	}
+}
+</style>

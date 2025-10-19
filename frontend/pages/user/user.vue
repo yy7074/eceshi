@@ -1,374 +1,530 @@
 <template>
-	<view class="user-container">
+	<view class="user-page">
 		<!-- 用户信息卡片 -->
-		<view class="user-card">
-			<view v-if="hasLogin" class="user-info">
-				<view v-if="userInfo.avatar" class="avatar">
-					<image :src="userInfo.avatar" mode="aspectFill" class="avatar-img"></image>
+		<view class="user-header">
+			<view class="user-info-card">
+				<image 
+					:src="userInfo.avatar || 'https://ui-avatars.com/api/?name=' + (userInfo.nickname || 'User')" 
+					mode="aspectFill" 
+					class="avatar"
+				></image>
+				<view class="user-text">
+					<text class="member-id">会员{{ userInfo.member_no || 'ihC12T' }}</text>
+					<text class="advisor">专属顾问{{ userInfo.advisor_name || '孙老师' }}：{{ userInfo.advisor_phone || '13385319048' }}</text>
 				</view>
-				<view v-else class="avatar avatar-placeholder">👤</view>
-				<view class="info">
-					<text class="nickname">{{ userInfo.nickname || '未设置昵称' }}</text>
-					<text class="phone">{{ userInfo.phone }}</text>
-				</view>
-				<view v-if="userInfo.membership_level > 0" class="vip-badge">
-					{{ membershipText }}
-				</view>
-			</view>
-			<view v-else class="user-info" @click="goLogin">
-				<view class="avatar avatar-placeholder">👤</view>
-				<view class="info">
-					<text class="nickname">点击登录/注册</text>
-					<text class="phone">登录后享受更多服务</text>
+				<view class="edit-btn" @click="goEditProfile">
+					<text class="edit-icon">✏️</text>
 				</view>
 			</view>
 		</view>
 		
-		<!-- 账户信息 -->
-		<view v-if="hasLogin" class="account-info card">
-			<view class="info-item" @click="goBalance">
-				<view class="value">¥{{ balance.prepaid_balance }}</view>
-				<view class="label">预付余额</view>
+		<!-- 账户金额信息 -->
+		<view class="account-cards">
+			<view class="account-item" @click="goAccountDetail('credit')">
+				<text class="amount">{{ balance.available_credit || '0.00' }}</text>
+				<text class="label">可用信用</text>
 			</view>
-			<view class="divider"></view>
-			<view class="info-item" @click="goBalance">
-				<view class="value">¥{{ balance.available_credit }}</view>
-				<view class="label">可用额度</view>
+			<view class="account-item" @click="goAccountDetail('prepaid')">
+				<text class="amount">{{ balance.prepaid_balance || '0.00' }}</text>
+				<view class="label-with-icon">
+					<text>个人预付</text>
+					<text class="info-icon" @click.stop="showPrepaidInfo">ⓘ</text>
+				</view>
 			</view>
-			<view class="divider"></view>
-			<view class="info-item" @click="goPoints">
-				<view class="value">{{ balance.points_balance }}</view>
-				<view class="label">我的积分</view>
+			<view class="account-item" @click="goAccountDetail('invoice')">
+				<text class="amount">{{ balance.invoice_amount || '0.00' }}</text>
+				<text class="label">可开票</text>
+			</view>
+			<view class="account-item" @click="goAccountDetail('debt')">
+				<text class="amount">{{ balance.debt_amount || '0.00' }}</text>
+				<text class="label">个人欠款</text>
 			</view>
 		</view>
 		
-		<!-- 菜单列表 -->
-		<view class="menu-list">
-			<!-- 我的服务 -->
-			<view class="menu-section card">
-				<view class="section-title">我的服务</view>
-				<view class="menu-item" @click="goPage('/pagesA/certification/certification')">
-					<text class="icon">📝</text>
-					<text class="title">实名认证</text>
-					<view class="badge" v-if="!userInfo.is_certified">未认证</view>
-					<text class="arrow">></text>
-				</view>
-				<view class="menu-item" @click="goPage('/pagesA/member/member')">
-					<text class="icon">👑</text>
-					<text class="title">会员中心</text>
-					<text class="arrow">></text>
-				</view>
-				<view class="menu-item" @click="goPage('/pages/order/order')">
-					<text class="icon">📋</text>
-					<text class="title">我的订单</text>
-					<text class="arrow">></text>
+		<!-- 我的订单 -->
+		<view class="order-section">
+			<view class="section-header">
+				<text class="title">我的订单</text>
+				<view class="more" @click="goAllOrders">
+					<text>全部订单</text>
+					<text class="arrow">›</text>
 				</view>
 			</view>
-			
-			<!-- 账户管理 -->
-			<view class="menu-section card">
-				<view class="section-title">账户管理</view>
-				<view class="menu-item" @click="goPage('/pagesA/balance/balance')">
-					<text class="icon">💰</text>
-					<text class="title">账户余额</text>
-					<text class="arrow">></text>
+			<view class="order-status-list">
+				<view class="status-item" @click="goOrders('unpaid')">
+					<view class="status-icon">
+						<image src="/static/icons/order-unpaid.png" mode="aspectFit" class="icon-img"></image>
+					</view>
+					<text class="status-text">待支付</text>
 				</view>
-				<view class="menu-item" @click="goPage('/pagesA/invoice/invoice')">
-					<text class="icon">🧾</text>
-					<text class="title">发票管理</text>
-					<text class="arrow">></text>
+				<view class="status-item" @click="goOrders('unconfirmed')">
+					<view class="status-icon">
+						<image src="/static/icons/order-unconfirmed.png" mode="aspectFit" class="icon-img"></image>
+					</view>
+					<text class="status-text">待确认</text>
 				</view>
-				<view class="menu-item" @click="goPage('/pagesA/coupon/coupon')">
-					<text class="icon">🎫</text>
-					<text class="title">优惠券</text>
-					<text class="arrow">></text>
+				<view class="status-item" @click="goOrders('pending')">
+					<view class="status-icon">
+						<image src="/static/icons/order-pending.png" mode="aspectFit" class="icon-img"></image>
+					</view>
+					<text class="status-text">待实验</text>
 				</view>
-			</view>
-			
-			<!-- 设置 -->
-			<view class="menu-section card">
-				<view class="section-title">设置</view>
-				<view class="menu-item" @click="goPage('/pagesA/settings/settings')">
-					<text class="icon">⚙️</text>
-					<text class="title">设置</text>
-					<text class="arrow">></text>
+				<view class="status-item" @click="goOrders('testing')">
+					<view class="status-icon">
+						<image src="/static/icons/order-testing.png" mode="aspectFit" class="icon-img"></image>
+					</view>
+					<text class="status-text">实验中</text>
 				</view>
-				<view class="menu-item" @click="goPage('/pagesA/about/about')">
-					<text class="icon">ℹ️</text>
-					<text class="title">关于我们</text>
-					<text class="arrow">></text>
+				<view class="status-item" @click="goOrders('completed')">
+					<view class="status-icon">
+						<image src="/static/icons/order-completed.png" mode="aspectFit" class="icon-img"></image>
+					</view>
+					<text class="status-text">已完成</text>
 				</view>
 			</view>
 		</view>
 		
-		<!-- 退出登录 -->
-		<view v-if="hasLogin" class="logout-btn">
-			<button class="btn" @click="handleLogout">退出登录</button>
+		<!-- 服务与工具 -->
+		<view class="service-section">
+			<view class="section-title">服务与工具</view>
+			<view class="service-grid">
+				<!-- 第一行 -->
+				<view class="service-item" @click="goPage('/pagesA/certification/certification')">
+					<view class="icon-wrap">
+						<text class="service-icon">👤</text>
+						<text class="badge new">NEW</text>
+					</view>
+					<text class="service-text">实名认证</text>
+				</view>
+				<view class="service-item" @click="goPage('/pagesA/group/group')">
+					<text class="service-icon">👥</text>
+					<text class="service-text">我的团体</text>
+				</view>
+				<view class="service-item" @click="goPage('/pagesA/invite/invite')">
+					<view class="icon-wrap">
+						<text class="service-icon">👥</text>
+						<text class="badge rebate">返利</text>
+					</view>
+					<text class="service-text">邀请好友</text>
+				</view>
+				<view class="service-item" @click="goPage('/pagesA/points/points')">
+					<view class="icon-wrap">
+						<text class="service-icon">⭐</text>
+						<text class="badge newest">上新</text>
+					</view>
+					<text class="service-text">我的积分</text>
+				</view>
+				
+				<!-- 第二行 -->
+				<view class="service-item" @click="goPage('/pagesA/wallet/wallet')">
+					<text class="service-icon">💰</text>
+					<text class="service-text">我的钱包</text>
+				</view>
+				<view class="service-item" @click="goPage('/pagesA/invoice/invoice')">
+					<text class="service-icon">🧾</text>
+					<text class="service-text">我的发票</text>
+				</view>
+				<view class="service-item" @click="goPage('/pagesA/coupon/coupon')">
+					<view class="icon-wrap">
+						<text class="service-icon">🎫</text>
+						<text class="badge coupon">领券</text>
+					</view>
+					<text class="service-text">优惠券</text>
+				</view>
+				<view class="service-item" @click="goPage('/pagesA/prepaid/prepaid')">
+					<text class="service-icon">📊</text>
+					<text class="service-text">预付记录</text>
+				</view>
+				
+				<!-- 第三行 -->
+				<view class="service-item" @click="goPage('/pagesA/prize/prize')">
+					<text class="service-icon">🎁</text>
+					<text class="service-text">中奖记录</text>
+				</view>
+				<view class="service-item" @click="goPage('/pagesA/lottery/lottery')">
+					<text class="service-icon">🎯</text>
+					<text class="service-text">下单抽奖</text>
+				</view>
+				<view class="service-item" @click="goPage('/pagesA/feedback/feedback')">
+					<text class="service-icon">💬</text>
+					<text class="service-text">建议/投诉</text>
+				</view>
+				<view class="service-item" @click="goPage('/pagesA/settings/settings')">
+					<text class="service-icon">⚙️</text>
+					<text class="service-text">设置</text>
+				</view>
+			</view>
 		</view>
+		
+		<!-- 底部占位 -->
+		<view class="bottom-placeholder"></view>
 	</view>
 </template>
 
 <script>
-	import api from '@/utils/api.js'
-	
-	export default {
-		data() {
-			return {
-				userInfo: {},
-				balance: {
-					prepaid_balance: 0,
-					available_credit: 0,
-					points_balance: 0
-				}
-			}
-		},
-		computed: {
-			hasLogin() {
-				return this.$store.state.hasLogin
+import api from '@/utils/api.js'
+
+export default {
+	data() {
+		return {
+			userInfo: {
+				avatar: '',
+				nickname: '',
+				member_no: '',
+				advisor_name: '',
+				advisor_phone: ''
 			},
-			membershipText() {
-				const level = this.userInfo.membership_level
-				const map = { 1: '银卡会员', 2: '金卡会员', 3: '白金卡会员' }
-				return map[level] || ''
-			}
-		},
-		onShow() {
-			if (this.hasLogin) {
-				this.loadUserInfo()
-				this.loadBalance()
-			}
-		},
-		methods: {
-			// 加载用户信息
-			async loadUserInfo() {
-				try {
-					const res = await api.getUserInfo()
-					this.userInfo = res.data
-					this.$store.commit('SET_USER_INFO', res.data)
-				} catch (error) {
-					console.error('加载用户信息失败', error)
-				}
-			},
-			
-			// 加载余额
-			async loadBalance() {
-				try {
-					const res = await api.getBalance()
-					this.balance = res.data
-				} catch (error) {
-					console.error('加载余额失败', error)
-				}
-			},
-			
-			// 跳转登录
-			goLogin() {
-				uni.navigateTo({
-					url: '/pages/login/login'
-				})
-			},
-			
-			// 跳转页面
-			goPage(url) {
-				if (!this.hasLogin) {
-					return this.goLogin()
-				}
-				uni.navigateTo({ url })
-			},
-			
-			// 跳转余额页
-			goBalance() {
-				this.goPage('/pagesA/balance/balance')
-			},
-			
-			// 跳转积分页
-			goPoints() {
-				this.goPage('/pagesA/points/points')
-			},
-			
-			// 退出登录
-			handleLogout() {
-				uni.showModal({
-					title: '提示',
-					content: '确定要退出登录吗？',
-					success: (res) => {
-						if (res.confirm) {
-							this.$store.dispatch('logout')
-							this.userInfo = {}
-							this.balance = {
-								prepaid_balance: 0,
-								available_credit: 0,
-								points_balance: 0
-							}
-						}
-					}
-				})
+			balance: {
+				available_credit: 0,
+				prepaid_balance: 0,
+				invoice_amount: 0,
+				debt_amount: 0
 			}
 		}
+	},
+	onLoad() {
+		this.loadUserInfo()
+		this.loadBalance()
+	},
+	onShow() {
+		// 每次显示页面时刷新数据
+		this.loadBalance()
+	},
+	methods: {
+		// 加载用户信息
+		async loadUserInfo() {
+			try {
+				const token = uni.getStorageSync('token')
+				if (!token) {
+					this.goLogin()
+					return
+				}
+				
+				const res = await api.getUserInfo()
+				this.userInfo = res.data || {}
+			} catch (e) {
+				console.error('加载用户信息失败', e)
+			}
+		},
+		
+		// 加载余额信息
+		async loadBalance() {
+			try {
+				const res = await api.getBalance()
+				this.balance = res.data || {}
+			} catch (e) {
+				console.error('加载余额失败', e)
+			}
+		},
+		
+		// 编辑个人资料
+		goEditProfile() {
+			uni.navigateTo({
+				url: '/pagesA/profile/profile'
+			})
+		},
+		
+		// 账户详情
+		goAccountDetail(type) {
+			uni.navigateTo({
+				url: `/pagesA/account/account?type=${type}`
+			})
+		},
+		
+		// 显示预付说明
+		showPrepaidInfo() {
+			uni.showModal({
+				title: '个人预付说明',
+				content: '个人预付是指您预先充值到账户的金额，可用于支付订单费用',
+				showCancel: false
+			})
+		},
+		
+		// 全部订单
+		goAllOrders() {
+			uni.switchTab({
+				url: '/pages/order/order'
+			})
+		},
+		
+	// 订单列表（按状态）
+	goOrders(status) {
+		// 存储状态到本地，订单页面会读取
+		uni.setStorageSync('order_status_filter', status)
+		uni.switchTab({
+			url: '/pages/order/order'
+		})
+	},
+		
+		// 跳转页面
+		goPage(url) {
+			// 检查是否登录
+			const token = uni.getStorageSync('token')
+			if (!token) {
+				this.goLogin()
+				return
+			}
+			
+			// 暂时提示功能开发中
+			uni.showToast({
+				title: '功能开发中',
+				icon: 'none'
+			})
+			
+			// TODO: 实现后取消注释
+			// uni.navigateTo({ url })
+		},
+		
+		// 登录
+		goLogin() {
+			uni.navigateTo({
+				url: '/pages/login/login'
+			})
+		}
 	}
+}
 </script>
 
 <style lang="scss" scoped>
-	.user-container {
-		min-height: 100vh;
-		background-color: #f8f8f8;
-		padding-bottom: 40rpx;
-	}
+.user-page {
+	min-height: 100vh;
+	background: #f5f5f5;
+	padding-bottom: 20rpx;
+}
+
+/* 用户信息头部 */
+.user-header {
+	background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+	padding: 40rpx 30rpx 80rpx;
 	
-	.user-card {
-		background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-		padding: 60rpx 30rpx 40rpx;
+	.user-info-card {
+		display: flex;
+		align-items: center;
+		background: rgba(255, 255, 255, 0.95);
+		padding: 30rpx;
+		border-radius: 16rpx;
+		box-shadow: 0 4rpx 20rpx rgba(0, 0, 0, 0.1);
 		
-		.user-info {
+		.avatar {
+			width: 120rpx;
+			height: 120rpx;
+			border-radius: 60rpx;
+			margin-right: 25rpx;
+			border: 4rpx solid white;
+		}
+		
+		.user-text {
+			flex: 1;
+			
+			.member-id {
+				display: block;
+				font-size: 32rpx;
+				font-weight: bold;
+				color: #333;
+				margin-bottom: 10rpx;
+			}
+			
+			.advisor {
+				display: block;
+				font-size: 24rpx;
+				color: #666;
+			}
+		}
+		
+		.edit-btn {
+			padding: 15rpx;
+			
+			.edit-icon {
+				font-size: 36rpx;
+			}
+		}
+	}
+}
+
+/* 账户金额卡片 */
+.account-cards {
+	display: flex;
+	margin: -50rpx 30rpx 20rpx;
+	background: white;
+	border-radius: 16rpx;
+	padding: 30rpx 0;
+	box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.08);
+	
+	.account-item {
+		flex: 1;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		border-right: 1rpx solid #f0f0f0;
+		
+		&:last-child {
+			border-right: none;
+		}
+		
+		.amount {
+			font-size: 36rpx;
+			font-weight: bold;
+			color: #333;
+			margin-bottom: 10rpx;
+		}
+		
+		.label {
+			font-size: 24rpx;
+			color: #999;
+		}
+		
+		.label-with-icon {
 			display: flex;
 			align-items: center;
+			font-size: 24rpx;
+			color: #999;
 			
-			.avatar {
-				width: 120rpx;
-				height: 120rpx;
-				border-radius: 60rpx;
-				border: 4rpx solid rgba(255, 255, 255, 0.3);
-				overflow: hidden;
+			.info-icon {
+				margin-left: 5rpx;
+				color: #4facfe;
+				font-size: 28rpx;
+			}
+		}
+	}
+}
+
+/* 我的订单 */
+.order-section {
+	background: white;
+	margin: 0 30rpx 20rpx;
+	padding: 30rpx;
+	border-radius: 16rpx;
+	
+	.section-header {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		margin-bottom: 30rpx;
+		
+		.title {
+			font-size: 32rpx;
+			font-weight: bold;
+			color: #333;
+		}
+		
+		.more {
+			display: flex;
+			align-items: center;
+			font-size: 26rpx;
+			color: #999;
+			
+			.arrow {
+				margin-left: 5rpx;
+				font-size: 32rpx;
+			}
+		}
+	}
+	
+	.order-status-list {
+		display: flex;
+		justify-content: space-between;
+		
+		.status-item {
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			
+			.status-icon {
+				width: 80rpx;
+				height: 80rpx;
+				background: #f5f8ff;
+				border-radius: 16rpx;
 				display: flex;
 				align-items: center;
 				justify-content: center;
-				background-color: rgba(255, 255, 255, 0.2);
+				margin-bottom: 15rpx;
 				
-				&-placeholder {
-					font-size: 60rpx;
-					line-height: 1;
-				}
-				
-				&-img {
-					width: 100%;
-					height: 100%;
+				.icon-img {
+					width: 50rpx;
+					height: 50rpx;
 				}
 			}
 			
-			.info {
-				flex: 1;
-				margin-left: 24rpx;
-				
-				.nickname {
-					display: block;
-					font-size: 36rpx;
-					font-weight: bold;
-					color: #ffffff;
-					margin-bottom: 12rpx;
-				}
-				
-				.phone {
-					display: block;
-					font-size: 26rpx;
-					color: rgba(255, 255, 255, 0.8);
-				}
-			}
-			
-			.vip-badge {
-				padding: 8rpx 20rpx;
-				background: linear-gradient(135deg, #FFD700, #FFA500);
-				border-radius: 30rpx;
-				font-size: 22rpx;
-				color: #ffffff;
-				font-weight: bold;
-			}
-		}
-	}
-	
-	.account-info {
-		display: flex;
-		margin: -40rpx 30rpx 20rpx;
-		padding: 30rpx 0;
-		background-color: #ffffff;
-		box-shadow: 0 4rpx 20rpx rgba(0, 0, 0, 0.08);
-		
-		.info-item {
-			flex: 1;
-			text-align: center;
-			
-			.value {
-				font-size: 36rpx;
-				font-weight: bold;
-				color: #333;
-				margin-bottom: 12rpx;
-			}
-			
-			.label {
+			.status-text {
 				font-size: 24rpx;
-				color: #999;
+				color: #666;
 			}
-		}
-		
-		.divider {
-			width: 2rpx;
-			background-color: #f0f0f0;
 		}
 	}
+}
+
+/* 服务与工具 */
+.service-section {
+	background: white;
+	margin: 0 30rpx 20rpx;
+	padding: 30rpx;
+	border-radius: 16rpx;
 	
-	.menu-list {
-		padding: 0 30rpx;
+	.section-title {
+		font-size: 32rpx;
+		font-weight: bold;
+		color: #333;
+		margin-bottom: 30rpx;
+	}
+	
+	.service-grid {
+		display: grid;
+		grid-template-columns: repeat(4, 1fr);
+		gap: 40rpx 20rpx;
 		
-		.menu-section {
-			margin-bottom: 20rpx;
+		.service-item {
+			display: flex;
+			flex-direction: column;
+			align-items: center;
 			
-			.section-title {
-				padding: 24rpx;
-				font-size: 28rpx;
-				color: #666;
-				font-weight: bold;
-			}
-			
-			.menu-item {
-				display: flex;
-				align-items: center;
-				padding: 30rpx 24rpx;
-				border-bottom: 2rpx solid #f5f5f5;
-				
-				&:last-child {
-					border-bottom: none;
-				}
-				
-				.icon {
-					font-size: 40rpx;
-					margin-right: 20rpx;
-				}
-				
-				.title {
-					flex: 1;
-					font-size: 30rpx;
-					color: #333;
-				}
+			.icon-wrap {
+				position: relative;
+				margin-bottom: 15rpx;
 				
 				.badge {
-					padding: 4rpx 12rpx;
-					background-color: #ff4d4f;
-					color: #ffffff;
-					font-size: 20rpx;
-					border-radius: 20rpx;
-					margin-right: 12rpx;
+					position: absolute;
+					top: -10rpx;
+					right: -15rpx;
+					padding: 4rpx 10rpx;
+					border-radius: 10rpx;
+					font-size: 18rpx;
+					color: white;
+					font-weight: bold;
+					
+					&.new {
+						background: #ff6b6b;
+					}
+					
+					&.rebate {
+						background: #ff9500;
+					}
+					
+					&.newest {
+						background: #ff6b6b;
+					}
+					
+					&.coupon {
+						background: #ff9500;
+					}
 				}
-				
-				.arrow {
-					font-size: 28rpx;
-					color: #ccc;
-				}
+			}
+			
+			.service-icon {
+				font-size: 60rpx;
+				margin-bottom: 15rpx;
+			}
+			
+			.service-text {
+				font-size: 24rpx;
+				color: #666;
+				text-align: center;
 			}
 		}
 	}
-	
-	.logout-btn {
-		padding: 0 30rpx;
-		margin-top: 40rpx;
-		
-		.btn {
-			width: 100%;
-			height: 88rpx;
-			line-height: 88rpx;
-			background-color: #ffffff;
-			color: #ff4d4f;
-			border-radius: 12rpx;
-			font-size: 32rpx;
-			border: 2rpx solid #ff4d4f;
-		}
-	}
-</style>
+}
 
+/* 底部占位 */
+.bottom-placeholder {
+	height: 20rpx;
+}
+</style>

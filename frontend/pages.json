@@ -78,14 +78,38 @@
 						"navigationBarTitleText": "订单详情"
 					}
 				},
-				{
-					"path": "address/address",
-					"style": {
-						"navigationBarTitleText": "地址管理"
-					}
-				}
-			]
+		{
+			"path": "address/address",
+			"style": {
+				"navigationBarTitleText": "地址管理"
+			}
+		},
+		{
+			"path": "profile/profile",
+			"style": {
+				"navigationBarTitleText": "编辑资料"
+			}
+		},
+		{
+			"path": "coupon/coupon",
+			"style": {
+				"navigationBarTitleText": "我的优惠券"
+			}
+		},
+		{
+			"path": "group/group",
+			"style": {
+				"navigationBarTitleText": "我的团体"
+			}
+		},
+		{
+			"path": "points/points",
+			"style": {
+				"navigationBarTitleText": "我的积分"
+			}
 		}
+	]
+}
 	],
 	"tabBar": {
 		"color": "#7A7E83",
