@@ -412,44 +412,55 @@ async def get_project_detail(
     获取检测项目详情
     包含项目介绍、预约须知、样品要求、常见问题、结果展示等
     """
-    # TODO: 从数据库查询项目详情
+    # 从数据库查询项目详情
+    from sqlalchemy.orm import joinedload
+    
+    project_db = db.query(Project).options(
+        joinedload(Project.category),
+        joinedload(Project.laboratory)
+    ).filter(Project.id == project_id).first()
+    
+    if not project_db:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="项目不存在"
+        )
+    
+    # 更新浏览量
+    project_db.view_count = (project_db.view_count or 0) + 1
+    db.commit()
+    
+    # 构建返回数据
     project = {
-        "id": project_id,
-        "name": "场发射扫描电镜（SEM）",
-        "category": "电镜专场",
-        "original_price": 400.00,
-        "current_price": 312.00,
-        "satisfaction": 99,
-        "booking_count": 10987,
-        "service_cycle_min": 2.5,
-        "service_cycle_max": 6.0,
-        "equipment_model": "日本 JEOL JSM-7800F",
-        "lab_name": "某985高校材料实验室",
-        "lab_id": 1,
-        "cover_image": "https://example.com/project1.jpg",
-        "images": [
-            "https://example.com/project1-1.jpg",
-            "https://example.com/project1-2.jpg"
-        ],
-        "introduction": "扫描电子显微镜（SEM）是一种高分辨率的显微镜...",
-        "booking_notice": "1. 请提前预约\n2. 样品需要满足要求\n3. ...",
-        "sample_requirements": "样品类型：固体、粉末、薄膜\n样品尺寸：不超过20mm...",
-        "faq": [
-            {
-                "question": "样品需要喷金吗？",
-                "answer": "不导电样品需要喷金处理"
-            },
-            {
-                "question": "多久能拿到数据？",
-                "answer": "正常3-5个工作日"
-            }
-        ],
-        "result_samples": [
-            {
-                "title": "样品案例1",
-                "image": "https://example.com/result1.jpg"
-            }
-        ]
+        "id": project_db.id,
+        "project_no": project_db.project_no,
+        "name": project_db.name,
+        "category": project_db.category.name if project_db.category else None,
+        "category_id": project_db.category_id,
+        "original_price": float(project_db.original_price),
+        "current_price": float(project_db.current_price),
+        "unit": project_db.unit,
+        "satisfaction": float(project_db.satisfaction) if project_db.satisfaction else 100.0,
+        "order_count": project_db.order_count or 0,
+        "view_count": project_db.view_count or 0,
+        "booking_count": project_db.booking_count or 0,
+        "service_cycle_min": project_db.service_cycle_min,
+        "service_cycle_max": project_db.service_cycle_max,
+        "equipment_model": project_db.equipment_model,
+        "equipment_name": project_db.equipment_name,
+        "lab_name": project_db.laboratory.name if project_db.laboratory else None,
+        "lab_id": project_db.lab_id,
+        "cover_image": project_db.cover_image,
+        "images": [project_db.cover_image] if project_db.cover_image else [],
+        "introduction": project_db.introduction or "暂无介绍",
+        "booking_notice": project_db.booking_notice or "请提前预约，按时送样",
+        "sample_requirements": project_db.sample_requirements or "请联系客服了解样品要求",
+        "detection_range": project_db.detection_range,
+        "is_hot": project_db.is_hot,
+        "is_recommended": project_db.is_recommended,
+        "status": project_db.status,
+        "faq": [],  # TODO: 从FAQ表查询
+        "result_samples": []  # TODO: 从结果案例表查询
     }
     
     return Response.success(data=project)
