@@ -212,7 +212,7 @@ export default {
 
 /* 顶部标题 */
 .page-header {
-	background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+	background: #1890ff;
 	padding: 20rpx 30rpx;
 	padding-top: calc(20rpx + env(safe-area-inset-top));
 	

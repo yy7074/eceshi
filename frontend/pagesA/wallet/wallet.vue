@@ -141,7 +141,7 @@ export default {
 }
 
 .header-bg {
-	background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+	background: #1890ff;
 	padding: 60rpx 30rpx 80rpx;
 	
 	.balance-info {

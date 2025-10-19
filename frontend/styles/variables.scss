@@ -1,0 +1,50 @@
+/**
+ * 极简专业风 - 统一设计变量
+ */
+
+/* 主题色彩 */
+$primary-color: #1890ff;        // 主色-蓝色
+$success-color: #52c41a;        // 成功-绿色  
+$warning-color: #faad14;        // 警告-橙色
+$error-color: #ff4d4f;          // 错误-红色
+$info-color: #1890ff;           // 信息-蓝色
+
+/* 中性色 */
+$text-primary: #262626;         // 主要文字
+$text-secondary: #595959;       // 次要文字
+$text-tertiary: #8c8c8c;        // 辅助文字
+$text-disabled: #bfbfbf;        // 禁用文字
+
+$border-color: #d9d9d9;         // 边框颜色
+$divider-color: #f0f0f0;        // 分割线颜色
+$background-color: #f5f5f5;     // 背景颜色
+$card-background: #ffffff;      // 卡片背景
+
+/* 圆角规范 */
+$radius-card: 12rpx;            // 卡片圆角
+$radius-button: 8rpx;           // 按钮圆角
+$radius-input: 8rpx;            // 输入框圆角
+$radius-tag: 4rpx;              // 标签圆角
+
+/* 间距规范 */
+$spacing-module: 24rpx;         // 模块间距
+$spacing-card: 24rpx;           // 卡片内边距
+$spacing-row: 16rpx;            // 行间距
+$spacing-item: 8rpx;            // 元素间距
+
+/* 字体大小 */
+$font-size-xl: 32rpx;           // 特大
+$font-size-lg: 28rpx;           // 大
+$font-size-md: 26rpx;           // 中
+$font-size-sm: 24rpx;           // 小
+$font-size-xs: 22rpx;           // 特小
+
+/* 字重 */
+$font-weight-bold: 600;         // 加粗
+$font-weight-medium: 500;       // 中等
+$font-weight-normal: 400;       // 正常
+
+/* 阴影 */
+$shadow-light: 0 2rpx 8rpx rgba(0, 0, 0, 0.04);  // 浅色阴影
+$shadow-card: 0 4rpx 12rpx rgba(0, 0, 0, 0.08);  // 卡片阴影
+

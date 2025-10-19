@@ -323,15 +323,15 @@ export default {
 
 /* 用户信息头部 */
 .user-header {
-	background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-	padding: 40rpx 30rpx 80rpx;
+	background: #1890ff;
+	padding: 32rpx 24rpx 64rpx;
 	
 	.user-info-card {
 		display: flex;
 		align-items: center;
 		background: rgba(255, 255, 255, 0.95);
-		padding: 30rpx;
-		border-radius: 16rpx;
+		padding: 24rpx;
+		border-radius: 12rpx;
 		box-shadow: 0 4rpx 20rpx rgba(0, 0, 0, 0.1);
 		
 		.avatar {
@@ -373,11 +373,11 @@ export default {
 /* 账户金额卡片 */
 .account-cards {
 	display: flex;
-	margin: -50rpx 30rpx 20rpx;
+	margin: -40rpx 24rpx 16rpx;
 	background: white;
-	border-radius: 16rpx;
-	padding: 30rpx 0;
-	box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.08);
+	border-radius: 12rpx;
+	padding: 24rpx 0;
+	box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.04);
 	
 	.account-item {
 		flex: 1;
@@ -420,9 +420,9 @@ export default {
 /* 我的订单 */
 .order-section {
 	background: white;
-	margin: 0 30rpx 20rpx;
-	padding: 30rpx;
-	border-radius: 16rpx;
+	margin: 0 24rpx 16rpx;
+	padding: 24rpx;
+	border-radius: 12rpx;
 	
 	.section-header {
 		display: flex;
@@ -485,15 +485,15 @@ export default {
 /* 服务与工具 */
 .service-section {
 	background: white;
-	margin: 0 30rpx 20rpx;
-	padding: 30rpx;
-	border-radius: 16rpx;
+	margin: 0 24rpx 16rpx;
+	padding: 24rpx;
+	border-radius: 12rpx;
 	
 	.section-title {
-		font-size: 32rpx;
-		font-weight: bold;
-		color: #333;
-		margin-bottom: 30rpx;
+		font-size: 28rpx;
+		font-weight: 600;
+		color: #262626;
+		margin-bottom: 24rpx;
 	}
 	
 	.service-grid {

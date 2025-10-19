@@ -275,7 +275,7 @@ export default {
 <style lang="scss" scoped>
 .points-page {
 	min-height: 100vh;
-	background: linear-gradient(180deg, #4facfe 0%, #00f2fe 30%, #f5f5f5 30%);
+	background: #f5f5f5;
 }
 
 /* 积分卡片 */
@@ -439,7 +439,7 @@ export default {
 					}
 					
 					.exchange-btn {
-						background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+						background: #1890ff;
 						color: white;
 						border: none;
 						border-radius: 50rpx;

@@ -310,35 +310,36 @@ export default {
 /* 卡片通用样式 */
 .card {
 	background: white;
-	margin: 20rpx;
-	padding: 30rpx;
+	margin: 16rpx 24rpx;
+	padding: 24rpx;
 	border-radius: 12rpx;
+	box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.04);
 }
 
 /* 项目信息 */
 .project-info {
 	.project-name {
-		font-size: 36rpx;
-		font-weight: bold;
-		color: #333;
+		font-size: 32rpx;
+		font-weight: 600;
+		color: #262626;
 		display: block;
-		margin-bottom: 15rpx;
+		margin-bottom: 12rpx;
 	}
 	
 	.project-meta {
 		display: flex;
 		align-items: center;
-		margin-bottom: 20rpx;
+		margin-bottom: 16rpx;
 		
 		.lab-name {
-			font-size: 26rpx;
-			color: #666;
-			margin-right: 30rpx;
+			font-size: 24rpx;
+			color: #595959;
+			margin-right: 24rpx;
 		}
 		
 		.satisfaction {
-			font-size: 26rpx;
-			color: #ff9500;
+			font-size: 24rpx;
+			color: #faad14;
 		}
 	}
 	
@@ -537,7 +538,7 @@ export default {
 		margin-left: 20rpx;
 		height: 80rpx;
 		line-height: 80rpx;
-		background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+		background: #1890ff;
 		color: white;
 		border-radius: 40rpx;
 		font-size: 30rpx;

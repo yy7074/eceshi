@@ -281,7 +281,7 @@ export default {
 				}
 				
 				.action-btn {
-					background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+					background: #1890ff;
 					color: white;
 					border: none;
 					border-radius: 50rpx;
@@ -330,7 +330,7 @@ export default {
 	}
 	
 	.go-browse-btn {
-		background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+		background: #1890ff;
 		color: white;
 		border: none;
 		border-radius: 50rpx;

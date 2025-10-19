@@ -83,7 +83,7 @@ export default {
 }
 
 .header-stats {
-	background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+	background: #1890ff;
 	padding: 60rpx 30rpx;
 	display: flex;
 	justify-content: space-around;

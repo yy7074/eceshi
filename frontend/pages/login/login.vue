@@ -397,7 +397,7 @@
 <style lang="scss" scoped>
 	.login-container {
 		min-height: 100vh;
-		background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+		background: #1890ff;
 		padding: 80rpx 60rpx;
 	}
 	

@@ -308,24 +308,26 @@
 	
 	/* 搜索栏 */
 	.search-bar {
-		background: #ff9500;
-		padding: 20rpx 30rpx 30rpx;
+		background: #fff;
+		padding: 16rpx 24rpx;
+		border-bottom: 1rpx solid #f0f0f0;
 		
 		.search-input {
-			background: white;
-			border-radius: 50rpx;
-			padding: 18rpx 30rpx;
+			background: #f5f5f5;
+			border-radius: 8rpx;
+			padding: 16rpx 24rpx;
 			display: flex;
 			align-items: center;
 			
 			.icon {
-				font-size: 32rpx;
-				margin-right: 15rpx;
+				font-size: 28rpx;
+				margin-right: 12rpx;
+				color: #8c8c8c;
 			}
 			
 			.placeholder {
-				color: #999;
-				font-size: 28rpx;
+				color: #8c8c8c;
+				font-size: 26rpx;
 			}
 		}
 	}
@@ -335,9 +337,8 @@
 		display: flex;
 		justify-content: space-around;
 		background: white;
-		padding: 24rpx 10rpx;
-		margin: 0 30rpx 20rpx;
-		border-radius: 16rpx;
+		padding: 24rpx 16rpx;
+		margin-bottom: 2rpx;
 		
 		.nav-item {
 			display: flex;
@@ -345,68 +346,68 @@
 			align-items: center;
 			
 			.nav-icon-wrap {
-				width: 90rpx;
-				height: 90rpx;
-				border-radius: 20rpx;
+				width: 88rpx;
+				height: 88rpx;
+				border-radius: 12rpx;
 				display: flex;
 				align-items: center;
 				justify-content: center;
-				margin-bottom: 10rpx;
+				margin-bottom: 8rpx;
 			}
-			.nav-icon { font-size: 46rpx; }
+			.nav-icon { font-size: 40rpx; }
 			
 			.nav-text {
 				font-size: 24rpx;
-				color: #333;
+				color: #595959;
 			}
 		}
 	}
 	
 	/* 活动banner */
 	.promo-banner {
-		background: #ff9500;
-		margin: 0 30rpx 20rpx;
-		border-radius: 20rpx;
+		background: #faad14;
+		margin: 0 24rpx 16rpx;
+		border-radius: 12rpx;
 		overflow: hidden;
 		
 		.banner-content {
 			display: flex;
 			justify-content: space-between;
 			align-items: center;
-			padding: 30rpx;
+			padding: 24rpx;
 			
 			.banner-left {
 				flex: 1;
 				
 				.banner-title {
 					display: block;
-					font-size: 36rpx;
-					font-weight: bold;
-					color: #8B4513;
-					margin-bottom: 10rpx;
+					font-size: 32rpx;
+					font-weight: 600;
+					color: #fff;
+					margin-bottom: 8rpx;
 				}
 				
 				.banner-subtitle {
 					display: block;
-					font-size: 24rpx;
-					color: #8B4513;
-					margin-bottom: 20rpx;
+					font-size: 22rpx;
+					color: rgba(255,255,255,0.9);
+					margin-bottom: 16rpx;
 				}
 				
 				.banner-btn {
 					background: white;
-					color: #ff6b35;
-					padding: 12rpx 30rpx;
-					border-radius: 30rpx;
-					font-size: 26rpx;
+					color: #faad14;
+					padding: 10rpx 24rpx;
+					border-radius: 8rpx;
+					font-size: 24rpx;
 					display: inline-block;
-					font-weight: bold;
+					font-weight: 500;
 				}
 			}
 			
 			.banner-right {
 				.banner-emoji {
-					font-size: 100rpx;
+					font-size: 80rpx;
 				}
 			}
 		}
@@ -416,10 +417,10 @@
 	.category-grid {
 		display: grid;
 		grid-template-columns: repeat(4, 1fr);
-		gap: 20rpx;
+		gap: 24rpx 16rpx;
 		background: white;
-		padding: 30rpx;
-		margin-bottom: 20rpx;
+		padding: 24rpx;
+		margin-bottom: 2rpx;
 		
 		.category-item {
 			display: flex;
@@ -427,22 +428,22 @@
 			align-items: center;
 			
 			.category-icon {
-				width: 100rpx;
-				height: 100rpx;
-				border-radius: 20rpx;
+				width: 88rpx;
+				height: 88rpx;
+				border-radius: 12rpx;
 				display: flex;
 				align-items: center;
 				justify-content: center;
-				margin-bottom: 10rpx;
+				margin-bottom: 8rpx;
 				
 				.category-emoji {
-					font-size: 50rpx;
+					font-size: 44rpx;
 				}
 			}
 			
 			.category-name {
 				font-size: 24rpx;
-				color: #333;
+				color: #595959;
 			}
 		}
 	}
@@ -450,34 +451,34 @@
 	/* 增值活动 */
 	.activity-section {
 		display: flex;
-		gap: 20rpx;
-		padding: 0 30rpx 20rpx;
+		gap: 16rpx;
+		padding: 0 24rpx 16rpx;
 		
 		.activity-left {
 			.activity-card {
-				width: 200rpx;
-				height: 400rpx;
-				border-radius: 20rpx;
-				padding: 30rpx;
+				width: 180rpx;
+				height: 360rpx;
+				border-radius: 12rpx;
+				padding: 24rpx;
 				display: flex;
 				flex-direction: column;
 				justify-content: center;
 				
 				&.green {
-					background: #43e97b;
+					background: #52c41a;
 				}
 				
 				.activity-title {
-					font-size: 40rpx;
-					font-weight: bold;
+					font-size: 36rpx;
+					font-weight: 600;
 					color: white;
 					display: block;
-					margin-bottom: 10rpx;
+					margin-bottom: 8rpx;
 				}
 				
 				.activity-subtitle {
-					font-size: 28rpx;
-					color: white;
+					font-size: 26rpx;
+					color: rgba(255,255,255,0.9);
 					display: block;
 				}
 			}
@@ -487,63 +488,63 @@
 			flex: 1;
 			display: flex;
 			flex-direction: column;
-			gap: 20rpx;
+			gap: 16rpx;
 			
 			.activity-info {
 				background: white;
-				border-radius: 20rpx;
+				border-radius: 12rpx;
 				padding: 20rpx;
 				
 				.info-title {
-					font-size: 28rpx;
-					font-weight: bold;
-					color: #333;
+					font-size: 26rpx;
+					font-weight: 600;
+					color: #262626;
 					display: block;
-					margin-bottom: 15rpx;
+					margin-bottom: 12rpx;
 				}
 				
 				.info-tags {
 					display: flex;
 					flex-wrap: wrap;
-					gap: 10rpx;
+					gap: 8rpx;
 					
 					.tag {
-						background: #f0f0f0;
-						padding: 8rpx 20rpx;
-						border-radius: 30rpx;
+						background: #f5f5f5;
+						padding: 6rpx 16rpx;
+						border-radius: 4rpx;
 						font-size: 22rpx;
-						color: #666;
+						color: #595959;
 					}
 				}
 			}
 			
 			.activity-card {
 				flex: 1;
-				border-radius: 20rpx;
+				border-radius: 12rpx;
 				padding: 20rpx;
 				display: flex;
 				flex-direction: column;
 				justify-content: center;
 				
 				&.orange {
-					background: #fa709a;
+					background: #faad14;
 				}
 				
 				&.blue {
-					background: #4facfe;
+					background: #1890ff;
 				}
 				
 				.activity-title {
-					font-size: 32rpx;
-					font-weight: bold;
+					font-size: 28rpx;
+					font-weight: 600;
 					color: white;
 					display: block;
-					margin-bottom: 5rpx;
+					margin-bottom: 4rpx;
 				}
 				
 				.activity-subtitle {
-					font-size: 24rpx;
-					color: white;
+					font-size: 22rpx;
+					color: rgba(255,255,255,0.9);
 					display: block;
 				}
 			}
@@ -552,43 +553,44 @@
 	
 	/* 项目列表 */
 	.project-section {
-		padding: 0 30rpx;
+		padding: 0 24rpx;
 		
 		.project-grid {
 			display: grid;
 			grid-template-columns: repeat(2, 1fr);
-			gap: 20rpx;
+			gap: 16rpx;
 			
 			.project-card {
 				background: white;
-				border-radius: 20rpx;
+				border-radius: 12rpx;
 				overflow: hidden;
+				box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.04);
 				
 				.project-image {
 					width: 100%;
-					height: 280rpx;
+					height: 260rpx;
 				}
 				
 				.project-info {
-					padding: 20rpx;
+					padding: 16rpx;
 					
 					.project-name {
-						font-size: 28rpx;
-						font-weight: bold;
-						color: #333;
+						font-size: 26rpx;
+						font-weight: 500;
+						color: #262626;
 						display: block;
-						margin-bottom: 10rpx;
+						margin-bottom: 8rpx;
 						overflow: hidden;
 						text-overflow: ellipsis;
 						white-space: nowrap;
 					}
 					
-				.project-meta {
-						margin-bottom: 15rpx;
-					.project-meta-row { display: flex; align-items: center; gap: 8rpx; }
-					.tested { font-size: 22rpx; color: #666; }
-					.dot { color: #ccc; }
-					.cycle { font-size: 22rpx; color: #999; }
+					.project-meta {
+						margin-bottom: 12rpx;
+						.project-meta-row { display: flex; align-items: center; gap: 6rpx; }
+						.tested { font-size: 22rpx; color: #8c8c8c; }
+						.dot { color: #d9d9d9; }
+						.cycle { font-size: 22rpx; color: #8c8c8c; }
 					}
 					
 					.project-footer {
@@ -601,28 +603,28 @@
 							align-items: baseline;
 							
 							.price-symbol {
-								font-size: 24rpx;
-								color: #ff6b35;
+								font-size: 22rpx;
+								color: #ff4d4f;
 							}
 							
 							.price-value {
-								font-size: 32rpx;
-								font-weight: bold;
-								color: #ff6b35;
+								font-size: 30rpx;
+								font-weight: 600;
+								color: #ff4d4f;
 							}
 							
 							.price-unit {
-								font-size: 22rpx;
-								color: #ff6b35;
-								margin-left: 4rpx;
+								font-size: 20rpx;
+								color: #ff4d4f;
+								margin-left: 2rpx;
 							}
 						}
 						
 						.book-btn {
-							background: #667eea;
+							background: #1890ff;
 							color: white;
-							padding: 10rpx 20rpx;
-							border-radius: 30rpx;
+							padding: 8rpx 16rpx;
+							border-radius: 8rpx;
 							font-size: 22rpx;
 						}
 					}
