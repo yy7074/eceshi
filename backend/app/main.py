@@ -23,6 +23,9 @@ async def lifespan(app: FastAPI):
     print(f"📝 环境: {'开发' if settings.DEBUG else '生产'}")
     print(f"🔗 数据库: {settings.DATABASE_URL.split('@')[-1]}")
     
+    # 导入所有模型（确保SQLAlchemy能创建所有表）
+    import app.models  # noqa: F401
+    
     # 创建数据库表（生产环境使用Alembic迁移）
     if settings.DEBUG:
         Base.metadata.create_all(bind=engine)

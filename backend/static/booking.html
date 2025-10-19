@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>检测服务预约 - 科研检测服务平台</title>
+    <script src="https://cdn.jsdelivr.net/npm/vue@3.3.4/dist/vue.global.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/element-plus@2.4.1/dist/index.css" />
+    <script src="https://cdn.jsdelivr.net/npm/element-plus@2.4.1/dist/index.full.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios@1.5.0/dist/axios.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #f5f7fa;
+            color: #333;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .header {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .header h1 {
+            font-size: 24px;
+            color: #409eff;
+            margin-bottom: 10px;
+        }
+        
+        .steps {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 20px;
+        }
+        
+        .step-item {
+            flex: 1;
+            text-align: center;
+            position: relative;
+            padding: 10px;
+        }
+        
+        .step-item::after {
+            content: '';
+            position: absolute;
+            top: 20px;
+            right: -50%;
+            width: 100%;
+            height: 2px;
+            background: #e4e7ed;
+            z-index: -1;
+        }
+        
+        .step-item:last-child::after {
+            display: none;
+        }
+        
+        .step-item.active .step-number {
+            background: #409eff;
+            color: white;
+        }
+        
+        .step-item.active::after {
+            background: #409eff;
+        }
+        
+        .step-number {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: #e4e7ed;
+            color: #909399;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+        
+        .step-title {
+            font-size: 14px;
+            color: #606266;
+        }
+        
+        .form-card {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        
+        .form-section {
+            margin-bottom: 30px;
+        }
+        
+        .section-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #303133;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #409eff;
+        }
+        
+        .sample-item {
+            border: 1px solid #dcdfe6;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 15px;
+            background: #f9fafc;
+        }
+        
+        .sample-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .option-button {
+            padding: 8px 20px;
+            border: 1px solid #dcdfe6;
+            border-radius: 4px;
+            background: white;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .option-button:hover {
+            border-color: #409eff;
+            color: #409eff;
+        }
+        
+        .option-button.active {
+            background: #409eff;
+            color: white;
+            border-color: #409eff;
+        }
+        
+        .summary-card {
+            background: #f0f9ff;
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 4px solid #409eff;
+        }
+        
+        .summary-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            font-size: 14px;
+        }
+        
+        .summary-row.total {
+            font-size: 18px;
+            font-weight: bold;
+            color: #f56c6c;
+            padding-top: 15px;
+            border-top: 1px dashed #409eff;
+            margin-top: 10px;
+        }
+        
+        .action-buttons {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-top: 30px;
+        }
+        
+        .warning-text {
+            color: #e6a23c;
+            font-size: 12px;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="container">
+            <!-- 头部 -->
+            <div class="header">
+                <h1>🔬 {{ projectInfo.name || '检测服务预约' }}</h1>
+                <p style="color: #909399; margin-top: 5px;">{{ projectInfo.project_no }}</p>
+                
+                <!-- 流程步骤 -->
+                <div class="steps">
+                    <div class="step-item" :class="{ active: currentStep >= 1 }">
+                        <div class="step-number">01</div>
+                        <div class="step-title">填写样品信息</div>
+                    </div>
+                    <div class="step-item" :class="{ active: currentStep >= 2 }">
+                        <div class="step-number">02</div>
+                        <div class="step-title">确定物流信息</div>
+                    </div>
+                    <div class="step-item" :class="{ active: currentStep >= 3 }">
+                        <div class="step-number">03</div>
+                        <div class="step-title">选择支付方式</div>
+                    </div>
+                    <div class="step-item" :class="{ active: currentStep >= 4 }">
+                        <div class="step-number">04</div>
+                        <div class="step-title">完成预约</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 表单内容 -->
+            <div class="form-card">
+                <!-- 样品信息 -->
+                <div class="form-section">
+                    <h3 class="section-title">样品信息</h3>
+                    
+                    <div v-for="(sample, index) in orderForm.samples" :key="index" class="sample-item">
+                        <div class="sample-header">
+                            <span style="font-weight: 600;">样品 {{ index + 1 }}</span>
+                            <el-button 
+                                v-if="orderForm.samples.length > 1" 
+                                type="danger" 
+                                size="small" 
+                                text
+                                @click="removeSample(index)">
+                                删除
+                            </el-button>
+                        </div>
+                        
+                        <el-row :gutter="20">
+                            <el-col :span="8">
+                                <el-form-item label="样品数量">
+                                    <el-input-number v-model="sample.quantity" :min="1" :max="100" style="width: 100%;" />
+                                </el-form-item>
+                            </el-col>
+                            <el-col :span="8">
+                                <el-form-item label="样品名称">
+                                    <el-input v-model="sample.sample_name" placeholder="请输入样品名称" />
+                                </el-form-item>
+                            </el-col>
+                            <el-col :span="8">
+                                <el-form-item label="样品编号">
+                                    <el-input v-model="sample.sample_number" placeholder="请输入样品编号" />
+                                </el-form-item>
+                            </el-col>
+                        </el-row>
+                        
+                        <el-row :gutter="20">
+                            <el-col :span="12">
+                                <el-form-item label="样品规格">
+                                    <el-input v-model="sample.sample_spec" placeholder="例如：10mm x 10mm" />
+                                </el-form-item>
+                            </el-col>
+                            <el-col :span="12">
+                                <el-form-item label="测试位点">
+                                    <el-input v-model="sample.test_location" placeholder="例如：表面中心区域" />
+                                </el-form-item>
+                            </el-col>
+                        </el-row>
+                        
+                        <!-- 测试参数 -->
+                        <div style="margin-top: 20px;">
+                            <h4 style="margin-bottom: 15px; color: #606266;">测试参数</h4>
+                            
+                            <el-row :gutter="20">
+                                <el-col :span="12">
+                                    <el-form-item label="数据范围">
+                                        <el-select v-model="sample.test_params.data_range" placeholder="请选择" style="width: 100%;">
+                                            <el-option label="全范围" value="full"></el-option>
+                                            <el-option label="自定义范围" value="custom"></el-option>
+                                        </el-select>
+                                    </el-form-item>
+                                </el-col>
+                                <el-col :span="12">
+                                    <el-form-item label="光圈设置">
+                                        <div class="button-group">
+                                            <button 
+                                                v-for="aperture in ['20μm', '50μm', '100μm', '200μm', '其它']" 
+                                                :key="aperture"
+                                                class="option-button"
+                                                :class="{ active: sample.test_params.aperture === aperture }"
+                                                @click="sample.test_params.aperture = aperture">
+                                                {{ aperture }}
+                                            </button>
+                                        </div>
+                                    </el-form-item>
+                                </el-col>
+                            </el-row>
+                            
+                            <el-row :gutter="20">
+                                <el-col :span="8">
+                                    <el-form-item label="测试点数">
+                                        <el-input-number v-model="sample.test_params.test_points" :min="1" :max="100" style="width: 100%;" />
+                                    </el-form-item>
+                                </el-col>
+                                <el-col :span="8">
+                                    <el-form-item label="测试温度">
+                                        <el-input v-model="sample.test_params.temperature" placeholder="例如：25℃" />
+                                    </el-form-item>
+                                </el-col>
+                                <el-col :span="8">
+                                    <el-form-item label="激光功率">
+                                        <el-input v-model="sample.test_params.laser_power" placeholder="例如：10mW" />
+                                    </el-form-item>
+                                </el-col>
+                            </el-row>
+                        </div>
+                        
+                        <!-- 特殊要求 -->
+                        <el-form-item label="特殊要求">
+                            <el-input 
+                                v-model="sample.special_requirements" 
+                                type="textarea" 
+                                :rows="3"
+                                placeholder="请描述您的特殊测试要求或注意事项" />
+                        </el-form-item>
+                    </div>
+                    
+                    <el-button @click="addSample" style="width: 100%; margin-top: 10px;" plain>
+                        + 添加样品
+                    </el-button>
+                </div>
+                
+                <!-- 配送信息 -->
+                <div class="form-section">
+                    <h3 class="section-title">配送信息</h3>
+                    
+                    <el-radio-group v-model="orderForm.shipping_method" style="margin-bottom: 20px;">
+                        <el-radio label="self">自送样品</el-radio>
+                        <el-radio label="express">快递寄送</el-radio>
+                        <el-radio label="platform">平台上门取样</el-radio>
+                    </el-radio-group>
+                    
+                    <div v-if="orderForm.shipping_method === 'express'">
+                        <el-select v-model="orderForm.address_id" placeholder="请选择收货地址" style="width: 100%;">
+                            <el-option 
+                                v-for="addr in addresses" 
+                                :key="addr.id" 
+                                :label="`${addr.contact_name} ${addr.contact_phone} ${addr.full_address}`" 
+                                :value="addr.id">
+                            </el-option>
+                        </el-select>
+                        <p class="warning-text">* 请确保您的样品已妥善包装，避免运输过程中损坏</p>
+                    </div>
+                    
+                    <div v-if="orderForm.shipping_method === 'platform'">
+                        <el-alert 
+                            title="平台上门取样服务" 
+                            type="info" 
+                            :closable="false"
+                            description="我们的工作人员将在1-3个工作日内联系您安排上门取样时间。上门取样需额外支付50元服务费。">
+                        </el-alert>
+                    </div>
+                </div>
+                
+                <!-- 其他选项 -->
+                <div class="form-section">
+                    <h3 class="section-title">其他选项</h3>
+                    
+                    <el-form-item label="是否加急">
+                        <el-switch v-model="orderForm.is_urgent" />
+                        <span style="margin-left: 10px; color: #909399; font-size: 14px;">
+                            加急服务将缩短50%检测周期，加收30%费用
+                        </span>
+                    </el-form-item>
+                    
+                    <el-form-item label="订单备注">
+                        <el-input 
+                            v-model="orderForm.remark" 
+                            type="textarea" 
+                            :rows="4"
+                            placeholder="请填写其他需要说明的事项" />
+                    </el-form-item>
+                </div>
+                
+                <!-- 费用总结 -->
+                <div class="summary-card">
+                    <h4 style="margin-bottom: 15px;">费用明细</h4>
+                    <div class="summary-row">
+                        <span>检测费用</span>
+                        <span>¥{{ calculateBaseFee() }}</span>
+                    </div>
+                    <div class="summary-row" v-if="orderForm.is_urgent">
+                        <span>加急费用（30%）</span>
+                        <span>¥{{ calculateUrgentFee() }}</span>
+                    </div>
+                    <div class="summary-row" v-if="orderForm.shipping_method === 'platform'">
+                        <span>上门取样费</span>
+                        <span>¥50.00</span>
+                    </div>
+                    <div class="summary-row total">
+                        <span>合计</span>
+                        <span>¥{{ calculateTotalFee() }}</span>
+                    </div>
+                </div>
+                
+                <!-- 操作按钮 -->
+                <div class="action-buttons">
+                    <el-button size="large" @click="goBack">返回</el-button>
+                    <el-button size="large" @click="saveDraft">存为草稿</el-button>
+                    <el-button type="primary" size="large" @click="submitOrder" :loading="submitting">
+                        提交订单
+                    </el-button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp } = Vue
+        const { ElMessage, ElMessageBox } = ElementPlus
+
+        createApp({
+            data() {
+                return {
+                    baseUrl: 'https://catdog.dachaonet.com',
+                    token: localStorage.getItem('token') || '',
+                    currentStep: 1,
+                    projectId: new URLSearchParams(window.location.search).get('project_id') || 1,
+                    projectInfo: {},
+                    addresses: [],
+                    submitting: false,
+                    orderForm: {
+                        project_id: null,
+                        samples: [
+                            {
+                                quantity: 1,
+                                sample_name: '',
+                                sample_number: '',
+                                sample_spec: '',
+                                test_location: '',
+                                test_params: {
+                                    data_range: 'full',
+                                    aperture: '50μm',
+                                    test_points: 5,
+                                    temperature: '25℃',
+                                    laser_power: '10mW'
+                                },
+                                special_requirements: ''
+                            }
+                        ],
+                        shipping_method: 'self',
+                        address_id: null,
+                        is_urgent: false,
+                        remark: ''
+                    }
+                }
+            },
+            mounted() {
+                this.orderForm.project_id = parseInt(this.projectId)
+                this.loadProjectInfo()
+                if (this.token) {
+                    this.loadAddresses()
+                }
+            },
+            methods: {
+                async loadProjectInfo() {
+                    try {
+                        const res = await axios.get(`${this.baseUrl}/api/v1/projects/${this.projectId}`)
+                        this.projectInfo = res.data.data
+                    } catch (error) {
+                        console.error('加载项目信息失败', error)
+                    }
+                },
+                async loadAddresses() {
+                    try {
+                        const res = await axios.get(`${this.baseUrl}/api/v1/addresses/list`, {
+                            headers: { 'Authorization': `Bearer ${this.token}` }
+                        })
+                        this.addresses = res.data.data || []
+                    } catch (error) {
+                        console.error('加载地址列表失败', error)
+                    }
+                },
+                addSample() {
+                    this.orderForm.samples.push({
+                        quantity: 1,
+                        sample_name: '',
+                        sample_number: '',
+                        sample_spec: '',
+                        test_location: '',
+                        test_params: {
+                            data_range: 'full',
+                            aperture: '50μm',
+                            test_points: 5,
+                            temperature: '25℃',
+                            laser_power: '10mW'
+                        },
+                        special_requirements: ''
+                    })
+                },
+                removeSample(index) {
+                    this.orderForm.samples.splice(index, 1)
+                },
+                calculateBaseFee() {
+                    if (!this.projectInfo.current_price) return '0.00'
+                    const totalQuantity = this.orderForm.samples.reduce((sum, s) => sum + s.quantity, 0)
+                    return (this.projectInfo.current_price * totalQuantity).toFixed(2)
+                },
+                calculateUrgentFee() {
+                    const baseFee = parseFloat(this.calculateBaseFee())
+                    return (baseFee * 0.3).toFixed(2)
+                },
+                calculateTotalFee() {
+                    let total = parseFloat(this.calculateBaseFee())
+                    if (this.orderForm.is_urgent) {
+                        total += parseFloat(this.calculateUrgentFee())
+                    }
+                    if (this.orderForm.shipping_method === 'platform') {
+                        total += 50
+                    }
+                    return total.toFixed(2)
+                },
+                async submitOrder() {
+                    // 验证表单
+                    if (!this.token) {
+                        ElMessage.warning('请先登录')
+                        return
+                    }
+                    
+                    for (let sample of this.orderForm.samples) {
+                        if (!sample.sample_name) {
+                            ElMessage.warning('请填写样品名称')
+                            return
+                        }
+                    }
+                    
+                    if (this.orderForm.shipping_method === 'express' && !this.orderForm.address_id) {
+                        ElMessage.warning('请选择收货地址')
+                        return
+                    }
+                    
+                    this.submitting = true
+                    try {
+                        const res = await axios.post(
+                            `${this.baseUrl}/api/v1/orders/create`,
+                            this.orderForm,
+                            { headers: { 'Authorization': `Bearer ${this.token}` } }
+                        )
+                        
+                        ElMessage.success('订单创建成功！')
+                        
+                        // 跳转到订单详情或支付页面
+                        setTimeout(() => {
+                            window.location.href = `/order-detail.html?order_id=${res.data.data.id}`
+                        }, 1500)
+                    } catch (error) {
+                        ElMessage.error(error.response?.data?.detail || '订单创建失败')
+                    } finally {
+                        this.submitting = false
+                    }
+                },
+                saveDraft() {
+                    localStorage.setItem('order_draft', JSON.stringify(this.orderForm))
+                    ElMessage.success('草稿已保存')
+                },
+                goBack() {
+                    window.history.back()
+                }
+            }
+        }).use(ElementPlus).mount('#app')
+    </script>
+</body>
+</html>
+

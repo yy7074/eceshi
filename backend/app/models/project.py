@@ -1,7 +1,8 @@
 """
 项目和实验室相关模型
 """
-from sqlalchemy import Column, BigInteger, String, Integer, DateTime, Boolean, Text, JSON, Numeric
+from sqlalchemy import Column, BigInteger, String, Integer, DateTime, Boolean, Text, JSON, Numeric, ForeignKey
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.core.database import Base
 
@@ -114,6 +115,7 @@ class Project(Base):
     
     # 统计
     view_count = Column(Integer, default=0, comment="浏览量")
+    order_count = Column(Integer, default=0, comment="订单量")
     booking_count = Column(Integer, default=0, comment="预约量")
     satisfaction = Column(Numeric(5, 2), default=100.0, comment="满意度")
     
@@ -122,6 +124,10 @@ class Project(Base):
     
     created_at = Column(DateTime, server_default=func.now(), comment="创建时间")
     updated_at = Column(DateTime, onupdate=func.now(), comment="更新时间")
+    
+    # 关系
+    category = relationship("ProjectCategory", foreign_keys=[category_id], primaryjoin="Project.category_id == ProjectCategory.id")
+    laboratory = relationship("Laboratory", foreign_keys=[lab_id], primaryjoin="Project.lab_id == Laboratory.id")
 
 
 class ProjectReview(Base):

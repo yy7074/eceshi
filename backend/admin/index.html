@@ -9,8 +9,12 @@
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/element-plus/dist/index.css">
     <style>
-        body {
+        * {
             margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB',
                 'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial, sans-serif;
         }
@@ -22,29 +26,63 @@
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         }
         .login-box {
-            width: 400px;
+            width: 450px;
             padding: 40px;
             background: white;
             border-radius: 8px;
             box-shadow: 0 2px 12px rgba(0,0,0,0.1);
         }
-        .admin-container {
-            min-height: 100vh;
+        .admin-layout {
+            height: 100vh;
         }
-        .header {
-            background: #409EFF;
-            color: white;
-            padding: 0 20px;
-            height: 60px;
+        .admin-header {
             display: flex;
             align-items: center;
             justify-content: space-between;
+            padding: 0 20px;
+            background: #001529;
+            color: white;
+            height: 60px;
         }
-        .main-content {
+        .admin-header h2 {
+            margin: 0;
+            font-size: 18px;
+        }
+        .admin-container {
+            height: calc(100vh - 60px);
+        }
+        .admin-aside {
+            background: #001529;
+            color: white;
+        }
+        .admin-aside .el-menu {
+            border-right: none;
+            background-color: #001529;
+        }
+        .admin-main {
+            background: #f0f2f5;
+            overflow-y: auto;
             padding: 20px;
         }
-        .upload-demo {
-            margin-top: 20px;
+        .page-header {
+            background: white;
+            padding: 16px 24px;
+            margin-bottom: 16px;
+            border-radius: 4px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+        }
+        .page-header h3 {
+            margin: 0;
+            font-size: 20px;
+            font-weight: 600;
+            color: #262626;
+        }
+        .content-card {
+            background: white;
+            border-radius: 4px;
+            padding: 24px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+            margin-bottom: 16px;
         }
         .image-list {
             display: grid;
@@ -53,9 +91,14 @@
             margin-top: 20px;
         }
         .image-item {
-            border: 1px solid #ddd;
+            border: 1px solid #d9d9d9;
             border-radius: 4px;
             overflow: hidden;
+            transition: all 0.3s;
+        }
+        .image-item:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            transform: translateY(-2px);
         }
         .image-item img {
             width: 100%;
@@ -66,6 +109,9 @@
             padding: 8px;
             background: #f5f5f5;
             font-size: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
     </style>
 </head>
@@ -74,7 +120,7 @@
         <!-- 登录页面 -->
         <div v-if="!token" class="login-container">
             <div class="login-box">
-                <h2 style="text-align: center; margin-bottom: 30px;">后台管理登录</h2>
+                <h2 style="text-align: center; margin-bottom: 30px;">🔬 后台管理登录</h2>
                 
                 <el-tabs v-model="loginType">
                     <!-- 管理员登录 -->
@@ -96,6 +142,7 @@
                                     登录
                                 </el-button>
                             </el-form-item>
+                            <el-alert title="默认账号: admin / 123456" type="info" :closable="false" show-icon />
                         </el-form>
                     </el-tab-pane>
                     
@@ -125,193 +172,451 @@
             </div>
         </div>
 
-        <!-- 管理页面 -->
-        <div v-else class="admin-container">
-            <div class="header">
+        <!-- 后台管理主界面 -->
+        <el-container v-else class="admin-layout">
+            <!-- 顶部 -->
+            <el-header class="admin-header" height="60px">
                 <div>
-                    <h2 style="margin: 0;">🔬 科研检测服务平台 - 后台管理</h2>
+                    <h2>🔬 科研检测服务平台 - 后台管理</h2>
                 </div>
                 <div>
-                    <span>欢迎，{{ userInfo.nickname }}</span>
-                    <el-button @click="logout" type="text" style="color: white; margin-left: 20px;">
-                        退出登录
-                    </el-button>
+                    <el-dropdown>
+                        <span style="cursor: pointer; color: white;">
+                            {{ userInfo.nickname || '管理员' }}
+                            <el-icon style="margin-left: 5px;"><arrow-down /></el-icon>
+                        </span>
+                        <template #dropdown>
+                            <el-dropdown-menu>
+                                <el-dropdown-item @click="logout">
+                                    <el-icon><switch-button /></el-icon>
+                                    退出登录
+                                </el-dropdown-item>
+                            </el-dropdown-menu>
+                        </template>
+                    </el-dropdown>
                 </div>
-            </div>
+            </el-header>
 
-            <div class="main-content">
-                <el-tabs v-model="activeTab">
-                    <!-- 图片上传 -->
-                    <el-tab-pane label="图片上传" name="upload">
-                        <el-upload
-                            class="upload-demo"
-                            :action="uploadUrl"
-                            :headers="uploadHeaders"
-                            :on-success="handleUploadSuccess"
-                            :on-error="handleUploadError"
-                            :before-upload="beforeUpload"
-                            multiple
-                            :limit="10"
-                            list-type="picture-card">
-                            <el-icon><Plus /></el-icon>
-                        </el-upload>
+            <!-- 主体 -->
+            <el-container class="admin-container">
+                <!-- 左侧菜单 -->
+                <el-aside class="admin-aside" width="200px">
+                    <el-menu
+                        :default-active="activeMenu"
+                        background-color="#001529"
+                        text-color="#fff"
+                        active-text-color="#409EFF"
+                        @select="handleMenuSelect">
+                        <el-menu-item index="users">
+                            <el-icon><user /></el-icon>
+                            <span>用户管理</span>
+                        </el-menu-item>
+                        <el-menu-item index="projects">
+                            <el-icon><picture /></el-icon>
+                            <span>项目管理</span>
+                        </el-menu-item>
+                        <el-menu-item index="orders">
+                            <el-icon><document /></el-icon>
+                            <span>订单管理</span>
+                        </el-menu-item>
+                        <el-menu-item index="settings">
+                            <el-icon><setting /></el-icon>
+                            <span>系统设置</span>
+                        </el-menu-item>
+                    </el-menu>
+                </el-aside>
 
-                        <el-divider>已上传的图片</el-divider>
-                        
-                        <div class="image-list">
-                            <div v-for="(image, index) in uploadedImages" :key="index" class="image-item">
-                                <img :src="baseUrl + image.url" :alt="image.filename">
-                                <div class="image-item-footer">
-                                    <div>{{ image.filename }}</div>
-                                    <div style="margin-top: 4px;">
-                                        <el-button type="text" size="small" @click="copyUrl(image.url)">
-                                            复制URL
+                <!-- 右侧内容 -->
+                <el-main class="admin-main">
+                    <!-- 用户管理 -->
+                    <div v-show="activeMenu === 'users'">
+                        <div class="page-header">
+                            <h3>👥 用户管理</h3>
+                        </div>
+
+                        <div class="content-card">
+                            <div style="margin-bottom: 20px;">
+                                <el-input 
+                                    v-model="userSearch" 
+                                    placeholder="搜索手机号或昵称"
+                                    style="width: 300px; margin-right: 10px;"
+                                    @change="loadUsers">
+                                    <template #prefix>
+                                        <el-icon><search /></el-icon>
+                                    </template>
+                                </el-input>
+                                <el-button type="primary" @click="loadUsers">搜索</el-button>
+                                <el-button @click="userSearch=''; loadUsers()">重置</el-button>
+                            </div>
+
+                            <el-table :data="users" style="width: 100%" v-loading="usersLoading">
+                                <el-table-column prop="id" label="ID" width="80"></el-table-column>
+                                <el-table-column label="头像" width="80">
+                                    <template #default="scope">
+                                        <el-avatar 
+                                            :size="40" 
+                                            :src="scope.row.avatar ? baseUrl + scope.row.avatar : undefined">
+                                            {{ scope.row.nickname ? scope.row.nickname[0] : '?' }}
+                                        </el-avatar>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column prop="nickname" label="昵称" width="120"></el-table-column>
+                                <el-table-column prop="phone" label="手机号" width="130">
+                                    <template #default="scope">
+                                        {{ scope.row.phone || '未绑定' }}
+                                    </template>
+                                </el-table-column>
+                                <el-table-column label="登录方式" width="100">
+                                    <template #default="scope">
+                                        <el-tag v-if="scope.row.wechat_openid" type="success" size="small">微信</el-tag>
+                                        <el-tag v-if="scope.row.phone" type="info" size="small">手机</el-tag>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column prop="credit_limit" label="信用额度" width="100">
+                                    <template #default="scope">
+                                        ¥{{ scope.row.credit_limit }}
+                                    </template>
+                                </el-table-column>
+                                <el-table-column prop="total_spent" label="累计消费" width="100">
+                                    <template #default="scope">
+                                        ¥{{ scope.row.total_spent }}
+                                    </template>
+                                </el-table-column>
+                                <el-table-column prop="total_orders" label="订单数" width="80"></el-table-column>
+                                <el-table-column label="状态" width="80">
+                                    <template #default="scope">
+                                        <el-tag 
+                                            :type="scope.row.status === 'active' ? 'success' : 'danger'" 
+                                            size="small">
+                                            {{ getStatusText(scope.row.status) }}
+                                        </el-tag>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column prop="created_at" label="注册时间" width="170">
+                                    <template #default="scope">
+                                        {{ formatDate(scope.row.created_at) }}
+                                    </template>
+                                </el-table-column>
+                                <el-table-column label="操作" width="200" fixed="right">
+                                    <template #default="scope">
+                                        <el-button type="primary" size="small" @click="viewUser(scope.row)">
+                                            查看
                                         </el-button>
-                                        <el-button type="text" size="small" danger @click="deleteImage(image.url)">
-                                            删除
+                                        <el-button 
+                                            v-if="scope.row.status === 'active'"
+                                            type="danger" 
+                                            size="small" 
+                                            @click="updateUserStatus(scope.row.id, 'banned')">
+                                            禁用
                                         </el-button>
+                                        <el-button 
+                                            v-else
+                                            type="success" 
+                                            size="small" 
+                                            @click="updateUserStatus(scope.row.id, 'active')">
+                                            激活
+                                        </el-button>
+                                    </template>
+                                </el-table-column>
+                            </el-table>
+
+                            <el-pagination
+                                v-model:current-page="userPage"
+                                v-model:page-size="userPageSize"
+                                :page-sizes="[10, 20, 50, 100]"
+                                :total="userTotal"
+                                layout="total, sizes, prev, pager, next, jumper"
+                                @size-change="loadUsers"
+                                @current-change="loadUsers"
+                                style="margin-top: 20px; justify-content: center;">
+                            </el-pagination>
+
+                            <!-- 用户详情对话框 -->
+                            <el-dialog v-model="userDialogVisible" title="用户详情" width="700px">
+                                <div v-if="selectedUser" style="display: flex; gap: 20px;">
+                                    <!-- 左侧头像 -->
+                                    <div style="flex-shrink: 0; text-align: center;">
+                                        <el-avatar 
+                                            :size="120" 
+                                            :src="selectedUser.avatar ? baseUrl + selectedUser.avatar : undefined"
+                                            style="margin-bottom: 12px;">
+                                            {{ selectedUser.nickname ? selectedUser.nickname[0] : '?' }}
+                                        </el-avatar>
+                                        <div>
+                                            <el-button size="small" @click="avatarUploadVisible = true; currentEditUserId = selectedUser.id">
+                                                修改头像
+                                            </el-button>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- 右侧详情 -->
+                                    <div style="flex: 1;">
+                                        <el-descriptions :column="2" border>
+                                            <el-descriptions-item label="用户ID">{{ selectedUser.id }}</el-descriptions-item>
+                                            <el-descriptions-item label="昵称">{{ selectedUser.nickname }}</el-descriptions-item>
+                                            <el-descriptions-item label="手机号">{{ selectedUser.phone || '未绑定' }}</el-descriptions-item>
+                                            <el-descriptions-item label="邮箱">{{ selectedUser.email || '未填写' }}</el-descriptions-item>
+                                            <el-descriptions-item label="微信OpenID" :span="2">
+                                                {{ selectedUser.wechat_openid || '未绑定' }}
+                                            </el-descriptions-item>
+                                            <el-descriptions-item label="实名认证">
+                                                <el-tag :type="selectedUser.is_certified ? 'success' : 'info'" size="small">
+                                                    {{ selectedUser.is_certified ? '已认证' : '未认证' }}
+                                                </el-tag>
+                                            </el-descriptions-item>
+                                            <el-descriptions-item label="会员等级">
+                                                {{ getMemberLevelText(selectedUser.membership_level) }}
+                                            </el-descriptions-item>
+                                            <el-descriptions-item label="信用额度">¥{{ selectedUser.credit_limit }}</el-descriptions-item>
+                                            <el-descriptions-item label="已用额度">¥{{ selectedUser.used_credit }}</el-descriptions-item>
+                                            <el-descriptions-item label="预付余额">¥{{ selectedUser.prepaid_balance }}</el-descriptions-item>
+                                            <el-descriptions-item label="积分余额">{{ selectedUser.points_balance }}</el-descriptions-item>
+                                            <el-descriptions-item label="累计消费">¥{{ selectedUser.total_spent }}</el-descriptions-item>
+                                            <el-descriptions-item label="订单总数">{{ selectedUser.total_orders }}</el-descriptions-item>
+                                            <el-descriptions-item label="账户状态">
+                                                <el-tag :type="selectedUser.status === 'active' ? 'success' : 'danger'" size="small">
+                                                    {{ getStatusText(selectedUser.status) }}
+                                                </el-tag>
+                                            </el-descriptions-item>
+                                            <el-descriptions-item label="注册时间">{{ formatDate(selectedUser.created_at) }}</el-descriptions-item>
+                                            <el-descriptions-item label="最后登录">{{ formatDate(selectedUser.last_login_at) }}</el-descriptions-item>
+                                        </el-descriptions>
                                     </div>
                                 </div>
+                            </el-dialog>
+
+                            <!-- 修改头像对话框 -->
+                            <el-dialog v-model="avatarUploadVisible" title="修改用户头像" width="400px">
+                                <el-upload
+                                    drag
+                                    :action="uploadUrl"
+                                    :headers="uploadHeaders"
+                                    :on-success="handleAvatarUploadSuccess"
+                                    :before-upload="beforeUpload"
+                                    accept="image/*">
+                                    <el-icon class="el-icon--upload"><upload-filled /></el-icon>
+                                    <div class="el-upload__text">
+                                        将头像拖到此处，或<em>点击上传</em>
+                                    </div>
+                                    <template #tip>
+                                        <div class="el-upload__tip">
+                                            建议尺寸 200x200px，支持 jpg/png 格式
+                                        </div>
+                                    </template>
+                                </el-upload>
+                            </el-dialog>
+                        </div>
+                    </div>
+
+                    <!-- 项目管理 -->
+                    <div v-show="activeMenu === 'projects'">
+                        <div class="page-header">
+                            <h3>📸 项目管理</h3>
+                        </div>
+                        
+                        <div class="content-card">
+                            <div style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
+                                <div>
+                                    <el-input 
+                                        v-model="projectSearch" 
+                                        placeholder="搜索项目名称或编号"
+                                        style="width: 300px; margin-right: 10px;"
+                                        @change="loadProjects">
+                                        <template #prefix>
+                                            <el-icon><search /></el-icon>
+                                        </template>
+                                    </el-input>
+                                    <el-select v-model="projectCategoryFilter" placeholder="选择分类" style="width: 150px; margin-right: 10px;" @change="loadProjects" clearable>
+                                        <el-option v-for="cat in categories" :key="cat.id" :label="cat.name" :value="cat.id"></el-option>
+                                    </el-select>
+                                    <el-button type="primary" @click="loadProjects">搜索</el-button>
+                                    <el-button @click="projectSearch=''; projectCategoryFilter=null; loadProjects()">重置</el-button>
+                                </div>
+                                <el-button type="primary" @click="showProjectDialog()">
+                                    <el-icon><plus /></el-icon> 添加项目
+                                </el-button>
                             </div>
+
+                            <el-table :data="projects" style="width: 100%" v-loading="projectsLoading">
+                                <el-table-column prop="id" label="ID" width="60"></el-table-column>
+                                <el-table-column label="封面" width="80">
+                                    <template #default="scope">
+                                        <el-image 
+                                            v-if="scope.row.cover_image"
+                                            :src="scope.row.cover_image" 
+                                            style="width: 60px; height: 60px; border-radius: 4px;"
+                                            fit="cover"
+                                            :preview-src-list="[scope.row.cover_image]">
+                                        </el-image>
+                                        <span v-else style="color: #ccc;">无</span>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column prop="project_no" label="编号" width="100"></el-table-column>
+                                <el-table-column prop="name" label="项目名称" width="200" show-overflow-tooltip></el-table-column>
+                                <el-table-column prop="category_name" label="分类" width="120"></el-table-column>
+                                <el-table-column label="价格" width="120">
+                                    <template #default="scope">
+                                        <div>¥{{ scope.row.current_price }}</div>
+                                        <div style="font-size: 12px; color: #999; text-decoration: line-through;">¥{{ scope.row.original_price }}</div>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column label="标签" width="120">
+                                    <template #default="scope">
+                                        <el-tag v-if="scope.row.is_hot" type="danger" size="small" style="margin-right: 5px;">热门</el-tag>
+                                        <el-tag v-if="scope.row.is_recommended" type="warning" size="small">推荐</el-tag>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column label="统计" width="100">
+                                    <template #default="scope">
+                                        <div style="font-size: 12px;">浏览: {{ scope.row.view_count }}</div>
+                                        <div style="font-size: 12px;">预约: {{ scope.row.booking_count }}</div>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column label="状态" width="80">
+                                    <template #default="scope">
+                                        <el-tag :type="scope.row.status === 'active' ? 'success' : 'info'" size="small">
+                                            {{ scope.row.status === 'active' ? '上架' : '下架' }}
+                                        </el-tag>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column label="操作" width="240" fixed="right">
+                                    <template #default="scope">
+                                        <el-button type="primary" size="small" @click="showProjectDialog(scope.row)">编辑</el-button>
+                                        <el-button 
+                                            v-if="scope.row.status === 'active'"
+                                            type="warning" 
+                                            size="small" 
+                                            @click="updateProjectStatus(scope.row.id, 'inactive')">
+                                            下架
+                                        </el-button>
+                                        <el-button 
+                                            v-else
+                                            type="success" 
+                                            size="small" 
+                                            @click="updateProjectStatus(scope.row.id, 'active')">
+                                            上架
+                                        </el-button>
+                                        <el-button type="danger" size="small" @click="deleteProject(scope.row.id)">删除</el-button>
+                                    </template>
+                                </el-table-column>
+                            </el-table>
+
+                            <el-pagination
+                                v-model:current-page="projectPage"
+                                v-model:page-size="projectPageSize"
+                                :page-sizes="[10, 20, 50]"
+                                :total="projectTotal"
+                                layout="total, sizes, prev, pager, next, jumper"
+                                @size-change="loadProjects"
+                                @current-change="loadProjects"
+                                style="margin-top: 20px; justify-content: center;">
+                            </el-pagination>
+
+                            <!-- 添加/编辑项目对话框 -->
+                            <el-dialog 
+                                v-model="projectDialogVisible" 
+                                :title="projectForm.id ? '编辑项目' : '添加项目'" 
+                                width="600px">
+                                <el-form :model="projectForm" label-width="120px">
+                                    <el-form-item label="项目编号" required>
+                                        <el-input v-model="projectForm.project_no" placeholder="如: PRJ001" :disabled="!!projectForm.id"></el-input>
+                                    </el-form-item>
+                                    <el-form-item label="项目名称" required>
+                                        <el-input v-model="projectForm.name" placeholder="请输入项目名称"></el-input>
+                                    </el-form-item>
+                                    <el-form-item label="分类" required>
+                                        <el-select v-model="projectForm.category_id" placeholder="请选择分类" style="width: 100%;">
+                                            <el-option v-for="cat in categories" :key="cat.id" :label="cat.name" :value="cat.id"></el-option>
+                                        </el-select>
+                                    </el-form-item>
+                                    <el-form-item label="原价" required>
+                                        <el-input-number v-model="projectForm.original_price" :min="0" :precision="2" style="width: 100%;"></el-input-number>
+                                    </el-form-item>
+                                    <el-form-item label="现价" required>
+                                        <el-input-number v-model="projectForm.current_price" :min="0" :precision="2" style="width: 100%;"></el-input-number>
+                                    </el-form-item>
+                                    <el-form-item label="单位">
+                                        <el-input v-model="projectForm.unit" placeholder="如: 样品、次"></el-input>
+                                    </el-form-item>
+                                    <el-form-item label="服务周期">
+                                        <div style="display: flex; gap: 10px; align-items: center;">
+                                            <el-input-number v-model="projectForm.service_cycle_min" :min="1" placeholder="最短"></el-input-number>
+                                            <span>~</span>
+                                            <el-input-number v-model="projectForm.service_cycle_max" :min="1" placeholder="最长"></el-input-number>
+                                            <span>工作日</span>
+                                        </div>
+                                    </el-form-item>
+                                    <el-form-item label="仪器名称">
+                                        <el-input v-model="projectForm.equipment_name" placeholder="请输入仪器名称"></el-input>
+                                    </el-form-item>
+                                    <el-form-item label="项目介绍">
+                                        <el-input v-model="projectForm.introduction" type="textarea" :rows="3" placeholder="请输入项目介绍"></el-input>
+                                    </el-form-item>
+                                    <el-form-item label="样品要求">
+                                        <el-input v-model="projectForm.sample_requirements" type="textarea" :rows="3" placeholder="请输入样品要求"></el-input>
+                                    </el-form-item>
+                                    <el-form-item label="封面图">
+                                        <div>
+                                            <el-input v-model="projectForm.cover_image" placeholder="图片URL" style="margin-bottom: 10px;"></el-input>
+                                            <el-upload
+                                                :action="uploadUrl"
+                                                :headers="uploadHeaders"
+                                                :on-success="handleProjectImageUpload"
+                                                :show-file-list="false"
+                                                accept="image/*">
+                                                <el-button size="small" type="primary">上传封面图</el-button>
+                                            </el-upload>
+                                            <el-image 
+                                                v-if="projectForm.cover_image"
+                                                :src="projectForm.cover_image" 
+                                                style="width: 100px; height: 100px; margin-top: 10px;"
+                                                fit="cover">
+                                            </el-image>
+                                        </div>
+                                    </el-form-item>
+                                    <el-form-item label="标签">
+                                        <el-checkbox v-model="projectForm.is_hot">热门</el-checkbox>
+                                        <el-checkbox v-model="projectForm.is_recommended">推荐</el-checkbox>
+                                    </el-form-item>
+                                    <el-form-item label="排序">
+                                        <el-input-number v-model="projectForm.sort_order" :min="0"></el-input-number>
+                                    </el-form-item>
+                                </el-form>
+                                <template #footer>
+                                    <el-button @click="projectDialogVisible = false">取消</el-button>
+                                    <el-button type="primary" @click="saveProject" :loading="loading">保存</el-button>
+                                </template>
+                            </el-dialog>
                         </div>
-                    </el-tab-pane>
-
-                    <!-- 用户管理 -->
-                    <el-tab-pane label="用户管理" name="users">
-                        <div style="margin-bottom: 20px;">
-                            <el-input 
-                                v-model="userSearch" 
-                                placeholder="搜索手机号或昵称"
-                                style="width: 300px; margin-right: 10px;"
-                                @change="loadUsers">
-                                <template #prefix>
-                                    <el-icon><Search /></el-icon>
-                                </template>
-                            </el-input>
-                            <el-button type="primary" @click="loadUsers">搜索</el-button>
-                            <el-button @click="userSearch=''; loadUsers()">重置</el-button>
-                        </div>
-
-                        <el-table :data="users" style="width: 100%" v-loading="usersLoading">
-                            <el-table-column prop="id" label="ID" width="80"></el-table-column>
-                            <el-table-column prop="nickname" label="昵称" width="120"></el-table-column>
-                            <el-table-column prop="phone" label="手机号" width="130">
-                                <template #default="scope">
-                                    {{ scope.row.phone || '未绑定' }}
-                                </template>
-                            </el-table-column>
-                            <el-table-column label="登录方式" width="100">
-                                <template #default="scope">
-                                    <el-tag v-if="scope.row.wechat_openid" type="success" size="small">微信</el-tag>
-                                    <el-tag v-if="scope.row.phone" type="info" size="small">手机</el-tag>
-                                </template>
-                            </el-table-column>
-                            <el-table-column prop="credit_limit" label="信用额度" width="100">
-                                <template #default="scope">
-                                    ¥{{ scope.row.credit_limit }}
-                                </template>
-                            </el-table-column>
-                            <el-table-column prop="total_spent" label="累计消费" width="100">
-                                <template #default="scope">
-                                    ¥{{ scope.row.total_spent }}
-                                </template>
-                            </el-table-column>
-                            <el-table-column prop="total_orders" label="订单数" width="80"></el-table-column>
-                            <el-table-column label="状态" width="80">
-                                <template #default="scope">
-                                    <el-tag 
-                                        :type="scope.row.status === 'active' ? 'success' : 'danger'" 
-                                        size="small">
-                                        {{ getStatusText(scope.row.status) }}
-                                    </el-tag>
-                                </template>
-                            </el-table-column>
-                            <el-table-column prop="created_at" label="注册时间" width="170">
-                                <template #default="scope">
-                                    {{ formatDate(scope.row.created_at) }}
-                                </template>
-                            </el-table-column>
-                            <el-table-column prop="last_login_at" label="最后登录" width="170">
-                                <template #default="scope">
-                                    {{ formatDate(scope.row.last_login_at) }}
-                                </template>
-                            </el-table-column>
-                            <el-table-column label="操作" width="200" fixed="right">
-                                <template #default="scope">
-                                    <el-button type="primary" size="small" @click="viewUser(scope.row)">
-                                        查看详情
-                                    </el-button>
-                                    <el-button 
-                                        v-if="scope.row.status === 'active'"
-                                        type="danger" 
-                                        size="small" 
-                                        @click="updateUserStatus(scope.row.id, 'banned')">
-                                        禁用
-                                    </el-button>
-                                    <el-button 
-                                        v-else
-                                        type="success" 
-                                        size="small" 
-                                        @click="updateUserStatus(scope.row.id, 'active')">
-                                        激活
-                                    </el-button>
-                                </template>
-                            </el-table-column>
-                        </el-table>
-
-                        <el-pagination
-                            v-model:current-page="userPage"
-                            v-model:page-size="userPageSize"
-                            :page-sizes="[10, 20, 50, 100]"
-                            :total="userTotal"
-                            layout="total, sizes, prev, pager, next, jumper"
-                            @size-change="loadUsers"
-                            @current-change="loadUsers"
-                            style="margin-top: 20px; justify-content: center;">
-                        </el-pagination>
-
-                        <!-- 用户详情对话框 -->
-                        <el-dialog v-model="userDialogVisible" title="用户详情" width="600px">
-                            <el-descriptions :column="2" border v-if="selectedUser">
-                                <el-descriptions-item label="用户ID">{{ selectedUser.id }}</el-descriptions-item>
-                                <el-descriptions-item label="昵称">{{ selectedUser.nickname }}</el-descriptions-item>
-                                <el-descriptions-item label="手机号">{{ selectedUser.phone || '未绑定' }}</el-descriptions-item>
-                                <el-descriptions-item label="邮箱">{{ selectedUser.email || '未填写' }}</el-descriptions-item>
-                                <el-descriptions-item label="微信OpenID" :span="2">
-                                    {{ selectedUser.wechat_openid || '未绑定' }}
-                                </el-descriptions-item>
-                                <el-descriptions-item label="实名认证">
-                                    <el-tag :type="selectedUser.is_certified ? 'success' : 'info'" size="small">
-                                        {{ selectedUser.is_certified ? '已认证' : '未认证' }}
-                                    </el-tag>
-                                </el-descriptions-item>
-                                <el-descriptions-item label="会员等级">
-                                    {{ getMemberLevelText(selectedUser.membership_level) }}
-                                </el-descriptions-item>
-                                <el-descriptions-item label="信用额度">¥{{ selectedUser.credit_limit }}</el-descriptions-item>
-                                <el-descriptions-item label="已用额度">¥{{ selectedUser.used_credit }}</el-descriptions-item>
-                                <el-descriptions-item label="预付余额">¥{{ selectedUser.prepaid_balance }}</el-descriptions-item>
-                                <el-descriptions-item label="积分余额">{{ selectedUser.points_balance }}</el-descriptions-item>
-                                <el-descriptions-item label="累计消费">¥{{ selectedUser.total_spent }}</el-descriptions-item>
-                                <el-descriptions-item label="订单总数">{{ selectedUser.total_orders }}</el-descriptions-item>
-                                <el-descriptions-item label="账户状态">
-                                    <el-tag :type="selectedUser.status === 'active' ? 'success' : 'danger'" size="small">
-                                        {{ getStatusText(selectedUser.status) }}
-                                    </el-tag>
-                                </el-descriptions-item>
-                                <el-descriptions-item label="注册时间">{{ formatDate(selectedUser.created_at) }}</el-descriptions-item>
-                                <el-descriptions-item label="最后登录">{{ formatDate(selectedUser.last_login_at) }}</el-descriptions-item>
-                            </el-descriptions>
-                        </el-dialog>
-                    </el-tab-pane>
+                    </div>
 
                     <!-- 订单管理 -->
-                    <el-tab-pane label="订单管理" name="orders">
-                        <p>订单管理功能开发中...</p>
-                    </el-tab-pane>
-                </el-tabs>
-            </div>
-        </div>
+                    <div v-show="activeMenu === 'orders'">
+                        <div class="page-header">
+                            <h3>📦 订单管理</h3>
+                        </div>
+                        <div class="content-card">
+                            <el-empty description="订单管理功能开发中..." />
+                        </div>
+                    </div>
+
+                    <!-- 系统设置 -->
+                    <div v-show="activeMenu === 'settings'">
+                        <div class="page-header">
+                            <h3>⚙️ 系统设置</h3>
+                        </div>
+                        <div class="content-card">
+                            <el-descriptions title="系统信息" :column="2" border>
+                                <el-descriptions-item label="系统名称">科研检测服务平台</el-descriptions-item>
+                                <el-descriptions-item label="版本">v1.0.0</el-descriptions-item>
+                                <el-descriptions-item label="后端地址">{{ baseUrl }}</el-descriptions-item>
+                                <el-descriptions-item label="当前管理员">{{ userInfo.nickname }}</el-descriptions-item>
+                            </el-descriptions>
+                        </div>
+                    </div>
+                </el-main>
+            </el-container>
+        </el-container>
     </div>
 
     <script>
@@ -324,7 +629,7 @@
                     baseUrl: 'https://catdog.dachaonet.com',
                     token: localStorage.getItem('admin_token') || '',
                     userInfo: JSON.parse(localStorage.getItem('admin_user') || '{}'),
-                    loginType: 'admin', // 默认管理员登录
+                    loginType: 'admin',
                     adminLoginForm: {
                         username: '',
                         password: ''
@@ -335,7 +640,7 @@
                     },
                     countdown: 0,
                     loading: false,
-                    activeTab: 'upload',
+                    activeMenu: 'users', // 默认用户管理
                     uploadedImages: [],
                     users: [],
                     usersLoading: false,
@@ -344,7 +649,32 @@
                     userPageSize: 20,
                     userTotal: 0,
                     userDialogVisible: false,
-                    selectedUser: null
+                    selectedUser: null,
+                    avatarUploadVisible: false,
+                    currentEditUserId: null,
+                    // 项目管理
+                    projects: [],
+                    projectsLoading: false,
+                    projectSearch: '',
+                    projectCategoryFilter: null,
+                    projectPage: 1,
+                    projectPageSize: 20,
+                    projectTotal: 0,
+                    projectDialogVisible: false,
+                    projectForm: {
+                        id: null,
+                        name: '',
+                        project_no: '',
+                        category_id: null,
+                        description: '',
+                        original_price: '',
+                        current_price: '',
+                        cover_image: '',
+                        is_hot: false,
+                        is_recommended: false,
+                        status: 'active'
+                    },
+                    categories: []
                 }
             },
             computed: {
@@ -360,9 +690,40 @@
             mounted() {
                 if (this.token) {
                     this.loadUsers()
+                    this.loadCategories()
                 }
             },
             methods: {
+                handleMenuSelect(index) {
+                    this.activeMenu = index
+                    if (index === 'users' && this.users.length === 0) {
+                        this.loadUsers()
+                    } else if (index === 'projects') {
+                        this.loadProjects()
+                    }
+                },
+                copyImageUrl(url) {
+                    if (navigator.clipboard) {
+                        navigator.clipboard.writeText(url).then(() => {
+                            ElMessage.success('图片URL已复制到剪贴板')
+                        }).catch(() => {
+                            ElMessage.error('复制失败')
+                        })
+                    } else {
+                        // 兼容旧浏览器
+                        const textarea = document.createElement('textarea')
+                        textarea.value = url
+                        document.body.appendChild(textarea)
+                        textarea.select()
+                        try {
+                            document.execCommand('copy')
+                            ElMessage.success('图片URL已复制到剪贴板')
+                        } catch (err) {
+                            ElMessage.error('复制失败')
+                        }
+                        document.body.removeChild(textarea)
+                    }
+                },
                 async sendSms() {
                     if (!this.loginForm.phone) {
                         ElMessage.error('请输入手机号')
@@ -440,44 +801,64 @@
                     this.userInfo = {}
                     ElMessage.success('已退出登录')
                 },
-                beforeUpload(file) {
-                    const isImage = file.type.startsWith('image/')
-                    const isLt10M = file.size / 1024 / 1024 < 10
-                    if (!isImage) {
-                        ElMessage.error('只能上传图片文件!')
-                    }
-                    if (!isLt10M) {
-                        ElMessage.error('图片大小不能超过10MB!')
-                    }
-                    return isImage && isLt10M
-                },
                 handleUploadSuccess(response, file) {
                     if (response.code === 200) {
                         ElMessage.success('上传成功')
-                        this.uploadedImages.unshift(response.data)
-                    } else {
-                        ElMessage.error(response.message || '上传失败')
+                        this.uploadedImages.unshift({
+                            url: response.data.url,
+                            name: file.name
+                        })
+                    }
+                },
+                async handleAvatarUploadSuccess(response, file) {
+                    if (response.code === 200) {
+                        try {
+                            // 更新用户头像
+                            await axios.put(
+                                `${this.baseUrl}/api/v1/users/me`,
+                                { avatar: response.data.url },
+                                { headers: this.uploadHeaders }
+                            )
+                            ElMessage.success('头像更新成功')
+                            this.avatarUploadVisible = false
+                            // 刷新用户详情
+                            if (this.selectedUser) {
+                                await this.viewUser({ id: this.selectedUser.id })
+                            }
+                            this.loadUsers()
+                        } catch (error) {
+                            ElMessage.error(error.response?.data?.detail || '头像更新失败')
+                        }
                     }
                 },
                 handleUploadError(error) {
-                    ElMessage.error('上传失败：' + error.message)
+                    ElMessage.error('上传失败：' + (error.message || '未知错误'))
                 },
-                copyUrl(url) {
-                    const fullUrl = this.baseUrl + url
-                    navigator.clipboard.writeText(fullUrl).then(() => {
-                        ElMessage.success('URL已复制到剪贴板')
-                    })
+                beforeUpload(file) {
+                    const isImage = file.type.startsWith('image/')
+                    const isLt10M = file.size / 1024 / 1024 < 10
+
+                    if (!isImage) {
+                        ElMessage.error('只能上传图片文件!')
+                        return false
+                    }
+                    if (!isLt10M) {
+                        ElMessage.error('图片大小不能超过 10MB!')
+                        return false
+                    }
+                    return true
                 },
-                async deleteImage(url) {
+                async deleteImage(imageUrl) {
                     try {
                         await ElMessageBox.confirm('确定要删除这张图片吗?', '提示', {
                             type: 'warning'
                         })
-                        await axios.delete(`${this.baseUrl}/api/v1/upload/image?url=${url}`, {
-                            headers: this.uploadHeaders
+                        await axios.delete(`${this.baseUrl}/api/v1/upload/image`, {
+                            headers: this.uploadHeaders,
+                            params: { image_path: imageUrl }
                         })
+                        this.uploadedImages = this.uploadedImages.filter(img => img.url !== imageUrl)
                         ElMessage.success('删除成功')
-                        this.uploadedImages = this.uploadedImages.filter(img => img.url !== url)
                     } catch (error) {
                         if (error !== 'cancel') {
                             ElMessage.error(error.response?.data?.detail || '删除失败')
@@ -563,10 +944,144 @@
                         hour: '2-digit',
                         minute: '2-digit'
                     })
+                },
+                // 项目管理方法
+                async loadCategories() {
+                    try {
+                        const res = await axios.get(`${this.baseUrl}/api/v1/projects/categories`)
+                        this.categories = res.data.data || []
+                    } catch (error) {
+                        console.error('加载分类失败', error)
+                    }
+                },
+                async loadProjects() {
+                    this.projectsLoading = true
+                    try {
+                        const params = {
+                            page: this.projectPage,
+                            page_size: this.projectPageSize
+                        }
+                        if (this.projectSearch) {
+                            params.search = this.projectSearch
+                        }
+                        if (this.projectCategoryFilter) {
+                            params.category_id = this.projectCategoryFilter
+                        }
+                        const res = await axios.get(`${this.baseUrl}/api/v1/projects/list`, {
+                            params,
+                            headers: this.uploadHeaders
+                        })
+                        this.projects = res.data.data.items || []
+                        this.projectTotal = res.data.data.total || 0
+                    } catch (error) {
+                        ElMessage.error(error.response?.data?.detail || '加载项目列表失败')
+                    } finally {
+                        this.projectsLoading = false
+                    }
+                },
+                showProjectDialog(project = null) {
+                    if (project) {
+                        // 编辑项目
+                        this.projectForm = { ...project }
+                    } else {
+                        // 新建项目
+                        this.projectForm = {
+                            id: null,
+                            name: '',
+                            project_no: '',
+                            category_id: null,
+                            description: '',
+                            original_price: '',
+                            current_price: '',
+                            cover_image: '',
+                            is_hot: false,
+                            is_recommended: false,
+                            status: 'active'
+                        }
+                    }
+                    this.projectDialogVisible = true
+                },
+                async saveProject() {
+                    if (!this.projectForm.name || !this.projectForm.project_no) {
+                        ElMessage.error('请填写项目名称和编号')
+                        return
+                    }
+                    this.loading = true
+                    try {
+                        if (this.projectForm.id) {
+                            // 更新
+                            await axios.put(
+                                `${this.baseUrl}/api/v1/projects/${this.projectForm.id}`,
+                                this.projectForm,
+                                { headers: this.uploadHeaders }
+                            )
+                            ElMessage.success('更新成功')
+                        } else {
+                            // 创建
+                            await axios.post(
+                                `${this.baseUrl}/api/v1/projects/create`,
+                                this.projectForm,
+                                { headers: this.uploadHeaders }
+                            )
+                            ElMessage.success('创建成功')
+                        }
+                        this.projectDialogVisible = false
+                        this.loadProjects()
+                    } catch (error) {
+                        ElMessage.error(error.response?.data?.detail || '保存失败')
+                    } finally {
+                        this.loading = false
+                    }
+                },
+                async updateProjectStatus(projectId, status) {
+                    const action = status === 'active' ? '上架' : '下架'
+                    try {
+                        await ElMessageBox.confirm(`确定要${action}该项目吗?`, '提示', {
+                            type: 'warning'
+                        })
+                        await axios.put(
+                            `${this.baseUrl}/api/v1/projects/${projectId}/status`,
+                            null,
+                            {
+                                headers: this.uploadHeaders,
+                                params: { status }
+                            }
+                        )
+                        ElMessage.success(`${action}成功`)
+                        this.loadProjects()
+                    } catch (error) {
+                        if (error !== 'cancel') {
+                            ElMessage.error(error.response?.data?.detail || `${action}失败`)
+                        }
+                    }
+                },
+                async deleteProject(projectId) {
+                    try {
+                        await ElMessageBox.confirm('确定要删除该项目吗? 此操作不可恢复!', '警告', {
+                            type: 'error',
+                            confirmButtonText: '确定删除',
+                            cancelButtonText: '取消'
+                        })
+                        await axios.delete(
+                            `${this.baseUrl}/api/v1/projects/${projectId}`,
+                            { headers: this.uploadHeaders }
+                        )
+                        ElMessage.success('删除成功')
+                        this.loadProjects()
+                    } catch (error) {
+                        if (error !== 'cancel') {
+                            ElMessage.error(error.response?.data?.detail || '删除失败')
+                        }
+                    }
+                },
+                handleProjectImageUpload(response, file) {
+                    if (response.code === 200) {
+                        this.projectForm.cover_image = response.data.url
+                        ElMessage.success('封面图片上传成功')
+                    }
                 }
             }
         }).use(ElementPlus).mount('#app')
     </script>
 </body>
 </html>
-
