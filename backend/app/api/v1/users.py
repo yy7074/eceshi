@@ -15,12 +15,23 @@ from app.api.deps import get_current_user
 router = APIRouter()
 
 
-@router.get("/me", response_model=UserInfo, summary="获取当前用户信息")
+@router.get("/me", summary="获取当前用户信息")
 async def get_current_user_info(
     current_user: User = Depends(get_current_user)
 ):
     """获取当前登录用户的详细信息"""
-    return current_user
+    return Response.success(data={
+        "id": current_user.id,
+        "phone": current_user.phone,
+        "nickname": current_user.nickname,
+        "avatar": current_user.avatar,
+        "email": current_user.email,
+        "credit_limit": float(current_user.credit_limit) if current_user.credit_limit else 0,
+        "is_certified": current_user.is_certified,
+        "membership_level": current_user.membership_level.value if current_user.membership_level else "normal",
+        "created_at": current_user.created_at.isoformat() if current_user.created_at else None,
+        "last_login_at": current_user.last_login_at.isoformat() if current_user.last_login_at else None
+    })
 
 
 @router.put("/me", response_model=UserInfo, summary="更新用户信息")
@@ -104,7 +115,7 @@ async def submit_certification(
     return certification
 
 
-@router.get("/certification", response_model=CertificationResponse, summary="获取认证信息")
+@router.get("/certification", summary="获取认证信息")
 async def get_certification(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -115,12 +126,30 @@ async def get_certification(
     ).order_by(UserCertification.created_at.desc()).first()
     
     if not certification:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="未找到认证记录"
-        )
+        # 返回空数据而不是404错误
+        return Response.success(data={
+            "status": "not_certified",
+            "message": "未提交认证信息"
+        })
     
-    return certification
+    return Response.success(data={
+        "user_id": certification.user_id,
+        "enrollment_year": certification.enrollment_year,
+        "graduation_year": certification.graduation_year,
+        "province": certification.province,
+        "city": certification.city,
+        "university": certification.university,
+        "department": certification.department,
+        "supervisor_name": certification.supervisor_name,
+        "supervisor_title": certification.supervisor_title,
+        "student_card_photo": certification.student_card_photo,
+        "id_card_front": certification.id_card_front,
+        "id_card_back": certification.id_card_back,
+        "status": certification.status if isinstance(certification.status, str) else certification.status.value if certification.status else "pending",
+        "reject_reason": certification.reject_reason,
+        "created_at": certification.created_at.isoformat() if certification.created_at else None,
+        "certified_at": certification.certified_at.isoformat() if certification.certified_at else None
+    })
 
 
 @router.get("/balance", summary="获取账户余额")

@@ -127,23 +127,33 @@ export default {
 		this.loadCertInfo()
 	},
 	methods: {
-		// 加载认证信息
-		async loadCertInfo() {
-			try {
-				const res = await api.getCertification()
-				if (res.data) {
-					this.certInfo = res.data
-					this.form = {
-						real_name: res.data.real_name || '',
-						id_card: res.data.id_card || '',
-						id_card_front: res.data.id_card_front || '',
-						id_card_back: res.data.id_card_back || ''
-					}
+	// 加载认证信息
+	async loadCertInfo() {
+		try {
+			const res = await api.getCertification()
+			if (res.data) {
+				// 检查是否为未认证状态
+				if (res.data.status === 'not_certified') {
+					// 未认证，保持表单为空
+					console.log('用户未提交认证信息')
+					return
 				}
-			} catch (e) {
-				console.error('加载认证信息失败', e)
+				
+				// 已有认证信息
+				this.certInfo = res.data
+				// 注意：后端返回的是学生认证信息，这里只使用状态和照片
+				this.form = {
+					real_name: '',  // 后端没有这个字段
+					id_card: '',  // 后端没有这个字段
+					id_card_front: res.data.id_card_front || '',
+					id_card_back: res.data.id_card_back || ''
+				}
 			}
-		},
+		} catch (e) {
+			console.error('加载认证信息失败', e)
+			// 出错时也显示未认证状态
+		}
+	},
 		
 		// 选择身份证正面
 		chooseIdCardFront() {

@@ -4,14 +4,16 @@
 		<view class="search-bar">
 			<view class="search-input" @click="goSearch">
 				<text class="icon">🔍</text>
-				<text class="placeholder">输入您想要搜索的仪器或名称</text>
+				<text class="placeholder">输入仪器名称/型号，如 XRD、SEM、FT-IR</text>
 			</view>
 		</view>
 		
 		<!-- 顶部快捷入口 -->
 		<view class="quick-nav">
 			<view class="nav-item" v-for="(item, index) in quickNavs" :key="index" @click="handleQuickNav(item)">
-				<view class="nav-icon">{{ item.icon }}</view>
+				<view class="nav-icon-wrap" :style="{ background: item.bg }">
+					<text class="nav-icon" :style="{ color: item.color }">{{ item.icon }}</text>
+				</view>
 				<text class="nav-text">{{ item.name }}</text>
 			</view>
 		</view>
@@ -77,7 +79,11 @@
 					<view class="project-info">
 						<text class="project-name" @click="goProjectDetail(item)">{{ item.name }}</text>
 						<view class="project-meta">
-							<text class="project-views">已{{ item.order_count || 0 }}人 {{ item.service_cycle_min || 3 }}-{{ item.service_cycle_max || 5 }}个工作日</text>
+					<view class="project-meta-row">
+						<text class="tested">已测{{ item.order_count || 0 }}次</text>
+						<text class="dot">·</text>
+						<text class="cycle">{{ item.service_cycle_min || 3 }}-{{ item.service_cycle_max || 5 }}个工作日</text>
+					</view>
 						</view>
 						<view class="project-footer">
 							<view class="project-price">
@@ -104,10 +110,10 @@
 		data() {
 			return {
 				quickNavs: [
-					{ icon: '🔬', name: '送测样品' },
-					{ icon: '🎯', name: '优惠券' },
-					{ icon: '👥', name: '创建团体' },
-					{ icon: '📍', name: '我的积分' }
+					{ icon: '🔬', name: '送测样品', bg: '#eef2ff', color: '#667eea' },
+					{ icon: '🎯', name: '优惠券', bg: '#fff4e6', color: '#ff922b' },
+					{ icon: '👥', name: '创建团体', bg: '#e6fcf5', color: '#12b886' },
+					{ icon: '📍', name: '我的积分', bg: '#e7f5ff', color: '#4dabf7' }
 				],
 				categories: [],
 				projects: []
@@ -256,12 +262,11 @@
 					})
 			}
 		},
-			goSearch() {
-				uni.showToast({
-					title: '搜索功能开发中',
-					icon: 'none'
-				})
-			},
+		goSearch() {
+			uni.navigateTo({
+				url: '/pages/search/search'
+			})
+		},
 		goCategory(item) {
 			// 跳转到分类页（tabBar页面使用switchTab）
 			uni.switchTab({

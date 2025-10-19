@@ -1,113 +1,113 @@
-# 🔬 科研检测服务平台
+# E测试 - 科研检测服务平台
 
-> 一个完整的科研检测服务管理系统，对标eceshi.com
+> 一个完整的科研检测服务小程序，包含项目浏览、在线预约、订单管理、积分兑换等功能
 
-[![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.104.1-green.svg)](https://fastapi.tiangolo.com/)
-[![Vue](https://img.shields.io/badge/Vue-3.3.4-brightgreen.svg)](https://vuejs.org/)
-[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+## 📱 项目概述
+
+**E测试**是一个面向科研工作者的检测服务平台，提供便捷的在线检测预约、订单管理、积分兑换等服务。
+
+### 技术栈
+
+**前端（小程序）**
+- uni-app + Vue 3
+- Scss预处理器
+- uni-ui组件库
+
+**后端（API）**
+- Python 3.10 + FastAPI
+- MySQL数据库
+- SQLAlchemy ORM
+- JWT认证
+
+**部署**
+- 后端：Docker + Uvicorn
+- 数据库：MySQL 8.0
+- 域名：https://catdog.dachaonet.com
 
 ---
 
-## 📖 简介
+## 🎯 核心功能
 
-科研检测服务平台是一个综合性的检测服务管理系统，提供：
-- 🔐 多种登录方式（密码、短信、微信）
-- 👥 完善的用户管理系统
-- 📊 灵活的项目管理
-- 🛒 便捷的预约流程
-- 💳 支付集成（支付宝）
-- 📱 小程序支持（uni-app）
-- 🎯 专业的后台管理
-
----
-
-## ✨ 核心功能
-
-### 🔐 用户系统
-- ✅ 密码登录
+### 1. 用户系统
 - ✅ 短信验证码登录（自动注册）
-- ✅ 微信小程序登录
-- ✅ JWT token认证
-- ✅ 管理员权限管理
-
-### 📊 项目管理
-- ✅ 项目分类管理
-- ✅ 项目CRUD操作
-- ✅ 封面图片上传
-- ✅ 热门/推荐标记
-- ✅ 状态管理（上架/下架）
-- ✅ 搜索和筛选
-
-### 👥 用户管理
-- ✅ 用户列表查询
-- ✅ 用户详情查看
-- ✅ 用户状态管理
-- ✅ 头像上传
+- ✅ 微信一键登录
+- ✅ 个人资料管理
 - ✅ 实名认证
-- ✅ 会员等级
+- ✅ 退出登录
 
-### 🛒 预约系统
-- ✅ 多样品批量管理
-- ✅ 详细测试参数配置
-- ✅ 三种配送方式
-- ✅ 加急服务
-- ✅ 实时费用计算
+### 2. 项目浏览
+- ✅ 首页推荐项目
+- ✅ 分类浏览（8宫格+左右布局）
+- ✅ 搜索功能（历史+热门）
+- ✅ 项目详情（轮播图+Tab详情）
+- ✅ 项目收藏
+
+### 3. 预约下单
+- ✅ 三步预约流程
+  - 步骤1：填写样品信息
+  - 步骤2：完善配送信息
+  - 步骤3：提交文档和支付
 - ✅ 草稿保存
+- ✅ 表单验证
+- ✅ 地址管理
 
-### 💼 后台管理
-- ✅ 管理员登录
-- ✅ 左侧菜单导航
-- ✅ 用户管理模块
-- ✅ 项目管理模块
-- ✅ 数据统计
-- ✅ 系统设置
+### 4. 订单管理
+- ✅ 订单列表（5种状态筛选）
+- ✅ 订单详情
+- ✅ 订单操作（支付、取消）
+- ✅ 订单评价（三维评分）
+- ✅ 下拉刷新、上拉加载
+
+### 5. 个人中心
+- ✅ 用户信息展示
+- ✅ 账户金额（4个维度）
+- ✅ 我的订单入口
+- ✅ 12个服务功能
+  - 实名认证
+  - 我的团体
+  - 邀请好友
+  - 我的积分
+  - 我的钱包
+  - 我的发票
+  - 优惠券
+  - 预付记录
+  - 中奖记录
+  - 下单抽奖
+  - 建议/投诉
+  - 设置
+
+### 6. 积分系统
+- ✅ 积分展示和规则
+- ✅ 商品分类（优惠券、京东E卡、实物礼）
+- ✅ 2列网格商品列表
+- ✅ 兑换流程（积分检查+确认）
+- ✅ 积分明细
+
+### 7. 邀请好友
+- ✅ 邀请码生成和复制
+- ✅ 返利规则说明
+- ✅ 我的收益统计
+- ✅ 邀请/返利记录
+- ✅ 微信分享
+
+### 8. 其他功能
+- ✅ 搜索历史
+- ✅ 客服联系
+- ✅ 消息通知
+- ✅ 帮助中心
 
 ---
 
-## 🚀 快速开始
+## 📊 项目统计
 
-### 环境要求
-- Python 3.10+
-- MySQL 8.0+
-- Redis 5.0+ (可选)
-- Node.js 14+ (前端开发)
-
-### 启动步骤
-
-1. **克隆项目**
-```bash
-git clone <repository-url>
-cd eceshi
-```
-
-2. **配置环境**
-```bash
-cd backend
-cp env.example.txt .env
-# 编辑.env文件，配置数据库等信息
-```
-
-3. **安装依赖**
-```bash
-pip install -r requirements.txt
-```
-
-4. **创建数据库**
-```bash
-mysql -u root -p
-CREATE DATABASE eceshi CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-```
-
-5. **启动服务**
-```bash
-python -m app.main
-```
-
-6. **访问系统**
-- 后台管理: http://localhost:3000/admin
-- API文档: http://localhost:3000/api/docs
-- 预约页面: http://localhost:3000/static/booking.html?project_id=1
+| 指标 | 数量 |
+|------|------|
+| 总页面数 | 23个 |
+| 主包页面 | 8个 |
+| 分包页面 | 15个 |
+| 总代码量 | ~12,000行 |
+| 功能点数 | 100+个 |
+| API接口 | 30+个 |
 
 ---
 
@@ -115,229 +115,310 @@ python -m app.main
 
 ```
 eceshi/
-├── backend/                    # 后端服务
+├── frontend/           # 小程序前端
+│   ├── pages/         # 主包页面
+│   │   ├── index/     # 首页
+│   │   ├── category/  # 分类
+│   │   ├── order/     # 订单
+│   │   ├── user/      # 个人中心
+│   │   ├── login/     # 登录
+│   │   ├── project/   # 项目详情
+│   │   └── search/    # 搜索
+│   ├── pagesA/        # 分包页面
+│   │   ├── booking/   # 预约下单
+│   │   ├── address/   # 地址管理
+│   │   ├── points/    # 积分兑换
+│   │   ├── invite/    # 邀请好友
+│   │   └── ...        # 其他15个页面
+│   ├── utils/         # 工具函数
+│   │   ├── request.js # API请求封装
+│   │   └── api.js     # API接口定义
+│   ├── static/        # 静态资源
+│   └── pages.json     # 页面配置
+│
+├── backend/           # 后端API
 │   ├── app/
-│   │   ├── api/               # API路由
-│   │   │   └── v1/
-│   │   │       ├── auth.py    # 认证模块
-│   │   │       ├── users.py   # 用户管理
-│   │   │       ├── projects.py # 项目管理
-│   │   │       ├── orders.py  # 订单管理
-│   │   │       ├── admin.py   # 后台管理
-│   │   │       ├── upload.py  # 文件上传
-│   │   │       └── deps.py    # 依赖注入
-│   │   ├── core/              # 核心配置
-│   │   │   ├── config.py      # 配置管理
-│   │   │   ├── database.py    # 数据库连接
-│   │   │   └── response.py    # 响应格式
-│   │   ├── models/            # 数据模型
-│   │   │   ├── user.py
-│   │   │   ├── project.py
-│   │   │   ├── order.py
-│   │   │   └── sms_code.py
-│   │   ├── schemas/           # Pydantic模型
-│   │   ├── services/          # 业务逻辑
-│   │   │   ├── sms_service.py
-│   │   │   ├── alipay_service.py
-│   │   │   └── wechat_service.py
-│   │   └── main.py            # 应用入口
-│   ├── admin/                 # 后台管理前端
-│   │   └── index.html
-│   ├── static/                # 静态文件
-│   │   ├── booking.html       # 预约页面
-│   │   └── uploads/           # 上传文件
-│   ├── .env                   # 环境配置
-│   ├── requirements.txt       # Python依赖
-│   └── test_all_features.sh   # 功能测试脚本
-├── frontend/                   # uni-app前端
-│   ├── pages/                 # 页面
-│   ├── utils/                 # 工具类
-│   └── start.sh               # 启动脚本
-├── 快速开始指南.md
-├── 系统完成说明.md
-├── 完整测试说明.md
-└── README.md (本文件)
+│   │   ├── api/       # API路由
+│   │   ├── models/    # 数据模型
+│   │   ├── schemas/   # 数据模式
+│   │   ├── services/  # 业务逻辑
+│   │   └── core/      # 核心配置
+│   ├── admin/         # 后台管理
+│   ├── static/        # 静态文件
+│   └── requirements.txt
+│
+├── ui/                # UI设计稿
+└── README.md          # 项目说明
 ```
 
 ---
 
-## 🔑 默认账号
+## 🚀 快速开始
 
-### 后台管理
+### 前端（小程序）
+
+#### 1. 环境准备
+- Node.js 16+
+- 微信开发者工具
+- HBuilderX（可选）
+
+#### 2. 安装依赖
+```bash
+cd frontend
+npm install
 ```
-用户名: admin
-密码: 123456
+
+#### 3. 配置API地址
+编辑 `frontend/utils/request.js`：
+```javascript
+const BASE_URL = 'https://catdog.dachaonet.com'
 ```
 
-### 测试用户
+#### 4. 运行项目
+```bash
+# 方式1：使用HBuilderX打开frontend目录，运行到微信开发者工具
+
+# 方式2：命令行编译
+npm run dev:mp-weixin
+
+# 然后在微信开发者工具中导入 dist/dev/mp-weixin 目录
 ```
-手机号: 18663764585
-验证码: 123456 (开发模式)
-```
 
----
+### 后端（API）
 
-## 📚 文档
+#### 1. 环境准备
+- Python 3.10+
+- MySQL 8.0+
+- pip
 
-- 📖 [快速开始指南](快速开始指南.md)
-- 📖 [系统完成说明](系统完成说明.md)
-- 📖 [完整测试说明](完整测试说明.md)
-- 📖 [微信登录功能说明](backend/微信登录功能说明.md)
-- 📖 [配置步骤](backend/配置步骤.md)
-
----
-
-## 🎯 测试
-
-### 运行完整测试
+#### 2. 安装依赖
 ```bash
 cd backend
-./test_all_features.sh
+pip install -r requirements.txt
 ```
 
-### 手动测试API
-```bash
-# 管理员登录
-curl -X POST http://localhost:3000/api/v1/auth/admin-login \
-  -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"123456"}'
-
-# 获取项目列表
-curl http://localhost:3000/api/v1/projects/list?page=1&page_size=10
-```
-
----
-
-## 🛠️ 技术栈
-
-### 后端
-- FastAPI - 现代Python Web框架
-- SQLAlchemy - ORM
-- MySQL - 数据库
-- Redis - 缓存
-- JWT - 认证
-- Alipay SDK - 支付
-- Alibaba Cloud SMS - 短信
-
-### 前端
-- Vue 3 - 渐进式框架
-- Element Plus - UI组件库
-- Axios - HTTP客户端
-- uni-app - 跨平台框架
-
----
-
-## 📊 数据统计
-
-### 当前数据
-- 项目分类: 4个
-- 检测项目: 8个
-- 注册用户: 12个
-- 数据库表: 15+个
-
----
-
-## 🔧 配置说明
-
-### 必需配置
+#### 3. 配置环境变量
+复制 `env.example.txt` 为 `.env`，填写配置：
 ```env
-# 数据库
-DATABASE_URL=mysql+pymysql://root:password@localhost:3306/eceshi
+# 数据库配置
+DATABASE_URL=mysql+pymysql://user:pass@localhost:3306/eceshi
 
-# JWT
+# JWT密钥
 JWT_SECRET_KEY=your-secret-key
-JWT_ACCESS_TOKEN_EXPIRE_MINUTES=1440
 
-# 服务器
-HOST=0.0.0.0
-PORT=3000
+# 阿里云短信（可选）
+ALIBABA_CLOUD_ACCESS_KEY_ID=your-key
+ALIBABA_CLOUD_ACCESS_KEY_SECRET=your-secret
+
+# 微信小程序（可选）
+WECHAT_APP_ID=your-app-id
+WECHAT_APP_SECRET=your-app-secret
 ```
 
-### 可选配置
-```env
-# 微信小程序
-WECHAT_APPID=your-appid
-WECHAT_SECRET=your-secret
+#### 4. 运行项目
+```bash
+# 开发模式（带热重载）
+python -m app.main
 
-# 阿里云短信
-SMS_ACCESS_KEY=your-access-key
-SMS_SECRET_KEY=your-secret-key
-
-# 支付宝
-ALIPAY_APP_ID=your-app-id
-ALIPAY_PRIVATE_KEY=your-private-key
-ALIPAY_PUBLIC_KEY=alipay-public-key
+# 或使用uvicorn
+uvicorn app.main:app --host 0.0.0.0 --port 3000 --reload
 ```
 
----
-
-## 🌟 特色功能
-
-### 1. 多种登录方式
-- 传统密码登录
-- 短信验证码登录（自动注册）
-- 微信小程序登录
-
-### 2. 专业预约流程
-- 参考实验室管理系统设计
-- 详细的测试参数配置
-- 实时费用计算
-- 多种配送方式
-
-### 3. 完善的后台管理
-- 左侧菜单+右侧内容布局
-- 集成图片上传
-- 实时搜索和筛选
-- 响应式设计
-
-### 4. 小程序支持
-- uni-app跨平台
-- H5和小程序双端适配
-- 流畅的用户体验
+#### 5. 访问API文档
+打开浏览器访问：
+- Swagger UI: http://localhost:3000/docs
+- ReDoc: http://localhost:3000/redoc
 
 ---
 
-## �� 性能指标
+## 📱 功能演示
 
-- API响应时间: < 100ms
-- 数据库连接池: 10个连接
-- 文件上传限制: 10MB
-- Token过期时间: 24小时
-- 支持并发: 1000+ qps
+### 首页
+- 搜索框
+- 4大快捷入口（送测样品、优惠券、创建团体、我的积分）
+- 活动Banner
+- 8宫格分类导航
+- 增值活动区域
+- 2列项目列表
+
+### 分类页
+- 左侧分类菜单
+- 右侧项目列表
+- 项目卡片（图片、名称、价格、满意度）
+
+### 项目详情
+- 项目轮播图
+- 基本信息（价格、满意度、预约人数）
+- Tab详情（项目介绍、样品要求、预约须知）
+- 收藏、客服、立即预约
+
+### 预约下单
+- 步骤1：样品信息（名称、状态、数量等）
+- 步骤2：配送信息（地址选择、送达日期）
+- 步骤3：文档上传和支付
+
+### 订单管理
+- Tab筛选（全部、待支付、待确认、实验中、已完成）
+- 订单卡片（项目、状态、金额）
+- 订单详情（完整信息）
+- 订单操作（支付、取消、评价）
+
+### 个人中心
+- 用户信息卡片
+- 账户金额（4个）
+- 我的订单入口（6个）
+- 服务与工具（12个功能）
+
+### 积分兑换
+- 积分卡片（当前积分、明细、规则）
+- Tab分类（全部、优惠券、京东E卡、实物礼）
+- 2列网格商品
+- 兑换流程
 
 ---
 
-## 🔐 安全特性
+## 🎨 UI设计特点
 
-- JWT token认证
-- 密码bcrypt加密
-- SQL注入防护（ORM）
-- XSS防护
-- CORS配置
-- 管理员权限隔离
+### 配色方案
+- **主色调**：渐变紫色 `#667eea` → `#764ba2`
+- **辅助色**：
+  - 邀请功能：粉红渐变 `#ff9a9e` → `#fecfef`
+  - 积分功能：蓝色渐变 `#4facfe` → `#00f2fe`
+  - 抽奖功能：粉红渐变 `#f093fb` → `#f5576c`
+- **状态色**：绿色（成功）、橙色（警告）、红色（错误）
 
----
-
-## 📝 更新计划
-
-### 近期计划
-- [ ] 订单支付流程完善
-- [ ] 邮件通知系统
-- [ ] 数据报表
-- [ ] 实验室管理模块
-- [ ] 用户评价系统
-
-### 长期计划
-- [ ] Redis缓存优化
-- [ ] 图片CDN
-- [ ] 微服务拆分
-- [ ] 移动端App
+### 设计元素
+- **圆角设计**：卡片16rpx、按钮50rpx
+- **阴影效果**：柔和的卡片阴影
+- **Emoji图标**：生动有趣的图标
+- **渐变背景**：顶部渐变+底部纯色
+- **卡片式布局**：信息层次清晰
 
 ---
 
-## 🤝 贡献
+## 🔧 API文档
 
-欢迎提交 Issue 和 Pull Request！
+### 认证相关
+- `POST /api/v1/auth/sms-send` - 发送短信验证码
+- `POST /api/v1/auth/sms-login` - 短信登录
+- `POST /api/v1/auth/wechat-login` - 微信登录
+- `POST /api/v1/auth/admin-login` - 管理员登录
+
+### 用户相关
+- `GET /api/v1/users/me` - 获取用户信息
+- `PUT /api/v1/users/me` - 更新用户信息
+- `GET /api/v1/users/balance` - 获取账户余额
+- `GET /api/v1/users/certification` - 获取认证信息
+- `POST /api/v1/users/certification` - 提交认证信息
+
+### 项目相关
+- `GET /api/v1/projects/categories` - 获取项目分类
+- `GET /api/v1/projects/list` - 获取项目列表
+- `GET /api/v1/projects/{id}` - 获取项目详情
+
+### 订单相关
+- `POST /api/v1/orders/calculate` - 计算订单金额
+- `POST /api/v1/orders` - 创建订单
+- `GET /api/v1/orders/list` - 获取订单列表
+- `GET /api/v1/orders/{id}` - 获取订单详情
+- `PUT /api/v1/orders/{id}/cancel` - 取消订单
+
+### 地址相关
+- `GET /api/v1/addresses/list` - 获取地址列表
+- `POST /api/v1/addresses` - 添加地址
+- `PUT /api/v1/addresses/{id}` - 更新地址
+- `DELETE /api/v1/addresses/{id}` - 删除地址
+- `PUT /api/v1/addresses/{id}/default` - 设为默认
+
+### 支付相关
+- `POST /api/v1/payments` - 创建支付
+- `GET /api/v1/payments/{id}` - 查询支付状态
+
+### 文件上传
+- `POST /api/v1/upload/image` - 上传图片
+
+### 后台管理
+- `GET /api/v1/admin/users` - 获取用户列表
+- `PUT /api/v1/admin/users/{id}/status` - 更新用户状态
+- `GET /api/v1/admin/projects` - 获取项目列表
+- `POST /api/v1/admin/projects` - 创建项目
+- `PUT /api/v1/admin/projects/{id}` - 更新项目
+- `DELETE /api/v1/admin/projects/{id}` - 删除项目
+
+---
+
+## 🧪 测试
+
+### 测试账号
+- **手机号**：18663764585
+- **验证码**：任意6位数字（开发模式）
+
+### 测试流程
+1. 打开微信开发者工具
+2. 导入项目 `/Users/yy/Documents/GitHub/eceshi/frontend`
+3. 点击【编译】按钮
+4. 测试各项功能
+
+### 测试清单
+- [ ] 用户注册登录
+- [ ] 项目浏览和搜索
+- [ ] 项目详情查看
+- [ ] 预约下单流程
+- [ ] 订单管理
+- [ ] 地址管理
+- [ ] 个人中心功能
+- [ ] 积分兑换
+- [ ] 邀请好友
+
+---
+
+## 📝 开发文档
+
+详细文档请查看：
+- [小程序完整使用指南](frontend/小程序完整使用指南.md)
+- [小程序功能完整总结](frontend/小程序完整功能实现总结.md)
+- [页面功能快速参考](frontend/页面功能快速参考.md)
+- [积分兑换页面说明](frontend/积分兑换页面实现说明.md)
+- [个人中心功能总结](frontend/个人中心功能完整总结.md)
+
+---
+
+## 🎯 开发进度
+
+### ✅ 已完成（v1.0）
+- [x] 23个页面全部实现
+- [x] 核心业务流程完整
+- [x] UI设计统一美观
+- [x] 基础API对接
+- [x] 用户系统完善
+- [x] 项目浏览功能
+- [x] 预约下单流程
+- [x] 订单管理功能
+- [x] 个人中心功能
+- [x] 积分兑换系统
+- [x] 邀请好友功能
+- [x] 搜索功能
+
+### 🚧 进行中
+- [ ] 完整的API对接（30%）
+- [ ] 性能优化（20%）
+- [ ] 全面测试
+
+### 🔜 计划中（v1.1）
+- [ ] 支付功能对接
+- [ ] 消息通知
+- [ ] 在线客服
+- [ ] 数据统计
+- [ ] 活动管理
+
+---
+
+## 👥 团队
+
+- **前端开发**：uni-app + Vue 3
+- **后端开发**：Python + FastAPI
+- **UI设计**：现代化卡片式设计
+- **测试**：功能测试 + 性能测试
 
 ---
 
@@ -349,10 +430,18 @@ MIT License
 
 ## 📞 联系方式
 
-如有问题，请参考文档或提交 Issue。
+- **客服电话**：400-123-4567
+- **邮箱**：support@eceshi.com
+- **官网**：https://catdog.dachaonet.com
 
 ---
 
-**🎉 系统已完成，可以开始使用！**
+## 🙏 致谢
 
-*最后更新: 2025-10-19*
+感谢所有参与项目开发的人员！
+
+---
+
+**最后更新**：2025年10月19日  
+**当前版本**：v1.0  
+**项目状态**：✅ 前端开发完成，进入联调阶段

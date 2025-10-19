@@ -53,31 +53,31 @@
 			<view class="order-status-list">
 				<view class="status-item" @click="goOrders('unpaid')">
 					<view class="status-icon">
-						<image src="/static/icons/order-unpaid.png" mode="aspectFit" class="icon-img"></image>
+						<text class="icon-emoji">💳</text>
 					</view>
 					<text class="status-text">待支付</text>
 				</view>
-				<view class="status-item" @click="goOrders('unconfirmed')">
+				<view class="status-item" @click="goOrders('paid')">
 					<view class="status-icon">
-						<image src="/static/icons/order-unconfirmed.png" mode="aspectFit" class="icon-img"></image>
+						<text class="icon-emoji">⏰</text>
 					</view>
 					<text class="status-text">待确认</text>
 				</view>
-				<view class="status-item" @click="goOrders('pending')">
+				<view class="status-item" @click="goOrders('confirmed')">
 					<view class="status-icon">
-						<image src="/static/icons/order-pending.png" mode="aspectFit" class="icon-img"></image>
+						<text class="icon-emoji">📝</text>
 					</view>
 					<text class="status-text">待实验</text>
 				</view>
 				<view class="status-item" @click="goOrders('testing')">
 					<view class="status-icon">
-						<image src="/static/icons/order-testing.png" mode="aspectFit" class="icon-img"></image>
+						<text class="icon-emoji">🔬</text>
 					</view>
 					<text class="status-text">实验中</text>
 				</view>
 				<view class="status-item" @click="goOrders('completed')">
 					<view class="status-icon">
-						<image src="/static/icons/order-completed.png" mode="aspectFit" class="icon-img"></image>
+						<text class="icon-emoji">✅</text>
 					</view>
 					<text class="status-text">已完成</text>
 				</view>
@@ -201,9 +201,13 @@ export default {
 				}
 				
 				const res = await api.getUserInfo()
+				// res已经是后端返回的完整对象 {code, message, data}
+				// res.data才是用户信息
 				this.userInfo = res.data || {}
+				console.log('用户信息加载成功', this.userInfo)
 			} catch (e) {
 				console.error('加载用户信息失败', e)
+				// 即使加载失败也显示登录按钮而不是跳转
 			}
 		},
 		
@@ -224,12 +228,43 @@ export default {
 			})
 		},
 		
-		// 账户详情
-		goAccountDetail(type) {
-			uni.navigateTo({
-				url: `/pagesA/account/account?type=${type}`
-			})
-		},
+	// 账户详情
+	goAccountDetail(type) {
+		// 根据类型跳转到对应页面
+		switch(type) {
+			case 'credit':
+				// 可用信用 - 暂无页面，显示提示
+				uni.showToast({
+					title: '功能开发中',
+					icon: 'none'
+				})
+				break
+			case 'prepaid':
+				// 个人预付 - 跳转到预付记录页面
+				uni.navigateTo({
+					url: '/pagesA/prepay/prepay'
+				})
+				break
+			case 'invoice':
+				// 可开票 - 跳转到发票页面
+				uni.navigateTo({
+					url: '/pagesA/invoice/invoice'
+				})
+				break
+			case 'debt':
+				// 个人欠款 - 暂无页面，显示提示
+				uni.showToast({
+					title: '功能开发中',
+					icon: 'none'
+				})
+				break
+			default:
+				uni.showToast({
+					title: '功能开发中',
+					icon: 'none'
+				})
+		}
+	},
 		
 		// 显示预付说明
 		showPrepaidInfo() {
@@ -256,24 +291,18 @@ export default {
 		})
 	},
 		
+	// 跳转页面
+	goPage(url) {
+		// 检查是否登录
+		const token = uni.getStorageSync('token')
+		if (!token) {
+			this.goLogin()
+			return
+		}
+		
 		// 跳转页面
-		goPage(url) {
-			// 检查是否登录
-			const token = uni.getStorageSync('token')
-			if (!token) {
-				this.goLogin()
-				return
-			}
-			
-			// 暂时提示功能开发中
-			uni.showToast({
-				title: '功能开发中',
-				icon: 'none'
-			})
-			
-			// TODO: 实现后取消注释
-			// uni.navigateTo({ url })
-		},
+		uni.navigateTo({ url })
+	},
 		
 		// 登录
 		goLogin() {
@@ -439,9 +468,9 @@ export default {
 				justify-content: center;
 				margin-bottom: 15rpx;
 				
-				.icon-img {
-					width: 50rpx;
-					height: 50rpx;
+				.icon-emoji {
+					font-size: 40rpx;
+					line-height: 1;
 				}
 			}
 			
