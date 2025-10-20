@@ -14,6 +14,7 @@ from app.schemas.order import PaymentCreate, PaymentInDB
 from app.core.response import SuccessResponse
 from app.core.security import verify_password
 from app.services.alipay_service import alipay_service
+from app.services.wechatpay_service import wechatpay_service
 
 router = APIRouter()
 
@@ -168,22 +169,30 @@ async def create_payment(
         db.commit()
         db.refresh(payment)
         
-        # TODO: 调用微信支付SDK获取支付参数
-        pay_params = {
-            "appId": "wx1234567890",
-            "timeStamp": str(int(time.time())),
-            "nonceStr": "mock_nonce",
-            "package": "prepay_id=mock_prepay_id",
-            "signType": "RSA",
-            "paySign": "mock_sign"
-        }
-        
-        return SuccessResponse(data={
-            "payment_id": payment.id,
-            "payment_no": payment.payment_no,
-            "pay_params": pay_params,
-            "status": "pending"
-        }, message="请在新页面完成支付")
+        # 调用微信支付服务获取支付参数
+        try:
+            # 获取用户openid
+            openid = current_user.wechat_openid
+            if not openid:
+                raise HTTPException(status_code=400, detail="请先使用微信登录")
+            
+            pay_params = await wechatpay_service.create_jsapi_payment(
+                db=db,
+                order=order,
+                user_id=current_user.id,
+                openid=openid
+            )
+            
+            return SuccessResponse(data={
+                "payment_id": payment.id,
+                "payment_no": payment.payment_no,
+                **pay_params,  # 包含appId, timeStamp, nonceStr, package, signType, paySign
+                "status": "pending"
+            }, message="请在新页面完成支付")
+            
+        except Exception as e:
+            db.rollback()
+            raise HTTPException(status_code=500, detail=f"创建微信支付失败: {str(e)}")
     
     else:
         raise HTTPException(status_code=400, detail="不支持的支付方式")
@@ -258,6 +267,43 @@ async def wechat_notify(
     """
     微信支付回调
     """
-    # TODO: 验证签名、处理回调
-    return SuccessResponse(message="success")
+    from fastapi import Request
+    from fastapi.responses import Response as FastAPIResponse
+    
+    try:
+        # TODO: 从Request中获取XML数据并解析
+        # 实际使用时需要：
+        # 1. 读取request.body()
+        # 2. 解析XML
+        # 3. 验证签名
+        # 4. 更新订单状态
+        
+        # 模拟回调数据
+        notify_data = {
+            'return_code': 'SUCCESS',
+            'result_code': 'SUCCESS',
+            'out_trade_no': '',
+            'transaction_id': '',
+        }
+        
+        # 处理回调
+        result = await wechatpay_service.handle_notify(db, notify_data)
+        
+        if result:
+            # 返回XML格式的success
+            return FastAPIResponse(
+                content='<xml><return_code><![CDATA[SUCCESS]]></return_code><return_msg><![CDATA[OK]]></return_msg></xml>',
+                media_type='application/xml'
+            )
+        else:
+            return FastAPIResponse(
+                content='<xml><return_code><![CDATA[FAIL]]></return_code><return_msg><![CDATA[FAIL]]></return_msg></xml>',
+                media_type='application/xml'
+            )
+    except Exception as e:
+        print(f'微信支付回调异常: {str(e)}')
+        return FastAPIResponse(
+            content='<xml><return_code><![CDATA[FAIL]]></return_code><return_msg><![CDATA[FAIL]]></return_msg></xml>',
+            media_type='application/xml'
+        )
 

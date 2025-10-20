@@ -588,32 +588,35 @@ export default {
 			}
 		},
 		
-		// 微信支付
-		async wechatPay(orderId) {
-			try {
-				// TODO: 调用后端获取支付参数
-				const res = await api.createPayment({
-					order_id: orderId,
-					payment_method: 'wechat'
-				})
-				
-				// 调起微信支付
-				uni.requestPayment({
-					provider: 'wxpay',
-					timeStamp: res.data.timeStamp,
-					nonceStr: res.data.nonceStr,
-					package: res.data.package,
-					signType: res.data.signType,
-					paySign: res.data.paySign,
-					success: () => {
-						uni.showToast({ title: '支付成功', icon: 'success' })
-						setTimeout(() => {
-							uni.redirectTo({
-								url: `/pagesA/order-detail/order-detail?id=${orderId}`
-							})
-						}, 1500)
-					},
-					fail: () => {
+	// 微信支付
+	async wechatPay(orderId) {
+		try {
+			// 调用后端获取支付参数
+			const res = await api.createPayment({
+				order_id: orderId,
+				payment_method: 'wechat'
+			})
+			
+			console.log('微信支付参数:', res.data)
+			
+			// 调起微信支付
+			uni.requestPayment({
+				provider: 'wxpay',
+				timeStamp: res.data.timeStamp,
+				nonceStr: res.data.nonceStr,
+				package: res.data.package,
+				signType: res.data.signType,
+				paySign: res.data.paySign,
+				success: () => {
+					uni.showToast({ title: '支付成功', icon: 'success' })
+					setTimeout(() => {
+						uni.redirectTo({
+							url: `/pagesA/order-detail/order-detail?id=${orderId}`
+						})
+					}, 1500)
+				},
+				fail: (err) => {
+					console.error('微信支付失败:', err)
 						uni.showToast({ title: '支付取消', icon: 'none' })
 					}
 				})

@@ -65,13 +65,18 @@
 </template>
 
 <script>
+import api from '@/utils/api.js'
+
 export default {
 	data() {
 		return {
 			balance: 0,
 			currentTab: 0,
 			tabs: ['全部', '收入', '支出'],
-			records: []
+			records: [],
+			page: 1,
+			pageSize: 20,
+			hasMore: true
 		}
 	},
 	
@@ -80,54 +85,130 @@ export default {
 		this.loadRecords()
 	},
 	
+	onPullDownRefresh() {
+		this.page = 1
+		this.records = []
+		this.loadWalletInfo()
+		this.loadRecords().then(() => {
+			uni.stopPullDownRefresh()
+		})
+	},
+	
+	onReachBottom() {
+		if (this.hasMore) {
+			this.page++
+			this.loadRecords()
+		}
+	},
+	
 	methods: {
 		// 加载钱包信息
 		async loadWalletInfo() {
 			try {
-				// TODO: 调用API获取余额
-				this.balance = 0
+				const res = await api.getBalance()
+				this.balance = res.data.prepaid_balance || 0
 			} catch (error) {
 				console.error('加载钱包信息失败', error)
+				this.balance = 0
 			}
 		},
 		
 		// 加载账单记录
 		async loadRecords() {
 			try {
-				// TODO: 调用API获取账单
-				this.records = []
+				// 获取充值记录
+				const res = await api.getRechargeRecords({
+					page: this.page,
+					page_size: this.pageSize
+				})
+				
+				if (res.data && res.data.items) {
+					const newRecords = res.data.items.map(item => ({
+						type: this.getRecordType(item),
+						time: this.formatTime(item.created_at),
+						amount: parseFloat(item.actual_amount || item.amount),
+						income: true, // 充值都是收入
+						status: item.status,
+						raw: item
+					}))
+					
+					if (this.page === 1) {
+						this.records = newRecords
+					} else {
+						this.records.push(...newRecords)
+					}
+					
+					this.hasMore = this.records.length < res.data.total
+				}
+				
+				// 根据当前tab过滤记录
+				this.filterRecords()
+				
 			} catch (error) {
 				console.error('加载账单失败', error)
 			}
 		},
 		
+		// 获取记录类型文本
+		getRecordType(item) {
+			const statusMap = {
+				'pending': '充值中',
+				'success': '充值成功',
+				'failed': '充值失败',
+				'refunded': '已退款'
+			}
+			return statusMap[item.status] || '钱包充值'
+		},
+		
+		// 格式化时间
+		formatTime(timeStr) {
+			if (!timeStr) return ''
+			const date = new Date(timeStr)
+			const year = date.getFullYear()
+			const month = String(date.getMonth() + 1).padStart(2, '0')
+			const day = String(date.getDate()).padStart(2, '0')
+			const hour = String(date.getHours()).padStart(2, '0')
+			const minute = String(date.getMinutes()).padStart(2, '0')
+			return `${year}-${month}-${day} ${hour}:${minute}`
+		},
+		
+		// 过滤记录
+		filterRecords() {
+			// 0: 全部, 1: 收入, 2: 支出
+			// 目前只有充值记录（收入），所以不需要特殊过滤
+			// 如果以后有支出记录，这里可以添加过滤逻辑
+		},
+		
 		// 切换Tab
 		switchTab(index) {
 			this.currentTab = index
+			this.page = 1
+			this.records = []
 			this.loadRecords()
 		},
 		
 		// 充值
 		handleRecharge() {
-			uni.showToast({
-				title: '充值功能开发中',
-				icon: 'none'
+			uni.navigateTo({
+				url: '/pagesA/recharge/recharge'
 			})
 		},
 		
 		// 提现
 		handleWithdraw() {
-			uni.showToast({
-				title: '提现功能开发中',
-				icon: 'none'
+			uni.showModal({
+				title: '提现说明',
+				content: '钱包余额暂不支持提现，可用于支付订单费用',
+				showCancel: false
 			})
 		},
 		
 		// 转账
 		handleTransfer() {
-			uni.showToast({
-				title: '转账功能开发中',
-				icon: 'none'
+			uni.showModal({
+				title: '转账说明',
+				content: '转账功能即将上线，敬请期待',
+				showCancel: false
 			})
 		}
 	}
@@ -267,11 +348,11 @@ export default {
 				font-weight: bold;
 				
 				&.income {
-					color: #ff6b6b;
+					color: #51cf66;
 				}
 				
 				&.expense {
-					color: #51cf66;
+					color: #ff6b6b;
 				}
 			}
 		}

@@ -240,9 +240,9 @@ export default {
 				})
 				break
 			case 'prepaid':
-				// 个人预付 - 跳转到预付记录页面
+				// 个人预付 - 跳转到充值页面
 				uni.navigateTo({
-					url: '/pagesA/prepay/prepay'
+					url: '/pagesA/recharge/recharge'
 				})
 				break
 			case 'invoice':

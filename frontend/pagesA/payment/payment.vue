@@ -171,10 +171,37 @@
 								})
 							}, 1500)
 						}
-					} else {
-						// 第三方支付需要跳转
-						// TODO: 处理支付宝/微信支付跳转
-					}
+				} else if (this.selectedMethod === 'wechat') {
+					// 微信支付
+					console.log('微信支付参数:', res.data)
+					
+					uni.requestPayment({
+						provider: 'wxpay',
+						timeStamp: res.data.timeStamp,
+						nonceStr: res.data.nonceStr,
+						package: res.data.package,
+						signType: res.data.signType,
+						paySign: res.data.paySign,
+						success: () => {
+							uni.showToast({ title: '支付成功', icon: 'success' })
+							setTimeout(() => {
+								uni.redirectTo({
+									url: `/pagesA/order-detail/order-detail?id=${this.orderId}`
+								})
+							}, 1500)
+						},
+						fail: (err) => {
+							console.error('微信支付失败:', err)
+							uni.showToast({ title: '支付取消', icon: 'none' })
+						}
+					})
+				} else {
+					// 支付宝等其他支付
+					uni.showToast({
+						title: '该支付方式暂未开通',
+						icon: 'none'
+					})
+				}
 					
 				} catch (error) {
 					console.error('支付失败', error)

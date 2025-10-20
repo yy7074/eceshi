@@ -118,7 +118,8 @@
 		{
 			"path": "wallet/wallet",
 			"style": {
-				"navigationBarTitleText": "我的钱包"
+				"navigationBarTitleText": "我的钱包",
+				"enablePullDownRefresh": true
 			}
 		},
 		{
@@ -185,6 +186,19 @@
 			"path": "create-group/create-group",
 			"style": {
 				"navigationBarTitleText": "创建团购"
+			}
+		},
+		{
+			"path": "recharge/recharge",
+			"style": {
+				"navigationBarTitleText": "钱包充值"
+			}
+		},
+		{
+			"path": "recharge-records/recharge-records",
+			"style": {
+				"navigationBarTitleText": "充值记录",
+				"enablePullDownRefresh": true
 			}
 		}
 	]

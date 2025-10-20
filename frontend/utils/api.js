@@ -278,6 +278,28 @@ export default {
 	// 通过手机号加入团队
 	joinGroupByPhone(phone) {
 		return request.post('/api/v1/groups/join-by-phone', { phone })
+	},
+	
+	// ========== 钱包充值相关 ==========
+	
+	// 创建充值订单
+	createRecharge(data) {
+		return request.post('/api/v1/recharge/create', data)
+	},
+	
+	// 获取充值记录
+	getRechargeRecords(params) {
+		return request.get('/api/v1/recharge/records', params)
+	},
+	
+	// 获取充值详情
+	getRechargeDetail(rechargeId) {
+		return request.get(`/api/v1/recharge/${rechargeId}`)
+	},
+	
+	// 获取充值赠送规则
+	getBonusRules() {
+		return request.get('/api/v1/recharge/bonus/rules')
 	}
 }
 

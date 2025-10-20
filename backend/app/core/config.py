@@ -48,6 +48,11 @@ class Settings(BaseSettings):
     WECHAT_APPID: str = ""
     WECHAT_SECRET: str = ""
     
+    # 微信支付配置
+    WECHAT_MCH_ID: str = ""  # 微信商户号
+    WECHAT_PAY_KEY: str = ""  # API密钥
+    WECHAT_PAY_NOTIFY_URL: str = "https://catdog.dachaonet.com/api/v1/payments/wechat/notify"
+    
     # 阿里云短信配置
     SMS_ACCESS_KEY: str = ""
     SMS_SECRET_KEY: str = ""
