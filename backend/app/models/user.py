@@ -3,6 +3,7 @@
 """
 from sqlalchemy import Column, Integer, String, DateTime, Enum, Numeric, Boolean
 from sqlalchemy.sql import func
+from sqlalchemy.orm import relationship
 import enum
 
 from app.core.database import Base
@@ -75,6 +76,10 @@ class User(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now(), comment="创建时间")
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), comment="更新时间")
     last_login_at = Column(DateTime(timezone=True), comment="最后登录时间")
+    
+    # 关系
+    points_records = relationship("PointsRecord", back_populates="user")
+    exchange_records = relationship("PointsExchangeRecord", back_populates="user")
     
     def __repr__(self):
         return f"<User {self.phone}>"

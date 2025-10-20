@@ -156,9 +156,8 @@ export default {
 		// 加载积分
 		async loadPoints() {
 			try {
-				// TODO: 调用API获取用户积分
-				// const res = await api.getUserPoints()
-				// this.currentPoints = res.data.points
+				const res = await api.getPointsBalance()
+				this.currentPoints = res.data.balance || 0
 			} catch (error) {
 				console.error('加载积分失败', error)
 			}
@@ -167,9 +166,17 @@ export default {
 		// 加载商品列表
 		async loadGoods() {
 			try {
-				// TODO: 调用API获取兑换商品列表
-				// const res = await api.getPointsGoods()
-				// this.goodsList = res.data.list
+				const category = this.currentTab === 0 ? null : this.tabs[this.currentTab]
+				const res = await api.getPointsGoods({ 
+					category: category,
+					page: 1,
+					page_size: 50
+				})
+				// 如果API返回数据，使用API数据
+				if (res.data.items && res.data.items.length > 0) {
+					this.goodsList = res.data.items
+				}
+				// 否则保持现有的展示数据用于UI演示
 			} catch (error) {
 				console.error('加载商品失败', error)
 			}

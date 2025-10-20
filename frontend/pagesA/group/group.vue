@@ -70,23 +70,31 @@ export default {
 		},
 		
 		// 通过手机号加入
-		joinByPhone() {
-			uni.showModal({
-				title: '加入团队',
-				content: '请输入团长手机号',
-				editable: true,
-				placeholderText: '请输入手机号',
-				success: (res) => {
-					if (res.confirm && res.content) {
-						// TODO: 调用API通过手机号加入团队
+	async joinByPhone() {
+		uni.showModal({
+			title: '加入团队',
+			content: '请输入团长手机号',
+			editable: true,
+			placeholderText: '请输入手机号',
+			success: async (res) => {
+				if (res.confirm && res.content) {
+					try {
+						await api.joinGroupByPhone(res.content)
 						uni.showToast({
 							title: '申请已提交',
 							icon: 'success'
 						})
+					} catch (error) {
+						console.error('加入团队失败', error)
+						uni.showToast({
+							title: '申请失败',
+							icon: 'none'
+						})
 					}
 				}
-			})
-		}
+			}
+		})
+	}
 	}
 }
 </script>

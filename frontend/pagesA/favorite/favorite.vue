@@ -82,10 +82,11 @@ export default {
 				uni.showLoading({ title: '加载中...' })
 				
 				if (this.currentTab === 0) {
-					// TODO: 调用API获取收藏列表
-					this.projects = []
+					// 调用API获取收藏列表
+					const res = await api.getFavorites({ page: 1, page_size: 50 })
+					this.projects = res.data.items || []
 				} else {
-					// TODO: 调用API获取浏览历史
+					// 浏览历史暂未实现
 					this.projects = []
 				}
 				
@@ -112,18 +113,27 @@ export default {
 			uni.showModal({
 				title: '提示',
 				content: `确定要取消收藏"${item.name}"吗？`,
-				success: (res) => {
+				success: async (res) => {
 					if (res.confirm) {
-						// TODO: 调用API取消收藏
-						uni.showToast({
-							title: '已取消收藏',
-							icon: 'success'
-						})
-						
-						// 从列表中移除
-						const index = this.projects.findIndex(p => p.id === item.id)
-						if (index > -1) {
-							this.projects.splice(index, 1)
+						try {
+							// 调用API取消收藏
+							await api.removeFavorite(item.id)
+							uni.showToast({
+								title: '已取消收藏',
+								icon: 'success'
+							})
+							
+							// 从列表中移除
+							const index = this.projects.findIndex(p => p.id === item.id)
+							if (index > -1) {
+								this.projects.splice(index, 1)
+							}
+						} catch (error) {
+							console.error('取消收藏失败', error)
+							uni.showToast({
+								title: '操作失败',
+								icon: 'none'
+							})
 						}
 					}
 				}

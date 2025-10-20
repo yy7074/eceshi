@@ -113,16 +113,18 @@ export default {
 	},
 	
 	methods: {
-		// 加载团体详情
-		async loadGroupDetail() {
-			try {
-				this.loading = true
-				
-				// TODO: 调用API获取团体详情
-				// const res = await api.getGroupDetail(this.groupId)
-				// this.group = res.data
-				
-				// 模拟数据
+	// 加载团体详情
+	async loadGroupDetail() {
+		try {
+			this.loading = true
+			
+			// 调用API获取团体详情
+			const res = await api.getGroupDetail(this.groupId)
+			this.group = res.data
+			
+			// 如果API返回空数据，使用展示数据
+			if (!this.group || !this.group.id) {
+				// 展示数据（用于UI演示）
 				const userInfo = uni.getStorageSync('userInfo') || {}
 				this.group = {
 					id: this.groupId,
@@ -142,20 +144,22 @@ export default {
 						{ id: 2, nickname: '用户456', avatar: '', join_time: '2025-10-19 15:30', is_leader: false }
 					]
 				}
-				
-				this.isLeader = this.group.leader_id === userInfo.id
-				this.isMember = this.group.members.some(m => m.id === userInfo.id)
-				
-				this.loading = false
-			} catch (error) {
-				this.loading = false
-				console.error('加载团体详情失败', error)
-				uni.showToast({
-					title: '加载失败',
-					icon: 'none'
-				})
 			}
-		},
+			
+			const userInfo = uni.getStorageSync('userInfo') || {}
+			this.isLeader = this.group.leader_id === userInfo.id
+			this.isMember = this.group.members && this.group.members.some(m => m.id === userInfo.id)
+			
+			this.loading = false
+		} catch (error) {
+			this.loading = false
+			console.error('加载团体详情失败', error)
+			uni.showToast({
+				title: '加载失败',
+				icon: 'none'
+			})
+		}
+	},
 		
 		// 加入团体
 		joinGroup() {
@@ -170,23 +174,23 @@ export default {
 			})
 		},
 		
-		// 执行加入
-		async doJoinGroup() {
-			try {
-				uni.showLoading({ title: '加入中...' })
-				
-				// TODO: 调用API加入团体
-				// await api.joinGroup(this.groupId)
-				
-				uni.hideLoading()
-				uni.showToast({
-					title: '加入成功',
-					icon: 'success'
-				})
-				
-				// 刷新详情
-				this.loadGroupDetail()
-			} catch (error) {
+	// 执行加入
+	async doJoinGroup() {
+		try {
+			uni.showLoading({ title: '加入中...' })
+			
+			// 调用API加入团体（使用邀请码方式）
+			await api.joinGroup(this.groupId.toString())
+			
+			uni.hideLoading()
+			uni.showToast({
+				title: '加入成功',
+				icon: 'success'
+			})
+			
+			// 刷新详情
+			this.loadGroupDetail()
+		} catch (error) {
 				uni.hideLoading()
 				console.error('加入失败', error)
 				uni.showToast({

@@ -139,6 +139,145 @@ export default {
 	// 查询支付状态
 	getPaymentStatus(id) {
 		return request.get(`/api/v1/payments/${id}/status`)
+	},
+	
+	// ========== 收藏相关 ==========
+	
+	// 收藏项目
+	addFavorite(projectId) {
+		return request.post('/api/v1/favorites/add', null, {
+			params: { project_id: projectId }
+		})
+	},
+	
+	// 取消收藏
+	removeFavorite(projectId) {
+		return request.delete('/api/v1/favorites/remove', null, {
+			params: { project_id: projectId }
+		})
+	},
+	
+	// 获取收藏列表
+	getFavorites(params) {
+		return request.get('/api/v1/favorites/list', params)
+	},
+	
+	// 检查是否已收藏
+	checkFavorite(projectId) {
+		return request.get('/api/v1/favorites/check', { project_id: projectId })
+	},
+	
+	// ========== 评价相关 ==========
+	
+	// 创建评价
+	createReview(data) {
+		return request.post('/api/v1/reviews/create', data)
+	},
+	
+	// 获取我的评价
+	getMyReviews(params) {
+		return request.get('/api/v1/reviews/my', params)
+	},
+	
+	// 获取项目评价列表
+	getProjectReviews(projectId, params) {
+		return request.get(`/api/v1/reviews/project/${projectId}`, params)
+	},
+	
+	// ========== 积分相关 ==========
+	
+	// 获取积分余额
+	getPointsBalance() {
+		return request.get('/api/v1/points/balance')
+	},
+	
+	// 获取积分商品列表
+	getPointsGoods(params) {
+		return request.get('/api/v1/points/goods', params)
+	},
+	
+	// 兑换积分商品
+	exchangePoints(goodsId, addressId) {
+		return request.post('/api/v1/points/exchange', null, {
+			params: { goods_id: goodsId, address_id: addressId }
+		})
+	},
+	
+	// 获取积分记录
+	getPointsRecords(params) {
+		return request.get('/api/v1/points/records', params)
+	},
+	
+	// 获取兑换记录
+	getExchangeRecords(params) {
+		return request.get('/api/v1/points/exchanges', params)
+	},
+	
+	// ========== 优惠券相关 ==========
+	
+	// 获取我的优惠券
+	getMyCoupons(params) {
+		return request.get('/api/v1/coupons/my', params)
+	},
+	
+	// 获取可领取优惠券
+	getAvailableCoupons(params) {
+		return request.get('/api/v1/coupons/available', params)
+	},
+	
+	// 领取优惠券
+	receiveCoupon(couponId) {
+		return request.post('/api/v1/coupons/receive', null, {
+			params: { coupon_id: couponId }
+		})
+	},
+	
+	// ========== 邀请好友相关 ==========
+	
+	// 获取邀请统计
+	getInviteStats() {
+		return request.get('/api/v1/invites/stats')
+	},
+	
+	// 获取邀请记录
+	getInviteRecords(params) {
+		return request.get('/api/v1/invites/records', params)
+	},
+	
+	// 申请提现
+	withdrawRewards(amount) {
+		return request.post('/api/v1/invites/withdraw', null, {
+			params: { amount }
+		})
+	},
+	
+	// ========== 团队功能相关 ==========
+	
+	// 创建团队
+	createGroup(data) {
+		return request.post('/api/v1/groups/create', data)
+	},
+	
+	// 获取我的团队
+	getMyGroups() {
+		return request.get('/api/v1/groups/my')
+	},
+	
+	// 获取团队详情
+	getGroupDetail(groupId) {
+		return request.get(`/api/v1/groups/${groupId}`)
+	},
+	
+	// 加入团队
+	joinGroup(groupCode) {
+		return request.post('/api/v1/groups/join', null, {
+			params: { group_code: groupCode }
+		})
+	},
+	
+	// 通过手机号加入团队
+	joinGroupByPhone(phone) {
+		return request.post('/api/v1/groups/join-by-phone', { phone })
 	}
 }
 

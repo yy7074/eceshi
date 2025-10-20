@@ -142,6 +142,7 @@ export default {
 		if (options.id) {
 			this.projectId = options.id
 			this.loadProject()
+			this.checkFavoriteStatus()
 		}
 	},
 	methods: {
@@ -167,18 +168,48 @@ export default {
 			}
 		},
 		
+		// 检查收藏状态
+		async checkFavoriteStatus() {
+			try {
+				const res = await api.checkFavorite(this.projectId)
+				this.isFavorite = res.data.is_favorited || false
+			} catch (e) {
+				// 未登录或其他错误，忽略
+			}
+		},
+		
 		// 切换Tab
 		switchTab(key) {
 			this.currentTab = key
 		},
 		
 		// 收藏/取消收藏
-		toggleFavorite() {
-			this.isFavorite = !this.isFavorite
-			uni.showToast({
-				title: this.isFavorite ? '已收藏' : '已取消收藏',
-				icon: 'success'
-			})
+		async toggleFavorite() {
+			try {
+				if (this.isFavorite) {
+					// 取消收藏
+					await api.removeFavorite(this.projectId)
+					this.isFavorite = false
+					uni.showToast({
+						title: '已取消收藏',
+						icon: 'success'
+					})
+				} else {
+					// 添加收藏
+					await api.addFavorite(this.projectId)
+					this.isFavorite = true
+					uni.showToast({
+						title: '收藏成功',
+						icon: 'success'
+					})
+				}
+			} catch (e) {
+				console.error('收藏操作失败', e)
+				uni.showToast({
+					title: e.data?.message || '操作失败',
+					icon: 'none'
+				})
+			}
 		},
 		
 		// 联系客服

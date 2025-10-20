@@ -252,29 +252,29 @@ export default {
 			try {
 				uni.showLoading({ title: '创建中...' })
 				
-				// TODO: 调用API创建团队
-				// const res = await api.createGroup({
-				//   avatar: this.form.avatar,
-				//   unit_type: this.form.unitType,
-				//   region: this.form.region,
-				//   unit_name: this.form.unitName,
-				//   address: this.form.address,
-				//   email: this.form.email
-				// })
-				
-				await new Promise(resolve => setTimeout(resolve, 1000))
-				
-				uni.hideLoading()
-				
-				uni.showToast({
-					title: '创建成功',
-					icon: 'success',
-					duration: 2000
-				})
-				
-				setTimeout(() => {
-					uni.navigateBack()
-				}, 2000)
+			// 调用API创建团队
+			await api.createGroup({
+				name: this.form.unitName,
+				avatar: this.form.avatar,
+				unit_type: this.form.unitType,
+				region: this.form.region,
+				address: this.form.address,
+				leader_name: this.form.leaderName,
+				leader_phone: this.form.leaderPhone,
+				leader_email: this.form.email
+			})
+			
+			uni.hideLoading()
+			
+			uni.showToast({
+				title: '创建成功',
+				icon: 'success',
+				duration: 2000
+			})
+			
+			setTimeout(() => {
+				uni.navigateBack()
+			}, 2000)
 			} catch (error) {
 				uni.hideLoading()
 				console.error('创建失败', error)

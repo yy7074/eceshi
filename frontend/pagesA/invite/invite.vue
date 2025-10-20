@@ -176,14 +176,20 @@ export default {
 		// 加载邀请数据
 		async loadInviteData() {
 			try {
-				// TODO: 调用API获取邀请数据
+				const res = await api.getInviteStats()
+				this.withdrawable = res.data.withdrawable || 0
+				this.myInvites = res.data.my_invites || 0
+				this.predictedOrders = res.data.predicted_orders || 0
+				this.predictedRewards = res.data.predicted_rewards || 0
+				this.earnedRewards = res.data.earned_rewards || 0
+			} catch (error) {
+				console.error('加载邀请数据失败', error)
+				// 如果API调用失败，使用默认值
 				this.withdrawable = 0
 				this.myInvites = 0
 				this.predictedOrders = 0
 				this.predictedRewards = 0
 				this.earnedRewards = 0
-			} catch (error) {
-				console.error('加载邀请数据失败', error)
 			}
 		},
 		

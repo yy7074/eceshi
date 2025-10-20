@@ -132,9 +132,17 @@ export default {
 		// 加载优惠券
 		async loadCoupons() {
 			try {
-				// TODO: 调用API获取优惠券列表
-				// const res = await api.getMyCoupons()
-				// this.coupons = res.data.list || []
+				const status = this.currentTab === 0 ? 'available' : 
+				               this.currentTab === 1 ? 'available' : 
+				               this.currentTab === 2 ? 'used' : 'expired'
+				
+				const res = await api.getMyCoupons({ status, page: 1, page_size: 50 })
+				
+				// 如果API返回数据，使用API数据
+				if (res.data.items && res.data.items.length > 0) {
+					this.coupons = res.data.items
+				}
+				// 否则保持现有的展示数据用于UI演示
 			} catch (error) {
 				console.error('加载优惠券失败', error)
 			}

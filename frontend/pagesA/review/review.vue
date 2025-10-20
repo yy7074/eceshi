@@ -185,46 +185,58 @@ export default {
 			}
 		},
 		
-		// 提交评价
-		async submitReview() {
-			// 计算平均分
-			const avgRating = (this.ratings.service + this.ratings.quality + this.ratings.logistics) / 3
-			
-			if (avgRating < 3 && !this.content.trim()) {
-				uni.showModal({
-					title: '提示',
-					content: '评分较低时，请填写评价内容帮助我们改进',
-					showCancel: false
-				})
-				return
-			}
-			
-			try {
-				uni.showLoading({ title: '提交中...' })
-				
-				// TODO: 上传图片
-				// TODO: 提交评价
-				
-				uni.hideLoading()
-				
-				uni.showToast({
-					title: '评价成功',
-					icon: 'success',
-					duration: 2000
-				})
-				
-				setTimeout(() => {
-					uni.navigateBack()
-				}, 2000)
-			} catch (error) {
-				uni.hideLoading()
-				console.error('提交评价失败', error)
-				uni.showToast({
-					title: '提交失败',
-					icon: 'none'
-				})
-			}
+	// 提交评价
+	async submitReview() {
+		// 计算平均分
+		const avgRating = (this.ratings.service + this.ratings.quality + this.ratings.logistics) / 3
+		
+		if (avgRating < 3 && !this.content.trim()) {
+			uni.showModal({
+				title: '提示',
+				content: '评分较低时，请填写评价内容帮助我们改进',
+				showCancel: false
+			})
+			return
 		}
+		
+		try {
+			uni.showLoading({ title: '提交中...' })
+			
+			// TODO: 上传评价图片到服务器
+			const uploadedImages = this.images // 这里应该上传图片获取URL
+			
+			// 提交评价
+			await api.createReview({
+				order_id: parseInt(this.orderId),
+				service_rating: this.ratings.service,
+				quality_rating: this.ratings.quality,
+				logistics_rating: this.ratings.logistics,
+				content: this.content.trim() || null,
+				images: uploadedImages,
+				tags: this.selectedTags,
+				is_anonymous: this.anonymous
+			})
+			
+			uni.hideLoading()
+			
+			uni.showToast({
+				title: '评价成功',
+				icon: 'success',
+				duration: 2000
+			})
+			
+			setTimeout(() => {
+				uni.navigateBack()
+			}, 2000)
+		} catch (error) {
+			uni.hideLoading()
+			console.error('提交评价失败', error)
+			uni.showToast({
+				title: error.data?.message || '提交失败',
+				icon: 'none'
+			})
+		}
+	}
 	}
 }
 </script>

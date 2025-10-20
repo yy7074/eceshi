@@ -335,16 +335,26 @@ export default {
 		this.loadDraft()
 	},
 	methods: {
-		// 加载项目信息
-		async loadProjectInfo() {
-			try {
-				// TODO: 调用API获取项目详情
-				this.projectPrice = 300.00
+	// 加载项目信息
+	async loadProjectInfo() {
+		try {
+			if (this.projectId) {
+				const res = await api.getProjectDetail(this.projectId)
+				const project = res.data
+				
+				// 设置项目价格
+				this.projectPrice = project.current_price || 0
+				
+				// 配送费用（可以根据地区或项目类型计算）
 				this.deliveryFee = 20.00
-			} catch (e) {
-				console.error('加载项目信息失败', e)
 			}
-		},
+		} catch (e) {
+			console.error('加载项目信息失败', e)
+			// 失败时使用默认值
+			this.projectPrice = 0
+			this.deliveryFee = 20.00
+		}
+	},
 		
 		// 样品数量控制
 		decreaseSampleCount() {
