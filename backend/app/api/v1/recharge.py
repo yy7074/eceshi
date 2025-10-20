@@ -1,8 +1,10 @@
 """
 钱包充值API
 """
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import Response as FastAPIResponse
 from sqlalchemy.orm import Session
+import xml.etree.ElementTree as ET
 from decimal import Decimal
 from datetime import datetime
 from pydantic import BaseModel, Field
@@ -267,30 +269,29 @@ async def get_bonus_rules():
 
 @router.post("/wechat/notify", summary="微信支付回调（充值）")
 async def wechat_recharge_notify(
+    request: Request,
     db: Session = Depends(get_db)
 ):
     """
     接收微信支付回调通知（充值）
     """
-    from fastapi import Request
-    from fastapi.responses import Response as FastAPIResponse
-    
     try:
-        # TODO: 从Request中获取XML数据并解析
-        # 实际使用时需要：
-        # 1. 读取request.body()
-        # 2. 解析XML
-        # 3. 验证签名
-        # 4. 更新充值状态和用户余额
+        # 读取XML数据
+        body = await request.body()
+        xml_str = body.decode('utf-8')
         
-        # 模拟回调数据
-        notify_data = {
-            'return_code': 'SUCCESS',
-            'result_code': 'SUCCESS',
-            'out_trade_no': '',
-            'transaction_id': '',
-        }
+        print(f"[充值回调] 收到微信回调:")
+        print(f"[充值回调] 原始XML: {xml_str}")
         
+        # 解析XML
+        root = ET.fromstring(xml_str)
+        notify_data = {}
+        for child in root:
+            notify_data[child.tag] = child.text
+        
+        print(f"[充值回调] 解析数据: {notify_data}")
+        
+        # 处理回调
         result = await wechatpay_service.handle_recharge_notify(db, notify_data)
         
         if result:
