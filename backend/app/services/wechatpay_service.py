@@ -5,6 +5,8 @@ import time
 import hashlib
 import random
 import string
+import httpx
+import xml.etree.ElementTree as ET
 from decimal import Decimal
 from datetime import datetime
 from typing import Dict, Optional
@@ -39,8 +41,9 @@ class WeChatPayService:
         3. 添加key=API_KEY
         4. MD5加密并转大写
         """
-        # 过滤空值和sign字段
-        filtered = {k: v for k, v in params.items() if v and k != 'sign'}
+        # 过滤空值和sign字段（只过滤None、空字符串，保留0等值）
+        filtered = {k: v for k, v in params.items() 
+                   if v is not None and v != '' and k != 'sign'}
         
         # 按key排序
         sorted_params = sorted(filtered.items(), key=lambda x: x[0])
@@ -51,6 +54,9 @@ class WeChatPayService:
         # 添加API密钥
         string_sign_temp = f"{string_a}&key={self.api_key}"
         
+        # 打印签名调试信息
+        print(f"[签名] 待签名字符串: {string_sign_temp}")
+        
         # MD5加密
         if sign_type == 'MD5':
             sign = hashlib.md5(string_sign_temp.encode('utf-8')).hexdigest().upper()
@@ -58,7 +64,108 @@ class WeChatPayService:
             # HMAC-SHA256或其他签名方式
             sign = hashlib.md5(string_sign_temp.encode('utf-8')).hexdigest().upper()
         
+        print(f"[签名] 生成的签名: {sign}")
+        
         return sign
+    
+    def dict_to_xml(self, params: Dict) -> str:
+        """
+        将字典转换为XML格式
+        
+        注意：
+        - 字符串类型需要CDATA标签
+        - 数字类型不需要CDATA标签
+        """
+        # 数字类型字段列表（不需要CDATA）
+        numeric_fields = {'total_fee', 'refund_fee'}
+        
+        xml = '<xml>'
+        for key, value in params.items():
+            if key in numeric_fields:
+                # 数字类型不用CDATA
+                xml += f'<{key}>{value}</{key}>'
+            else:
+                # 字符串类型用CDATA
+                xml += f'<{key}><![CDATA[{value}]]></{key}>'
+        xml += '</xml>'
+        
+        return xml
+    
+    def xml_to_dict(self, xml_str: str) -> Dict:
+        """
+        将XML转换为字典
+        """
+        try:
+            root = ET.fromstring(xml_str)
+            result = {}
+            for child in root:
+                result[child.tag] = child.text
+            return result
+        except Exception as e:
+            print(f"XML解析失败: {str(e)}")
+            return {}
+    
+    async def call_wechat_unifiedorder(self, params: Dict) -> Dict:
+        """
+        调用微信统一下单API
+        
+        Args:
+            params: 统一下单参数
+            
+        Returns:
+            dict: 微信返回的结果
+        """
+        url = 'https://api.mch.weixin.qq.com/pay/unifiedorder'
+        
+        # 构建XML请求
+        xml_data = self.dict_to_xml(params)
+        
+        print(f"[微信支付] 发送统一下单请求到: {url}")
+        print(f"[微信支付] 完整请求XML:")
+        print(xml_data)
+        
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.post(
+                    url,
+                    content=xml_data.encode('utf-8'),
+                    headers={
+                        'Content-Type': 'text/xml; charset=utf-8',
+                        'User-Agent': 'wxpay sdk python v1.0'
+                    }
+                )
+                
+                print(f"[微信支付] 响应状态码: {response.status_code}")
+                print(f"[微信支付] 响应原始XML:")
+                print(response.text)
+                
+                if response.status_code != 200:
+                    raise Exception(f"微信API返回错误状态码: {response.status_code}")
+                
+                # 解析XML响应
+                result = self.xml_to_dict(response.text)
+                
+                print(f"[微信支付] 响应解析数据: {result}")
+                
+                # 验证签名
+                if result.get('return_code') == 'SUCCESS':
+                    # 验证响应签名
+                    response_sign = result.get('sign', '')
+                    calculated_sign = self.generate_sign(result)
+                    
+                    if response_sign != calculated_sign:
+                        print(f"[微信支付] 警告：响应签名验证失败")
+                        print(f"  响应签名: {response_sign}")
+                        print(f"  计算签名: {calculated_sign}")
+                
+                return result
+                
+        except httpx.TimeoutException:
+            print("[微信支付] 请求超时")
+            raise Exception("微信支付请求超时")
+        except Exception as e:
+            print(f"[微信支付] 调用统一下单API失败: {str(e)}")
+            raise
     
     async def create_jsapi_payment(
         self,
@@ -79,12 +186,22 @@ class WeChatPayService:
         Returns:
             dict: 包含支付参数的字典
         """
-        # 如果没有配置商户号和密钥，返回模拟数据
+        # 检查必需配置
         if not self.mch_id or not self.api_key:
-            return self._get_mock_payment_params()
+            raise ValueError("未配置微信支付商户号或密钥，请在.env文件中配置WECHAT_MCH_ID和WECHAT_PAY_KEY")
         
         # 计算待支付金额（单位：分）
         total_fee = int((order.total_amount - order.paid_amount) * 100)
+        
+        # 确保金额大于0
+        if total_fee <= 0:
+            raise ValueError(f"订单支付金额必须大于0，当前金额: {order.total_amount - order.paid_amount}")
+        
+        print(f"[订单支付] 创建微信支付订单:")
+        print(f"  - 订单号: {order.order_no}")
+        print(f"  - 支付金额: {order.total_amount - order.paid_amount}元 ({total_fee}分)")
+        print(f"  - 用户OpenID: {openid}")
+        print(f"  - 商户号: {self.mch_id}")
         
         # 统一下单参数
         params = {
@@ -94,7 +211,7 @@ class WeChatPayService:
             'body': f'检测服务-{order.project_name}',
             'out_trade_no': order.order_no,
             'total_fee': str(total_fee),
-            'spbill_create_ip': '127.0.0.1',  # 实际应该获取真实IP
+            'spbill_create_ip': '127.0.0.1',
             'notify_url': self.notify_url,
             'trade_type': 'JSAPI',
             'openid': openid
@@ -103,21 +220,43 @@ class WeChatPayService:
         # 生成签名
         params['sign'] = self.generate_sign(params)
         
-        # TODO: 调用微信统一下单API
-        # 实际使用时需要：
-        # 1. 将params转为XML格式
-        # 2. 发送POST请求到 https://api.mch.weixin.qq.com/pay/unifiedorder
-        # 3. 解析返回的XML
-        # 4. 获取prepay_id
+        print(f"[订单支付] 统一下单参数: {params}")
         
-        # 模拟返回prepay_id
-        prepay_id = f"wx{int(time.time())}{random.randint(1000, 9999)}"
+        try:
+            # 调用微信统一下单API
+            result = await self.call_wechat_unifiedorder(params)
+            
+            # 检查返回状态
+            if result.get('return_code') != 'SUCCESS':
+                error_msg = result.get('return_msg', '未知错误')
+                print(f"[订单支付] 统一下单失败: {error_msg}")
+                raise Exception(f"微信支付统一下单失败: {error_msg}")
+            
+            if result.get('result_code') != 'SUCCESS':
+                error_code = result.get('err_code', '')
+                error_desc = result.get('err_code_des', '未知错误')
+                print(f"[订单支付] 支付失败: {error_code} - {error_desc}")
+                raise Exception(f"微信支付错误: {error_desc}")
+            
+            # 获取prepay_id
+            prepay_id = result.get('prepay_id')
+            if not prepay_id:
+                raise Exception("未获取到prepay_id")
+            
+            print(f"[订单支付] 获取prepay_id成功: {prepay_id}")
+            
+        except Exception as e:
+            print(f"[订单支付] 调用微信API异常: {str(e)}")
+            raise Exception(f"创建支付订单失败: {str(e)}")
         
         # 生成小程序支付参数
+        timestamp = str(int(time.time()))
+        nonce_str = self.generate_nonce_str()
+        
         pay_params = {
             'appId': self.app_id,
-            'timeStamp': str(int(time.time())),
-            'nonceStr': self.generate_nonce_str(),
+            'timeStamp': timestamp,
+            'nonceStr': nonce_str,
             'package': f'prepay_id={prepay_id}',
             'signType': 'MD5'
         }
@@ -125,20 +264,10 @@ class WeChatPayService:
         # 生成支付签名
         pay_params['paySign'] = self.generate_sign(pay_params)
         
+        print(f"[订单支付] 返回支付参数: appId={pay_params['appId']}, timeStamp={timestamp}, package={pay_params['package']}")
+        
         return pay_params
     
-    def _get_mock_payment_params(self) -> Dict:
-        """
-        获取模拟支付参数（用于开发测试）
-        """
-        return {
-            'appId': self.app_id,
-            'timeStamp': str(int(time.time())),
-            'nonceStr': self.generate_nonce_str(),
-            'package': f'prepay_id=mock_{int(time.time())}',
-            'signType': 'MD5',
-            'paySign': 'MOCK_SIGN_FOR_DEVELOPMENT'
-        }
     
     async def handle_notify(
         self,
@@ -239,10 +368,9 @@ class WeChatPayService:
         if total_fee <= 0:
             raise ValueError(f"充值金额必须大于0，当前金额: {recharge.amount}")
         
-        # 如果没有配置商户号和密钥，返回模拟数据（用于测试）
+        # 检查必需配置
         if not self.mch_id or not self.api_key:
-            print(f"[充值] 使用模拟支付参数 - 金额: {recharge.amount}元 ({total_fee}分)")
-            return self._get_mock_payment_params()
+            raise ValueError("未配置微信支付商户号或密钥，请在.env文件中配置WECHAT_MCH_ID和WECHAT_PAY_KEY")
         
         # 打印调试信息
         print(f"[充值] 创建微信支付订单:")
@@ -256,7 +384,7 @@ class WeChatPayService:
             'appid': self.app_id,
             'mch_id': self.mch_id,
             'nonce_str': self.generate_nonce_str(),
-            'body': f'钱包充值',
+            'body': '钱包充值',
             'out_trade_no': recharge.recharge_no,
             'total_fee': str(total_fee),
             'spbill_create_ip': '127.0.0.1',
@@ -270,16 +398,32 @@ class WeChatPayService:
         
         print(f"[充值] 统一下单参数: {params}")
         
-        # TODO: 调用微信统一下单API
-        # 实际使用时需要：
-        # 1. 将params转为XML格式
-        # 2. 发送POST请求到 https://api.mch.weixin.qq.com/pay/unifiedorder
-        # 3. 解析返回的XML
-        # 4. 获取prepay_id
-        
-        # 暂时使用模拟prepay_id（生产环境需替换为真实调用）
-        prepay_id = f"wx{int(time.time())}{random.randint(1000, 9999)}"
-        print(f"[充值] 模拟prepay_id: {prepay_id}")
+        try:
+            # 调用微信统一下单API
+            result = await self.call_wechat_unifiedorder(params)
+            
+            # 检查返回状态
+            if result.get('return_code') != 'SUCCESS':
+                error_msg = result.get('return_msg', '未知错误')
+                print(f"[充值] 统一下单失败: {error_msg}")
+                raise Exception(f"微信支付统一下单失败: {error_msg}")
+            
+            if result.get('result_code') != 'SUCCESS':
+                error_code = result.get('err_code', '')
+                error_desc = result.get('err_code_des', '未知错误')
+                print(f"[充值] 支付失败: {error_code} - {error_desc}")
+                raise Exception(f"微信支付错误: {error_desc}")
+            
+            # 获取prepay_id
+            prepay_id = result.get('prepay_id')
+            if not prepay_id:
+                raise Exception("未获取到prepay_id")
+            
+            print(f"[充值] 获取prepay_id成功: {prepay_id}")
+            
+        except Exception as e:
+            print(f"[充值] 调用微信API异常: {str(e)}")
+            raise Exception(f"创建支付订单失败: {str(e)}")
         
         # 生成小程序支付参数
         timestamp = str(int(time.time()))

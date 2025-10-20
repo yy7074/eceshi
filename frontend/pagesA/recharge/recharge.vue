@@ -224,16 +224,34 @@ export default {
 		},
 		
 		wechatPay(payData) {
-			console.log('微信支付参数:', payData)
+			console.log('=== 微信支付参数 ===')
+			console.log('完整数据:', payData)
+			console.log('appId:', payData.appId)
+			console.log('timeStamp:', payData.timeStamp)
+			console.log('nonceStr:', payData.nonceStr)
+			console.log('package:', payData.package)
+			console.log('signType:', payData.signType)
+			console.log('paySign:', payData.paySign)
+			
+			// 确保所有必需参数都存在
+			if (!payData.timeStamp || !payData.nonceStr || !payData.package || !payData.paySign) {
+				console.error('缺少必需的支付参数')
+				uni.showToast({
+					title: '支付参数不完整',
+					icon: 'none'
+				})
+				return
+			}
 			
 			uni.requestPayment({
 				provider: 'wxpay',
-				timeStamp: payData.timeStamp,
-				nonceStr: payData.nonceStr,
-				package: payData.package,
-				signType: payData.signType,
-				paySign: payData.paySign,
+				timeStamp: String(payData.timeStamp),
+				nonceStr: String(payData.nonceStr),
+				package: String(payData.package),
+				signType: String(payData.signType || 'MD5'),
+				paySign: String(payData.paySign),
 				success: () => {
+					console.log('微信支付成功')
 					uni.showToast({ title: '充值成功', icon: 'success' })
 					setTimeout(() => {
 						this.loadBalance()
@@ -243,10 +261,15 @@ export default {
 				},
 				fail: (err) => {
 					console.error('微信支付失败:', err)
-					if (err.errMsg.includes('cancel')) {
+					console.error('错误详情:', JSON.stringify(err))
+					if (err.errMsg && err.errMsg.includes('cancel')) {
 						uni.showToast({ title: '已取消支付', icon: 'none' })
 					} else {
-						uni.showToast({ title: '支付失败', icon: 'none' })
+						uni.showToast({ 
+							title: err.errMsg || '支付失败', 
+							icon: 'none',
+							duration: 3000
+						})
 					}
 				}
 			})
