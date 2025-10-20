@@ -3,7 +3,7 @@ API路由汇总
 """
 from fastapi import APIRouter
 
-from app.api.v1 import auth, users, projects, orders, addresses, payments, upload, admin
+from app.api.v1 import auth, users, projects, orders, addresses, payments, upload, admin, favorites, reviews
 
 
 # 创建主路由
@@ -17,4 +17,6 @@ router.include_router(orders.router, prefix="/orders", tags=["订单"])
 router.include_router(addresses.router, prefix="/addresses", tags=["地址管理"])
 router.include_router(payments.router, prefix="/payments", tags=["支付"])
 router.include_router(upload.router, prefix="/upload", tags=["文件上传"])
+router.include_router(favorites.router, prefix="/favorites", tags=["收藏"])
+router.include_router(reviews.router, prefix="/reviews", tags=["评价"])
 router.include_router(admin.router, prefix="/admin", tags=["后台管理"])

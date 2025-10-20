@@ -596,7 +596,82 @@
                             <h3>📦 订单管理</h3>
                         </div>
                         <div class="content-card">
-                            <el-empty description="订单管理功能开发中..." />
+                            <div style="margin-bottom: 16px; display: flex; justify-content: space-between;">
+                                <div style="display: flex; gap: 10px;">
+                                    <el-input
+                                        v-model="orderSearch"
+                                        placeholder="搜索订单号/用户手机号"
+                                        style="width: 300px;"
+                                        clearable
+                                        @change="loadOrders">
+                                        <template #prefix>
+                                            <el-icon><search /></el-icon>
+                                        </template>
+                                    </el-input>
+                                    <el-select v-model="orderStatusFilter" placeholder="订单状态" style="width: 150px;" @change="loadOrders" clearable>
+                                        <el-option label="待支付" value="unpaid"></el-option>
+                                        <el-option label="已支付" value="paid"></el-option>
+                                        <el-option label="已确认" value="confirmed"></el-option>
+                                        <el-option label="实验中" value="testing"></el-option>
+                                        <el-option label="已完成" value="completed"></el-option>
+                                        <el-option label="已取消" value="cancelled"></el-option>
+                                    </el-select>
+                                    <el-button type="primary" @click="loadOrders">搜索</el-button>
+                                    <el-button @click="orderSearch=''; orderStatusFilter=null; loadOrders()">重置</el-button>
+                                </div>
+                            </div>
+
+                            <el-table :data="orders" style="width: 100%" v-loading="ordersLoading">
+                                <el-table-column prop="id" label="ID" width="80"></el-table-column>
+                                <el-table-column prop="order_no" label="订单号" width="200"></el-table-column>
+                                <el-table-column label="用户" width="150">
+                                    <template #default="scope">
+                                        <div>{{ scope.row.user_nickname }}</div>
+                                        <div style="font-size: 12px; color: #999;">{{ scope.row.user_phone }}</div>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column prop="project_name" label="检测项目" width="200"></el-table-column>
+                                <el-table-column label="样品" width="150">
+                                    <template #default="scope">
+                                        <div>{{ scope.row.sample_name }}</div>
+                                        <div style="font-size: 12px; color: #999;">数量：{{ scope.row.quantity }}</div>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column label="金额" width="120">
+                                    <template #default="scope">
+                                        <span style="color: #ff4d4f; font-weight: 600;">¥{{ scope.row.total_amount }}</span>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column label="状态" width="100">
+                                    <template #default="scope">
+                                        <el-tag :type="getOrderStatusType(scope.row.status)" size="small">
+                                            {{ getOrderStatusText(scope.row.status) }}
+                                        </el-tag>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column label="创建时间" width="180">
+                                    <template #default="scope">
+                                        {{ formatDateTime(scope.row.created_at) }}
+                                    </template>
+                                </el-table-column>
+                                <el-table-column label="操作" width="200" fixed="right">
+                                    <template #default="scope">
+                                        <el-button link type="primary" size="small" @click="viewOrderDetail(scope.row)">详情</el-button>
+                                        <el-button link type="warning" size="small" @click="showOrderStatusDialog(scope.row)">改状态</el-button>
+                                    </template>
+                                </el-table-column>
+                            </el-table>
+
+                            <el-pagination
+                                v-model:current-page="orderPage"
+                                v-model:page-size="orderPageSize"
+                                :page-sizes="[10, 20, 50, 100]"
+                                :total="orderTotal"
+                                layout="total, sizes, prev, pager, next, jumper"
+                                @size-change="loadOrders"
+                                @current-change="loadOrders"
+                                style="margin-top: 20px; justify-content: center;">
+                            </el-pagination>
                         </div>
                     </div>
 
@@ -674,7 +749,15 @@
                         is_recommended: false,
                         status: 'active'
                     },
-                    categories: []
+                    categories: [],
+                    // 订单管理
+                    orders: [],
+                    ordersLoading: false,
+                    orderSearch: '',
+                    orderStatusFilter: null,
+                    orderPage: 1,
+                    orderPageSize: 20,
+                    orderTotal: 0
                 }
             },
             computed: {
@@ -700,6 +783,8 @@
                         this.loadUsers()
                     } else if (index === 'projects') {
                         this.loadProjects()
+                    } else if (index === 'orders') {
+                        this.loadOrders()
                     }
                 },
                 copyImageUrl(url) {
@@ -868,7 +953,7 @@
                 async loadUsers() {
                     this.usersLoading = true
                     try {
-                        const res = await axios.get(`${this.baseUrl}/api/v1/users/list`, {
+                        const res = await axios.get(`${this.baseUrl}/api/v1/admin/users`, {
                             headers: this.uploadHeaders,
                             params: {
                                 page: this.userPage,
@@ -1079,6 +1164,102 @@
                         this.projectForm.cover_image = response.data.url
                         ElMessage.success('封面图片上传成功')
                     }
+                },
+                
+                // ==================== 订单管理 ====================
+                async loadOrders() {
+                    this.ordersLoading = true
+                    try {
+                        const res = await axios.get(`${this.baseUrl}/api/v1/admin/orders`, {
+                            headers: this.uploadHeaders,
+                            params: {
+                                page: this.orderPage,
+                                page_size: this.orderPageSize,
+                                search: this.orderSearch || undefined,
+                                status: this.orderStatusFilter || undefined
+                            }
+                        })
+                        this.orders = res.data.data.items || []
+                        this.orderTotal = res.data.data.total || 0
+                    } catch (error) {
+                        console.error('加载订单失败', error)
+                        ElMessage.error(error.response?.data?.detail || '加载订单失败')
+                    } finally {
+                        this.ordersLoading = false
+                    }
+                },
+                viewOrderDetail(order) {
+                    ElMessageBox.alert(`
+                        <div style="line-height: 1.8;">
+                            <p><strong>订单号：</strong>${order.order_no}</p>
+                            <p><strong>用户：</strong>${order.user_nickname} (${order.user_phone})</p>
+                            <p><strong>项目：</strong>${order.project_name}</p>
+                            <p><strong>样品：</strong>${order.sample_name} × ${order.quantity}</p>
+                            <p><strong>金额：</strong>¥${order.total_amount}</p>
+                            <p><strong>状态：</strong>${this.getOrderStatusText(order.status)}</p>
+                            <p><strong>创建时间：</strong>${this.formatDateTime(order.created_at)}</p>
+                            ${order.paid_at ? `<p><strong>支付时间：</strong>${this.formatDateTime(order.paid_at)}</p>` : ''}
+                        </div>
+                    `, '订单详情', {
+                        dangerouslyUseHTMLString: true,
+                        confirmButtonText: '关闭'
+                    })
+                },
+                showOrderStatusDialog(order) {
+                    ElMessageBox.prompt('请输入新状态', '修改订单状态', {
+                        confirmButtonText: '确定',
+                        cancelButtonText: '取消',
+                        inputPlaceholder: 'unpaid/paid/confirmed/testing/completed/cancelled',
+                        inputValue: order.status
+                    }).then(async ({ value }) => {
+                        try {
+                            await axios.put(
+                                `${this.baseUrl}/api/v1/admin/orders/${order.id}/status`,
+                                null,
+                                {
+                                    headers: this.uploadHeaders,
+                                    params: { new_status: value }
+                                }
+                            )
+                            ElMessage.success('状态修改成功')
+                            this.loadOrders()
+                        } catch (error) {
+                            ElMessage.error(error.response?.data?.detail || '状态修改失败')
+                        }
+                    }).catch(() => {})
+                },
+                getOrderStatusText(status) {
+                    const statusMap = {
+                        'unpaid': '待支付',
+                        'paid': '已支付',
+                        'confirmed': '已确认',
+                        'testing': '实验中',
+                        'completed': '已完成',
+                        'cancelled': '已取消'
+                    }
+                    return statusMap[status] || status
+                },
+                getOrderStatusType(status) {
+                    const typeMap = {
+                        'unpaid': 'warning',
+                        'paid': 'info',
+                        'confirmed': 'primary',
+                        'testing': 'primary',
+                        'completed': 'success',
+                        'cancelled': 'danger'
+                    }
+                    return typeMap[status] || 'info'
+                },
+                formatDateTime(dateStr) {
+                    if (!dateStr) return '-'
+                    const date = new Date(dateStr)
+                    return date.toLocaleString('zh-CN', {
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    })
                 }
             }
         }).use(ElementPlus).mount('#app')
