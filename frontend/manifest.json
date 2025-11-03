@@ -44,22 +44,31 @@
         "usingComponents" : true
     },
     "h5" : {
-        "title" : "科研检测服务平台",
+        "title" : "科研检测服务平台 - E测试",
         "template" : "",
         "router" : {
             "mode" : "hash",
-            "base" : "/"
+            "base" : "/h5/"
         },
         "devServer" : {
             "port" : 8080,
             "disableHostCheck" : true,
             "proxy" : {
                 "/api" : {
-                    "target" : "http://localhost:8000",
+                    "target" : "https://catdog.dachaonet.com",
                     "changeOrigin" : true,
                     "secure" : false
                 }
             }
+        },
+        "optimization": {
+            "treeShaking": {
+                "enable": true
+            }
+        },
+        "publicPath": "/h5/",
+        "sdkConfigs": {
+            "maps": {}
         }
     }
 }

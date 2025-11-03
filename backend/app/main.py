@@ -108,6 +108,11 @@ admin_dir = Path("admin")
 if admin_dir.exists():
     app.mount("/admin", StaticFiles(directory="admin", html=True), name="admin")
 
+# 挂载Web端用户网站
+web_dir = Path("static/web")
+if web_dir.exists():
+    app.mount("/web", StaticFiles(directory="static/web", html=True), name="web")
+
 
 if __name__ == "__main__":
     import uvicorn

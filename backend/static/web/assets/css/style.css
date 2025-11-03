@@ -1,0 +1,697 @@
+/* 科研检测服务平台 - Web端样式 */
+
+/* ==================== 全局样式 ==================== */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+[v-cloak] {
+    display: none;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB',
+        'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    background: #f5f5f5;
+    color: #262626;
+    font-size: 14px;
+    line-height: 1.6;
+}
+
+html, body, #app {
+    height: 100%;
+    overflow-x: hidden;
+}
+
+/* ==================== 容器布局 ==================== */
+.app-container {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+/* ==================== 顶部导航 ==================== */
+.app-header {
+    background: #fff;
+    border-bottom: 1px solid #e8e8e8;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+}
+
+.header-content {
+    max-width: 1400px;
+    margin: 0 auto;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 24px;
+}
+
+.header-left {
+    display: flex;
+    align-items: center;
+    gap: 48px;
+}
+
+.logo {
+    font-size: 24px;
+    font-weight: 600;
+    color: #1890ff;
+    cursor: pointer;
+    margin: 0;
+    white-space: nowrap;
+}
+
+.header-menu {
+    border-bottom: none;
+    background: transparent;
+}
+
+.header-menu .el-menu-item {
+    font-size: 16px;
+}
+
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.user-dropdown {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    padding: 4px 12px;
+    border-radius: 20px;
+    transition: all 0.3s;
+}
+
+.user-dropdown:hover {
+    background: #f5f5f5;
+}
+
+.user-name {
+    font-size: 14px;
+    color: #262626;
+}
+
+.mobile-menu-btn {
+    display: none;
+}
+
+/* ==================== 主内容区 ==================== */
+.app-main {
+    flex: 1;
+    padding: 0;
+    background: #f5f5f5;
+}
+
+.main-content {
+    max-width: 1400px;
+    margin: 0 auto;
+    min-height: calc(100vh - 260px);
+}
+
+/* ==================== 底部 ==================== */
+.app-footer {
+    background: #262626;
+    color: #fff;
+    padding: 48px 24px 24px;
+}
+
+.footer-content {
+    max-width: 1400px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 48px;
+    margin-bottom: 32px;
+}
+
+.footer-section h3 {
+    font-size: 18px;
+    margin-bottom: 16px;
+    font-weight: 600;
+}
+
+.footer-section p {
+    color: #bfbfbf;
+    margin-bottom: 8px;
+    font-size: 14px;
+}
+
+.footer-copyright {
+    text-align: center;
+    padding-top: 24px;
+    border-top: 1px solid #434343;
+    color: #8c8c8c;
+}
+
+/* ==================== 首页样式 ==================== */
+.home-view {
+    padding: 24px;
+}
+
+.hero-section {
+    background: linear-gradient(135deg, #1890ff 0%, #096dd9 100%);
+    border-radius: 16px;
+    padding: 80px 48px;
+    text-align: center;
+    color: #fff;
+    margin-bottom: 48px;
+}
+
+.hero-title {
+    font-size: 48px;
+    font-weight: 700;
+    margin-bottom: 16px;
+}
+
+.hero-subtitle {
+    font-size: 20px;
+    opacity: 0.9;
+    margin-bottom: 32px;
+}
+
+.hero-actions {
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+}
+
+.hero-actions .el-button {
+    padding: 14px 32px;
+    font-size: 16px;
+}
+
+.section-title {
+    font-size: 28px;
+    font-weight: 600;
+    margin-bottom: 24px;
+    color: #262626;
+}
+
+.categories-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 16px;
+    margin-bottom: 48px;
+}
+
+.category-card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 32px 24px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s;
+    border: 1px solid #f0f0f0;
+}
+
+.category-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+    border-color: #1890ff;
+}
+
+.category-icon {
+    font-size: 48px;
+    margin-bottom: 16px;
+}
+
+.category-name {
+    font-size: 16px;
+    font-weight: 500;
+    color: #262626;
+}
+
+.projects-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 24px;
+}
+
+.project-card {
+    background: #fff;
+    border-radius: 12px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: all 0.3s;
+    border: 1px solid #f0f0f0;
+}
+
+.project-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+}
+
+.project-image {
+    width: 100%;
+    height: 180px;
+    object-fit: cover;
+    background: #f5f5f5;
+}
+
+.project-info {
+    padding: 20px;
+}
+
+.project-name {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 8px;
+    color: #262626;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.project-price {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.current-price {
+    font-size: 24px;
+    color: #ff4d4f;
+    font-weight: 600;
+}
+
+.original-price {
+    font-size: 14px;
+    color: #8c8c8c;
+    text-decoration: line-through;
+}
+
+.project-tags {
+    display: flex;
+    gap: 8px;
+}
+
+/* ==================== 项目列表样式 ==================== */
+.projects-view {
+    padding: 24px;
+}
+
+.filter-bar {
+    background: #fff;
+    padding: 24px;
+    border-radius: 12px;
+    margin-bottom: 24px;
+}
+
+.filter-row {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+/* ==================== 项目详情样式 ==================== */
+.project-detail {
+    padding: 24px;
+}
+
+.detail-header {
+    background: #fff;
+    padding: 32px;
+    border-radius: 12px;
+    margin-bottom: 24px;
+}
+
+.detail-main {
+    display: grid;
+    grid-template-columns: 400px 1fr;
+    gap: 32px;
+}
+
+.detail-images {
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.detail-image {
+    width: 100%;
+    height: 400px;
+    object-fit: cover;
+}
+
+.detail-info h1 {
+    font-size: 32px;
+    margin-bottom: 16px;
+}
+
+.detail-price {
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.detail-price .current {
+    font-size: 36px;
+    color: #ff4d4f;
+    font-weight: 600;
+}
+
+.detail-price .original {
+    font-size: 20px;
+    color: #8c8c8c;
+    text-decoration: line-through;
+}
+
+.detail-meta {
+    background: #f9f9f9;
+    padding: 24px;
+    border-radius: 8px;
+    margin-bottom: 24px;
+}
+
+.meta-item {
+    display: flex;
+    margin-bottom: 12px;
+}
+
+.meta-label {
+    width: 120px;
+    color: #8c8c8c;
+}
+
+.meta-value {
+    flex: 1;
+    color: #262626;
+}
+
+.detail-tabs {
+    background: #fff;
+    padding: 32px;
+    border-radius: 12px;
+}
+
+/* ==================== 订单列表样式 ==================== */
+.orders-view {
+    padding: 24px;
+}
+
+.order-filters {
+    margin-bottom: 24px;
+}
+
+.order-card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 16px;
+}
+
+.order-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 16px;
+    border-bottom: 1px solid #f0f0f0;
+    margin-bottom: 16px;
+}
+
+.order-no {
+    font-size: 14px;
+    color: #8c8c8c;
+}
+
+.order-content {
+    display: flex;
+    gap: 24px;
+}
+
+.order-project {
+    flex: 1;
+}
+
+.order-actions {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+
+/* ==================== 个人中心样式 ==================== */
+.profile-view {
+    padding: 24px;
+}
+
+.profile-header {
+    background: #fff;
+    padding: 32px;
+    border-radius: 12px;
+    margin-bottom: 24px;
+    display: flex;
+    gap: 32px;
+    align-items: center;
+}
+
+.profile-stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 24px;
+    margin-bottom: 24px;
+}
+
+.stat-card {
+    background: #fff;
+    padding: 24px;
+    border-radius: 12px;
+    text-align: center;
+}
+
+.stat-value {
+    font-size: 32px;
+    font-weight: 600;
+    color: #1890ff;
+    margin-bottom: 8px;
+}
+
+.stat-label {
+    color: #8c8c8c;
+}
+
+/* ==================== 关于我们样式 ==================== */
+.about-view {
+    padding: 24px;
+}
+
+.about-section {
+    background: #fff;
+    padding: 48px;
+    border-radius: 12px;
+    margin-bottom: 24px;
+}
+
+.about-section h2 {
+    font-size: 28px;
+    margin-bottom: 24px;
+}
+
+/* ==================== 响应式设计 ==================== */
+@media (max-width: 768px) {
+    /* 移动端头部 */
+    .header-content {
+        padding: 0 16px;
+    }
+    
+    .header-left {
+        gap: 0;
+    }
+    
+    .logo {
+        font-size: 20px;
+    }
+    
+    .header-menu {
+        display: none;
+    }
+    
+    .mobile-menu-btn {
+        display: inline-flex;
+    }
+    
+    .user-name {
+        display: none;
+    }
+    
+    /* 移动端主内容 */
+    .main-content {
+        min-height: calc(100vh - 120px);
+        padding-bottom: 60px;
+    }
+    
+    .home-view,
+    .projects-view,
+    .project-detail,
+    .orders-view,
+    .profile-view,
+    .about-view {
+        padding: 16px;
+    }
+    
+    /* 移动端首页 */
+    .hero-section {
+        padding: 48px 24px;
+    }
+    
+    .hero-title {
+        font-size: 28px;
+    }
+    
+    .hero-subtitle {
+        font-size: 16px;
+    }
+    
+    .hero-actions {
+        flex-direction: column;
+    }
+    
+    .hero-actions .el-button {
+        width: 100%;
+    }
+    
+    .categories-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .projects-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    /* 移动端项目详情 */
+    .detail-main {
+        grid-template-columns: 1fr;
+    }
+    
+    .detail-image {
+        height: 250px;
+    }
+    
+    .detail-info h1 {
+        font-size: 24px;
+    }
+    
+    /* 移动端底部 */
+    .app-footer {
+        display: none;
+    }
+    
+    .mobile-tabbar {
+        display: flex !important;
+    }
+    
+    /* 移动端订单 */
+    .order-content {
+        flex-direction: column;
+    }
+    
+    /* 移动端个人中心 */
+    .profile-header {
+        flex-direction: column;
+        text-align: center;
+    }
+    
+    .profile-stats {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    /* 移动端底部导航 */
+    .footer-content {
+        grid-template-columns: 1fr;
+        gap: 24px;
+    }
+}
+
+/* ==================== 移动端底部导航 ==================== */
+.mobile-tabbar {
+    display: none;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: #fff;
+    border-top: 1px solid #e8e8e8;
+    padding: 8px 0;
+    z-index: 1000;
+    box-shadow: 0 -2px 8px rgba(0,0,0,0.05);
+}
+
+.tabbar-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    cursor: pointer;
+    color: #8c8c8c;
+    transition: color 0.3s;
+}
+
+.tabbar-item.active {
+    color: #1890ff;
+}
+
+.tabbar-item .el-icon {
+    font-size: 24px;
+}
+
+.tabbar-item span {
+    font-size: 12px;
+}
+
+/* ==================== 加载动画 ==================== */
+.loading-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 400px;
+}
+
+/* ==================== 空状态 ==================== */
+.empty-state {
+    text-align: center;
+    padding: 80px 24px;
+}
+
+.empty-icon {
+    font-size: 80px;
+    color: #d9d9d9;
+    margin-bottom: 16px;
+}
+
+.empty-text {
+    font-size: 16px;
+    color: #8c8c8c;
+}
+
+/* ==================== 工具类 ==================== */
+.text-center {
+    text-align: center;
+}
+
+.mb-16 {
+    margin-bottom: 16px;
+}
+
+.mb-24 {
+    margin-bottom: 24px;
+}
+
+.mt-24 {
+    margin-top: 24px;
+}
+
+

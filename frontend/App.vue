@@ -26,6 +26,11 @@
 <style lang="scss">
 	/*每个页面公共css */
 	
+	/* 引入PC端适配样式 */
+	/* #ifdef H5 */
+	@import '@/styles/h5-pc.scss';
+	/* #endif */
+	
 	/* 全局样式 */
 	page {
 		background-color: #f8f8f8;
