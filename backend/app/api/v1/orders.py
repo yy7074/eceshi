@@ -11,6 +11,7 @@ from decimal import Decimal
 from app.api.deps import get_db, get_current_user
 from app.models.user import User
 from app.models.order import Order, OrderSample, OrderFee, OrderStatusHistory, UserAddress
+from app.models.project import Project
 from app.schemas.order import (
     OrderCreate, OrderCalculate, OrderCalculateResponse,
     OrderDetail, OrderListResponse, OrderListItem, OrderCancel, OrderFeeDetail
@@ -34,9 +35,15 @@ async def calculate_order(
     """
     计算订单费用（下单前）
     """
-    # TODO: 从数据库查询项目信息
-    # 这里暂时使用模拟数据
-    project_fee = Decimal("312.00")  # 基础费用
+    # 从数据库查询项目信息
+    project = db.query(Project).filter(Project.id == data.project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="项目不存在")
+    
+    # 基础费用：项目单价 × 样品数量
+    project_fee = Decimal(str(project.current_price)) * data.sample_count
+    
+    # 加急费用
     urgent_fee = Decimal("100.00") if data.is_urgent else Decimal("0")
     
     # 运费计算
@@ -45,10 +52,6 @@ async def calculate_order(
         shipping_fee = Decimal("20.00")
     elif data.shipping_method == "platform":
         shipping_fee = Decimal("30.00")
-    
-    # 多样品费用
-    if data.sample_count > 1:
-        project_fee = project_fee * data.sample_count
     
     # 优惠计算
     discount_amount = Decimal("0")
@@ -107,18 +110,34 @@ async def create_order(
         if not address:
             raise HTTPException(status_code=400, detail="地址不存在")
     
-    # TODO: 查询项目信息
-    # 这里使用模拟数据
-    project_id = data.project_id
-    project_name = "场发射扫描电镜（SEM）"
-    lab_id = 1
-    lab_name = "某985高校材料实验室"
+    # 从数据库查询项目信息
+    project = db.query(Project).filter(Project.id == data.project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="项目不存在")
     
-    # 计算费用
-    project_fee = Decimal("312.00") * len(data.samples)
+    project_id = data.project_id
+    project_fee = project.current_price  # 从数据库获取项目价格
+    project_name = project.name
+    lab_id = project.lab_id if project.lab_id else 1
+    lab_name = project.lab_name if hasattr(project, 'lab_name') else "平台实验室"
+    
+    # 计算费用：项目单价 × 样品数量
+    project_fee = Decimal(str(project_fee)) * len(data.samples)
+    
+    # 加急费用
     urgent_fee = Decimal("100.00") if data.is_urgent else Decimal("0")
-    shipping_fee = Decimal("20.00") if data.shipping_method == "express" else Decimal("0")
+    
+    # 运费
+    shipping_fee = Decimal("0")
+    if data.shipping_method == "express":
+        shipping_fee = Decimal("20.00")
+    elif data.shipping_method == "platform":
+        shipping_fee = Decimal("30.00")
+    
+    # 优惠金额
     discount_amount = Decimal("0")
+    
+    # 总费用
     total_fee = project_fee + urgent_fee + shipping_fee - discount_amount
     
     # 创建订单

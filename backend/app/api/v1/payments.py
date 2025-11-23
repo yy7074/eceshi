@@ -62,12 +62,11 @@ async def create_payment(
         if not verify_password(data.payment_password, current_user.hashed_password):
             raise HTTPException(status_code=400, detail="支付密码错误")
         
-        # 检查余额
-        # TODO: 实际应该从用户账户表获取
-        user_balance = Decimal("1000.00")  # 模拟余额
+        # 检查余额（从数据库获取）
+        user_balance = current_user.prepaid_balance if current_user.prepaid_balance else Decimal("0")
         
         if user_balance < amount_to_pay:
-            raise HTTPException(status_code=400, detail="余额不足")
+            raise HTTPException(status_code=400, detail=f"余额不足，当前余额：¥{user_balance}，需要支付：¥{amount_to_pay}")
         
         # 创建支付记录
         payment = Payment(
@@ -100,7 +99,10 @@ async def create_payment(
         )
         db.add(history)
         
-        # TODO: 扣除用户余额
+        # 扣除用户余额
+        current_user.prepaid_balance = current_user.prepaid_balance - amount_to_pay
+        current_user.total_spent = (current_user.total_spent or Decimal("0")) + amount_to_pay
+        current_user.total_orders = (current_user.total_orders or 0) + 1
         
         db.commit()
         db.refresh(payment)
