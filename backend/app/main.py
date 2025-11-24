@@ -94,24 +94,25 @@ async def health_check():
     }
 
 
-# 注册API路由
-app.include_router(router, prefix="/api/v1")
-
-
-# 挂载静态文件目录
+# 挂载静态文件目录（必须在API路由之前）
 static_dir = Path("static")
 static_dir.mkdir(exist_ok=True)
-app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# 挂载Web端用户网站（优先级最高）
+web_dir = Path("static/web")
+if web_dir.exists():
+    app.mount("/web", StaticFiles(directory="static/web", html=True), name="web")
 
 # 挂载后台管理页面
 admin_dir = Path("admin")
 if admin_dir.exists():
     app.mount("/admin", StaticFiles(directory="admin", html=True), name="admin")
 
-# 挂载Web端用户网站
-web_dir = Path("static/web")
-if web_dir.exists():
-    app.mount("/web", StaticFiles(directory="static/web", html=True), name="web")
+# 挂载静态文件
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# 注册API路由（放在最后）
+app.include_router(router, prefix="/api/v1")
 
 
 if __name__ == "__main__":

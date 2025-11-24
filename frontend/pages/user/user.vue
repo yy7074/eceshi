@@ -2,7 +2,24 @@
 	<view class="user-page">
 		<!-- 用户信息卡片 -->
 		<view class="user-header">
-			<view class="user-info-card">
+			<!-- 未登录状态 -->
+			<view v-if="!isLoggedIn" class="user-info-card login-prompt" @click="goLogin">
+				<image 
+					src="https://ui-avatars.com/api/?name=Guest&background=007AFF&color=fff" 
+					mode="aspectFill" 
+					class="avatar"
+				></image>
+				<view class="user-text">
+					<text class="login-text">点击登录/注册</text>
+					<text class="login-hint">登录后查看更多功能</text>
+				</view>
+				<view class="login-arrow">
+					<text>›</text>
+				</view>
+			</view>
+			
+			<!-- 已登录状态 -->
+			<view v-else class="user-info-card">
 				<image 
 					:src="userInfo.avatar || 'https://ui-avatars.com/api/?name=' + (userInfo.nickname || 'User')" 
 					mode="aspectFill" 
@@ -167,6 +184,7 @@ import api from '@/utils/api.js'
 export default {
 	data() {
 		return {
+			isLoggedIn: false, // 登录状态
 			userInfo: {
 				avatar: '',
 				nickname: '',
@@ -183,21 +201,35 @@ export default {
 		}
 	},
 	onLoad() {
+		this.checkLoginStatus()
 		this.loadUserInfo()
 		this.loadBalance()
 	},
 	onShow() {
 		// 每次显示页面时刷新数据
+		this.checkLoginStatus()
 		this.loadBalance()
 	},
 	methods: {
+		// 检查登录状态
+		checkLoginStatus() {
+			const token = uni.getStorageSync('token')
+			this.isLoggedIn = !!token
+		},
+		
+		// 跳转登录页
+		goLogin() {
+			uni.navigateTo({
+				url: '/pages/login/login'
+			})
+		},
+		
 		// 加载用户信息
 		async loadUserInfo() {
 			try {
 				const token = uni.getStorageSync('token')
 				if (!token) {
-					this.goLogin()
-					return
+					return // 不再自动跳转，只是不加载数据
 				}
 				
 				const res = await api.getUserInfo()
@@ -357,6 +389,31 @@ export default {
 				display: block;
 				font-size: 24rpx;
 				color: #666;
+			}
+		}
+		
+		// 未登录状态样式
+		&.login-prompt {
+			cursor: pointer;
+			
+			.login-text {
+				display: block;
+				font-size: 36rpx;
+				font-weight: bold;
+				color: #007AFF;
+				margin-bottom: 8rpx;
+			}
+			
+			.login-hint {
+				display: block;
+				font-size: 24rpx;
+				color: #999;
+			}
+			
+			.login-arrow {
+				font-size: 48rpx;
+				color: #007AFF;
+				font-weight: bold;
 			}
 		}
 		
