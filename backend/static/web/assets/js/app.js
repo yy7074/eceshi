@@ -38,6 +38,7 @@ const api = {
     // 用户
     getUserInfo: () => axios.get('/api/v1/users/me'),
     getBalance: () => axios.get('/api/v1/users/balance'),
+    updateProfile: (data) => axios.put('/api/v1/users/profile', data),
     
     // 项目
     getCategories: () => axios.get('/api/v1/projects/categories'),
@@ -51,7 +52,60 @@ const api = {
     cancelOrder: (id, data) => axios.post(`/api/v1/orders/${id}/cancel`, data),
     
     // 支付
-    createPayment: (data) => axios.post('/api/v1/payments/create', data)
+    createPayment: (data) => axios.post('/api/v1/payments/create', data),
+    payWithBalance: (data) => axios.post('/api/v1/payments/balance-pay', data),
+    
+    // 地址
+    getAddresses: () => axios.get('/api/v1/addresses/list'),
+    createAddress: (data) => axios.post('/api/v1/addresses/create', data),
+    updateAddress: (id, data) => axios.put(`/api/v1/addresses/${id}`, data),
+    deleteAddress: (id) => axios.delete(`/api/v1/addresses/${id}`),
+    setDefaultAddress: (id) => axios.put(`/api/v1/addresses/${id}/default`),
+    
+    // 优惠券
+    getCoupons: (params) => axios.get('/api/v1/coupons/list', { params }),
+    getAvailableCoupons: (projectId) => axios.get('/api/v1/coupons/available', { params: { project_id: projectId } }),
+    
+    // 收藏
+    getFavorites: (params) => axios.get('/api/v1/favorites/list', { params }),
+    addFavorite: (projectId) => axios.post('/api/v1/favorites/add', { project_id: projectId }),
+    removeFavorite: (projectId) => axios.delete(`/api/v1/favorites/${projectId}`),
+    checkFavorite: (projectId) => axios.get(`/api/v1/favorites/check/${projectId}`),
+    
+    // 评价
+    getReviews: (params) => {
+        if (params.project_id) {
+            return axios.get(`/api/v1/reviews/project/${params.project_id}`, { params: { page: params.page, page_size: params.page_size } })
+        }
+        return axios.get('/api/v1/reviews/my', { params })
+    },
+    createReview: (data) => axios.post('/api/v1/reviews/create', {
+        order_id: data.order_id,
+        service_rating: data.rating,
+        quality_rating: data.rating,
+        logistics_rating: data.rating,
+        content: data.content
+    }),
+    
+    // 充值
+    createRecharge: (data) => axios.post('/api/v1/recharge/create', data),
+    getRechargeRecords: (params) => axios.get('/api/v1/recharge/records', { params }),
+    
+    // 发票
+    applyInvoice: (data) => axios.post('/api/v1/invoices/apply', data),
+    getInvoices: (params) => axios.get('/api/v1/invoices/list', { params }),
+    
+    // 积分
+    getPointsGoods: (params) => axios.get('/api/v1/points/goods', { params }),
+    exchangePoints: (data) => axios.post('/api/v1/points/exchange', data),
+    getPointsRecords: (params) => axios.get('/api/v1/points/records', { params }),
+    
+    // 团队邀请
+    getMyGroup: () => axios.get('/api/v1/groups/my'),
+    createGroup: (data) => axios.post('/api/v1/groups/create', data),
+    getInviteRecords: (params) => axios.get('/api/v1/invites/records', { params }),
+    getInviteStats: () => axios.get('/api/v1/invites/stats'),
+    applyWithdraw: (data) => axios.post('/api/v1/invites/withdraw', data)
 }
 
 // ==================== Vue组件 ====================
@@ -275,6 +329,7 @@ const ProjectsView = {
 // 项目详情组件
 const ProjectDetail = {
     props: ['projectId'],
+    emits: ['go-back', 'show-booking', 'require-login'],
     template: `
         <div class="project-detail">
             <div v-if="loading" class="loading-container">
@@ -282,9 +337,15 @@ const ProjectDetail = {
             </div>
             <div v-else-if="project">
                 <div class="detail-header">
-                    <el-button @click="$emit('go-back')" class="mb-16">
-                        <el-icon><arrow-left /></el-icon> 返回列表
-                    </el-button>
+                    <div class="detail-actions mb-16">
+                        <el-button @click="$emit('go-back')">
+                            <el-icon><arrow-left /></el-icon> 返回列表
+                        </el-button>
+                        <el-button :type="isFavorite ? 'warning' : 'default'" @click="toggleFavorite">
+                            <el-icon><star-filled v-if="isFavorite" /><star v-else /></el-icon>
+                            {{ isFavorite ? '已收藏' : '收藏' }}
+                        </el-button>
+                    </div>
                     
                     <div class="detail-main">
                         <div class="detail-images">
@@ -314,7 +375,7 @@ const ProjectDetail = {
                                     <span class="meta-value">{{ project.view_count }}</span>
                                 </div>
                             </div>
-                            <el-button type="primary" size="large" style="width: 100%">立即预约</el-button>
+                            <el-button type="primary" size="large" style="width: 100%" @click="handleBooking">立即预约</el-button>
                         </div>
                     </div>
                 </div>
@@ -330,6 +391,23 @@ const ProjectDetail = {
                         <el-tab-pane label="检测标准" name="standard">
                             <div v-html="project.testing_standards || '暂无标准'"></div>
                         </el-tab-pane>
+                        <el-tab-pane label="用户评价" name="reviews">
+                            <div v-if="reviews.length === 0" class="empty-state" style="padding: 40px">
+                                <div class="empty-icon">💬</div>
+                                <div class="empty-text">暂无评价</div>
+                            </div>
+                            <div v-else class="reviews-list">
+                                <div class="review-item" v-for="review in reviews" :key="review.id">
+                                    <div class="review-header">
+                                        <el-avatar :size="32">{{ review.user_nickname?.[0] || 'U' }}</el-avatar>
+                                        <span class="review-user">{{ review.user_nickname || '匿名用户' }}</span>
+                                        <el-rate :model-value="Math.round(review.avg_rating || review.service_rating || 5)" disabled size="small"></el-rate>
+                                        <span class="review-time">{{ review.created_at?.slice(0, 10) }}</span>
+                                    </div>
+                                    <div class="review-content">{{ review.content }}</div>
+                                </div>
+                            </div>
+                        </el-tab-pane>
                     </el-tabs>
                 </div>
             </div>
@@ -339,7 +417,9 @@ const ProjectDetail = {
         return {
             project: null,
             loading: false,
-            activeTab: 'intro'
+            activeTab: 'intro',
+            isFavorite: false,
+            reviews: []
         }
     },
     mounted() {
@@ -356,17 +436,61 @@ const ProjectDetail = {
             try {
                 const res = await api.getProjectDetail(this.projectId)
                 this.project = res.data
+                this.checkFavorite()
+                this.loadReviews()
             } catch (error) {
                 console.error('加载项目详情失败', error)
             } finally {
                 this.loading = false
             }
+        },
+        async checkFavorite() {
+            const token = localStorage.getItem('token')
+            if (!token) return
+            try {
+                const res = await api.checkFavorite(this.projectId)
+                this.isFavorite = res.data?.is_favorite || false
+            } catch (error) {}
+        },
+        async toggleFavorite() {
+            const token = localStorage.getItem('token')
+            if (!token) {
+                this.$emit('require-login')
+                return
+            }
+            try {
+                if (this.isFavorite) {
+                    await api.removeFavorite(this.projectId)
+                    ElMessage.success('已取消收藏')
+                } else {
+                    await api.addFavorite(this.projectId)
+                    ElMessage.success('收藏成功')
+                }
+                this.isFavorite = !this.isFavorite
+            } catch (error) {
+                console.error('操作失败', error)
+            }
+        },
+        async loadReviews() {
+            try {
+                const res = await api.getReviews({ project_id: this.projectId, page: 1, page_size: 10 })
+                this.reviews = res.data?.items || []
+            } catch (error) {}
+        },
+        handleBooking() {
+            const token = localStorage.getItem('token')
+            if (!token) {
+                this.$emit('require-login')
+                return
+            }
+            this.$emit('show-booking', this.project)
         }
     }
 }
 
 // 订单列表组件
 const OrdersView = {
+    emits: ['show-payment', 'show-review', 'show-invoice'],
     template: `
         <div class="orders-view">
             <h2 class="section-title">我的订单</h2>
@@ -398,11 +522,14 @@ const OrdersView = {
                         <div class="order-project">
                             <div><strong>{{ order.project_name }}</strong></div>
                             <div>样品：{{ order.sample_name }} × {{ order.quantity }}</div>
-                            <div>金额：¥{{ order.total_amount }}</div>
+                            <div class="order-amount">金额：<span class="price">¥{{ order.total_amount }}</span></div>
+                            <div class="order-time">下单时间：{{ order.created_at?.slice(0, 16).replace('T', ' ') }}</div>
                         </div>
                         <div class="order-actions">
-                            <el-button type="primary" v-if="order.status === 'unpaid'">去支付</el-button>
+                            <el-button type="primary" v-if="order.status === 'unpaid'" @click="$emit('show-payment', order)">去支付</el-button>
                             <el-button v-if="order.status === 'unpaid'" @click="handleCancel(order.id)">取消订单</el-button>
+                            <el-button type="success" v-if="order.status === 'completed' && !order.is_reviewed" @click="$emit('show-review', order)">评价</el-button>
+                            <el-button v-if="order.status === 'completed'" @click="$emit('show-invoice', order)">申请发票</el-button>
                         </div>
                     </div>
                 </div>
@@ -488,32 +615,72 @@ const OrdersView = {
 
 // 个人中心组件
 const ProfileView = {
+    emits: ['go-orders', 'go-favorites', 'go-coupons', 'go-address', 'go-wallet', 'go-points', 'go-invoice', 'go-team', 'edit-profile'],
     template: `
         <div class="profile-view">
             <div class="profile-header">
                 <el-avatar :size="80" :src="userInfo.avatar">{{ userInfo.nickname?.[0] || 'U' }}</el-avatar>
-                <div>
+                <div class="profile-info">
                     <h2>{{ userInfo.nickname || '用户' }}</h2>
                     <p>{{ userInfo.phone }}</p>
+                    <el-button size="small" @click="$emit('edit-profile')">编辑资料</el-button>
                 </div>
             </div>
 
             <div class="profile-stats">
-                <div class="stat-card">
+                <div class="stat-card" @click="$emit('go-wallet')">
                     <div class="stat-value">¥{{ balance.credit_limit || 0 }}</div>
                     <div class="stat-label">信用额度</div>
                 </div>
-                <div class="stat-card">
+                <div class="stat-card" @click="$emit('go-wallet')">
                     <div class="stat-value">¥{{ balance.prepaid_balance || 0 }}</div>
                     <div class="stat-label">预付余额</div>
                 </div>
-                <div class="stat-card">
+                <div class="stat-card" @click="$emit('go-orders')">
                     <div class="stat-value">{{ userInfo.total_orders || 0 }}</div>
                     <div class="stat-label">订单数量</div>
                 </div>
-                <div class="stat-card">
+                <div class="stat-card" @click="$emit('go-points')">
                     <div class="stat-value">{{ userInfo.points_balance || 0 }}</div>
                     <div class="stat-label">积分</div>
+                </div>
+            </div>
+
+            <div class="profile-menu">
+                <h3>常用功能</h3>
+                <div class="menu-grid">
+                    <div class="menu-item" @click="$emit('go-orders')">
+                        <el-icon :size="24"><document /></el-icon>
+                        <span>我的订单</span>
+                    </div>
+                    <div class="menu-item" @click="$emit('go-favorites')">
+                        <el-icon :size="24"><star /></el-icon>
+                        <span>我的收藏</span>
+                    </div>
+                    <div class="menu-item" @click="$emit('go-coupons')">
+                        <el-icon :size="24"><ticket /></el-icon>
+                        <span>优惠券</span>
+                    </div>
+                    <div class="menu-item" @click="$emit('go-address')">
+                        <el-icon :size="24"><location /></el-icon>
+                        <span>地址管理</span>
+                    </div>
+                    <div class="menu-item" @click="$emit('go-wallet')">
+                        <el-icon :size="24"><wallet /></el-icon>
+                        <span>我的钱包</span>
+                    </div>
+                    <div class="menu-item" @click="$emit('go-points')">
+                        <el-icon :size="24"><medal /></el-icon>
+                        <span>积分商城</span>
+                    </div>
+                    <div class="menu-item" @click="$emit('go-invoice')">
+                        <el-icon :size="24"><document-copy /></el-icon>
+                        <span>发票管理</span>
+                    </div>
+                    <div class="menu-item" @click="$emit('go-team')">
+                        <el-icon :size="24"><user /></el-icon>
+                        <span>团队邀请</span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -526,8 +693,16 @@ const ProfileView = {
     },
     mounted() {
         this.loadBalance()
+        this.loadUserInfo()
     },
     methods: {
+        async loadUserInfo() {
+            try {
+                const res = await api.getUserInfo()
+                this.userInfo = res.data
+                localStorage.setItem('userInfo', JSON.stringify(res.data))
+            } catch (error) {}
+        },
         async loadBalance() {
             try {
                 const res = await api.getBalance()
@@ -565,6 +740,332 @@ const AboutView = {
     `
 }
 
+// 收藏列表组件
+const FavoritesView = {
+    emits: ['go-back', 'go-detail'],
+    template: `
+        <div class="favorites-view">
+            <div class="page-header">
+                <el-button @click="$emit('go-back')"><el-icon><arrow-left /></el-icon> 返回</el-button>
+                <h2>我的收藏</h2>
+            </div>
+            <div v-if="loading" class="loading-container">
+                <el-icon class="is-loading" :size="40"><loading /></el-icon>
+            </div>
+            <div v-else-if="favorites.length === 0" class="empty-state">
+                <div class="empty-icon">⭐</div>
+                <div class="empty-text">暂无收藏</div>
+            </div>
+            <div v-else class="projects-grid">
+                <div class="project-card" v-for="item in favorites" :key="item.id" @click="$emit('go-detail', item.project_id)">
+                    <img :src="item.project?.cover_image || 'https://via.placeholder.com/280x180'" class="project-image" alt="">
+                    <div class="project-info">
+                        <div class="project-name">{{ item.project?.name }}</div>
+                        <div class="project-price">
+                            <span class="current-price">¥{{ item.project?.current_price }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `,
+    data() { return { favorites: [], loading: false } },
+    mounted() { this.loadFavorites() },
+    methods: {
+        async loadFavorites() {
+            this.loading = true
+            try {
+                const res = await api.getFavorites({ page: 1, page_size: 50 })
+                this.favorites = res.data?.items || []
+            } catch (error) {} finally { this.loading = false }
+        }
+    }
+}
+
+// 优惠券组件
+const CouponsView = {
+    emits: ['go-back'],
+    template: `
+        <div class="coupons-view">
+            <div class="page-header">
+                <el-button @click="$emit('go-back')"><el-icon><arrow-left /></el-icon> 返回</el-button>
+                <h2>我的优惠券</h2>
+            </div>
+            <el-tabs v-model="activeTab" @tab-change="loadCoupons">
+                <el-tab-pane label="可用" name="available"></el-tab-pane>
+                <el-tab-pane label="已使用" name="used"></el-tab-pane>
+                <el-tab-pane label="已过期" name="expired"></el-tab-pane>
+            </el-tabs>
+            <div v-if="loading" class="loading-container"><el-icon class="is-loading" :size="40"><loading /></el-icon></div>
+            <div v-else-if="coupons.length === 0" class="empty-state">
+                <div class="empty-icon">🎫</div>
+                <div class="empty-text">暂无优惠券</div>
+            </div>
+            <div v-else class="coupons-list">
+                <div class="coupon-card" v-for="coupon in coupons" :key="coupon.id" :class="{ disabled: activeTab !== 'available' }">
+                    <div class="coupon-left">
+                        <div class="coupon-value">¥{{ coupon.discount_value }}</div>
+                        <div class="coupon-condition">满{{ coupon.min_amount }}可用</div>
+                    </div>
+                    <div class="coupon-right">
+                        <div class="coupon-name">{{ coupon.name }}</div>
+                        <div class="coupon-time">有效期至 {{ coupon.end_time?.slice(0, 10) }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `,
+    data() { return { activeTab: 'available', coupons: [], loading: false } },
+    mounted() { this.loadCoupons() },
+    methods: {
+        async loadCoupons() {
+            this.loading = true
+            try {
+                const res = await api.getCoupons({ status: this.activeTab, page: 1, page_size: 50 })
+                this.coupons = res.data?.items || []
+            } catch (error) {} finally { this.loading = false }
+        }
+    }
+}
+
+// 地址管理组件
+const AddressView = {
+    emits: ['go-back'],
+    template: `
+        <div class="address-view">
+            <div class="page-header">
+                <el-button @click="$emit('go-back')"><el-icon><arrow-left /></el-icon> 返回</el-button>
+                <h2>地址管理</h2>
+                <el-button type="primary" @click="showAddDialog">新增地址</el-button>
+            </div>
+            <div v-if="loading" class="loading-container"><el-icon class="is-loading" :size="40"><loading /></el-icon></div>
+            <div v-else-if="addresses.length === 0" class="empty-state">
+                <div class="empty-icon">📍</div>
+                <div class="empty-text">暂无地址</div>
+            </div>
+            <div v-else class="address-list">
+                <div class="address-card" v-for="addr in addresses" :key="addr.id">
+                    <div class="address-info">
+                        <div class="address-name">{{ addr.receiver_name }} <span>{{ addr.receiver_phone }}</span></div>
+                        <div class="address-detail">{{ addr.province }}{{ addr.city }}{{ addr.district }}{{ addr.detail }}</div>
+                        <el-tag v-if="addr.is_default" size="small" type="success">默认</el-tag>
+                    </div>
+                    <div class="address-actions">
+                        <el-button size="small" @click="editAddress(addr)">编辑</el-button>
+                        <el-button size="small" v-if="!addr.is_default" @click="setDefault(addr.id)">设为默认</el-button>
+                        <el-button size="small" type="danger" @click="deleteAddress(addr.id)">删除</el-button>
+                    </div>
+                </div>
+            </div>
+            <el-dialog v-model="dialogVisible" :title="editingId ? '编辑地址' : '新增地址'" width="500px">
+                <el-form :model="form" label-width="80px">
+                    <el-form-item label="收货人"><el-input v-model="form.receiver_name" placeholder="请输入收货人姓名"></el-input></el-form-item>
+                    <el-form-item label="手机号"><el-input v-model="form.receiver_phone" placeholder="请输入手机号"></el-input></el-form-item>
+                    <el-form-item label="省份"><el-input v-model="form.province" placeholder="省份"></el-input></el-form-item>
+                    <el-form-item label="城市"><el-input v-model="form.city" placeholder="城市"></el-input></el-form-item>
+                    <el-form-item label="区县"><el-input v-model="form.district" placeholder="区县"></el-input></el-form-item>
+                    <el-form-item label="详细地址"><el-input v-model="form.detail" type="textarea" placeholder="详细地址"></el-input></el-form-item>
+                    <el-form-item label="默认地址"><el-switch v-model="form.is_default"></el-switch></el-form-item>
+                </el-form>
+                <template #footer>
+                    <el-button @click="dialogVisible = false">取消</el-button>
+                    <el-button type="primary" @click="saveAddress" :loading="saving">保存</el-button>
+                </template>
+            </el-dialog>
+        </div>
+    `,
+    data() { return { addresses: [], loading: false, dialogVisible: false, editingId: null, saving: false, form: { receiver_name: '', receiver_phone: '', province: '', city: '', district: '', detail: '', is_default: false } } },
+    mounted() { this.loadAddresses() },
+    methods: {
+        async loadAddresses() {
+            this.loading = true
+            try {
+                const res = await api.getAddresses()
+                this.addresses = res.data || []
+            } catch (error) {} finally { this.loading = false }
+        },
+        showAddDialog() { this.editingId = null; this.form = { receiver_name: '', receiver_phone: '', province: '', city: '', district: '', detail: '', is_default: false }; this.dialogVisible = true },
+        editAddress(addr) { this.editingId = addr.id; this.form = { ...addr }; this.dialogVisible = true },
+        async saveAddress() {
+            this.saving = true
+            try {
+                if (this.editingId) { await api.updateAddress(this.editingId, this.form) } else { await api.createAddress(this.form) }
+                ElMessage.success('保存成功'); this.dialogVisible = false; this.loadAddresses()
+            } catch (error) {} finally { this.saving = false }
+        },
+        async setDefault(id) { try { await api.setDefaultAddress(id); ElMessage.success('设置成功'); this.loadAddresses() } catch (error) {} },
+        async deleteAddress(id) { try { await ElMessageBox.confirm('确定要删除吗？', '提示'); await api.deleteAddress(id); ElMessage.success('删除成功'); this.loadAddresses() } catch (error) {} }
+    }
+}
+
+// 钱包组件
+const WalletView = {
+    emits: ['go-back'],
+    template: `
+        <div class="wallet-view">
+            <div class="page-header">
+                <el-button @click="$emit('go-back')"><el-icon><arrow-left /></el-icon> 返回</el-button>
+                <h2>我的钱包</h2>
+            </div>
+            <div class="wallet-card">
+                <div class="wallet-item"><div class="wallet-label">信用额度</div><div class="wallet-value">¥{{ balance.credit_limit || 0 }}</div></div>
+                <div class="wallet-item"><div class="wallet-label">预付余额</div><div class="wallet-value">¥{{ balance.prepaid_balance || 0 }}</div></div>
+            </div>
+            <div class="recharge-section">
+                <h3>快捷充值</h3>
+                <div class="recharge-options">
+                    <div class="recharge-item" v-for="amount in rechargeAmounts" :key="amount" :class="{ active: selectedAmount === amount }" @click="selectedAmount = amount">¥{{ amount }}</div>
+                </div>
+                <el-input v-model="customAmount" placeholder="或输入自定义金额" style="margin-top: 16px"><template #prepend>¥</template></el-input>
+                <el-button type="primary" style="width: 100%; margin-top: 16px" :loading="recharging" @click="handleRecharge">立即充值</el-button>
+            </div>
+            <div class="records-section">
+                <h3>充值记录</h3>
+                <div v-if="records.length === 0" class="empty-state" style="padding: 40px"><div class="empty-icon">💰</div><div class="empty-text">暂无充值记录</div></div>
+                <div v-else class="records-list">
+                    <div class="record-item" v-for="record in records" :key="record.id">
+                        <div class="record-info"><div class="record-amount">+¥{{ record.amount }}</div><div class="record-time">{{ record.created_at?.slice(0, 16).replace('T', ' ') }}</div></div>
+                        <el-tag :type="record.status === 'completed' ? 'success' : 'warning'" size="small">{{ record.status === 'completed' ? '成功' : '处理中' }}</el-tag>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `,
+    data() { return { balance: {}, rechargeAmounts: [100, 200, 500, 1000, 2000, 5000], selectedAmount: 100, customAmount: '', recharging: false, records: [] } },
+    mounted() { this.loadBalance(); this.loadRecords() },
+    methods: {
+        async loadBalance() { try { const res = await api.getBalance(); this.balance = res.data } catch (error) {} },
+        async loadRecords() { try { const res = await api.getRechargeRecords({ page: 1, page_size: 20 }); this.records = res.data?.items || [] } catch (error) {} },
+        async handleRecharge() {
+            const amount = this.customAmount ? parseFloat(this.customAmount) : this.selectedAmount
+            if (!amount || amount <= 0) { ElMessage.error('请选择或输入充值金额'); return }
+            this.recharging = true
+            try { await api.createRecharge({ amount, pay_method: 'alipay' }); ElMessage.success('充值请求已提交'); this.loadRecords() } catch (error) {} finally { this.recharging = false }
+        }
+    }
+}
+
+// 积分商城组件
+const PointsView = {
+    emits: ['go-back'],
+    template: `
+        <div class="points-view">
+            <div class="page-header">
+                <el-button @click="$emit('go-back')"><el-icon><arrow-left /></el-icon> 返回</el-button>
+                <h2>积分商城</h2>
+            </div>
+            <div class="points-balance"><span class="points-value">{{ userInfo.points_balance || 0 }}</span><span class="points-label">可用积分</span></div>
+            <h3>积分商品</h3>
+            <div v-if="loading" class="loading-container"><el-icon class="is-loading" :size="40"><loading /></el-icon></div>
+            <div v-else-if="goods.length === 0" class="empty-state"><div class="empty-icon">🎁</div><div class="empty-text">暂无积分商品</div></div>
+            <div v-else class="goods-grid">
+                <div class="goods-card" v-for="item in goods" :key="item.id">
+                    <img :src="item.image || 'https://via.placeholder.com/200'" class="goods-image" alt="">
+                    <div class="goods-info">
+                        <div class="goods-name">{{ item.name }}</div>
+                        <div class="goods-points">{{ item.points_cost }}积分</div>
+                        <el-button type="primary" size="small" @click="exchange(item)" :disabled="(userInfo.points_balance || 0) < item.points_cost">兑换</el-button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `,
+    data() { return { userInfo: JSON.parse(localStorage.getItem('userInfo') || '{}'), goods: [], loading: false } },
+    mounted() { this.loadGoods() },
+    methods: {
+        async loadGoods() { this.loading = true; try { const res = await api.getPointsGoods({ page: 1, page_size: 50 }); this.goods = res.data?.items || [] } catch (error) {} finally { this.loading = false } },
+        async exchange(item) {
+            try { 
+                await ElMessageBox.confirm('确定使用 ' + item.points_cost + ' 积分兑换 ' + item.name + ' 吗？', '积分兑换')
+                await api.exchangePoints({ goods_id: item.id })
+                ElMessage.success('兑换成功')
+                const res = await api.getUserInfo()
+                this.userInfo = res.data
+                localStorage.setItem('userInfo', JSON.stringify(res.data)) 
+            } catch (error) {}
+        }
+    }
+}
+
+// 发票管理组件
+const InvoiceView = {
+    emits: ['go-back'],
+    template: `
+        <div class="invoice-view">
+            <div class="page-header">
+                <el-button @click="$emit('go-back')"><el-icon><arrow-left /></el-icon> 返回</el-button>
+                <h2>发票管理</h2>
+            </div>
+            <div v-if="loading" class="loading-container"><el-icon class="is-loading" :size="40"><loading /></el-icon></div>
+            <div v-else-if="invoices.length === 0" class="empty-state"><div class="empty-icon">📄</div><div class="empty-text">暂无发票记录</div></div>
+            <div v-else class="invoice-list">
+                <div class="invoice-card" v-for="invoice in invoices" :key="invoice.id">
+                    <div class="invoice-info">
+                        <div class="invoice-title">{{ invoice.title }}</div>
+                        <div class="invoice-amount">¥{{ invoice.amount }}</div>
+                        <div class="invoice-time">{{ invoice.created_at?.slice(0, 10) }}</div>
+                    </div>
+                    <el-tag :type="getStatusType(invoice.status)">{{ getStatusText(invoice.status) }}</el-tag>
+                </div>
+            </div>
+        </div>
+    `,
+    data() { return { invoices: [], loading: false } },
+    mounted() { this.loadInvoices() },
+    methods: {
+        async loadInvoices() { this.loading = true; try { const res = await api.getInvoices({ page: 1, page_size: 50 }); this.invoices = res.data?.items || [] } catch (error) {} finally { this.loading = false } },
+        getStatusText(status) { const map = { pending: '待审核', approved: '已通过', rejected: '已拒绝', issued: '已开票' }; return map[status] || status },
+        getStatusType(status) { const map = { pending: 'warning', approved: 'success', rejected: 'danger', issued: 'primary' }; return map[status] || 'info' }
+    }
+}
+
+// 团队邀请组件
+const TeamView = {
+    emits: ['go-back'],
+    template: `
+        <div class="team-view">
+            <div class="page-header">
+                <el-button @click="$emit('go-back')"><el-icon><arrow-left /></el-icon> 返回</el-button>
+                <h2>团队邀请</h2>
+            </div>
+            <div class="invite-stats">
+                <div class="stat-item"><div class="stat-value">{{ stats.total_invites || 0 }}</div><div class="stat-label">邀请人数</div></div>
+                <div class="stat-item"><div class="stat-value">¥{{ stats.total_commission || 0 }}</div><div class="stat-label">累计佣金</div></div>
+                <div class="stat-item"><div class="stat-value">¥{{ stats.available_commission || 0 }}</div><div class="stat-label">可提现</div></div>
+            </div>
+            <div class="invite-code-section">
+                <h3>我的邀请码</h3>
+                <div class="invite-code">{{ group?.invite_code || '暂无' }}</div>
+                <el-button type="primary" v-if="!group" @click="createGroup">创建团队</el-button>
+                <el-button type="primary" v-else @click="copyInviteCode">复制邀请码</el-button>
+            </div>
+            <div class="withdraw-section">
+                <h3>佣金提现</h3>
+                <el-input v-model="withdrawAmount" placeholder="输入提现金额"><template #prepend>¥</template></el-input>
+                <el-button type="success" style="margin-top: 12px" @click="applyWithdraw" :disabled="!withdrawAmount || parseFloat(withdrawAmount) <= 0">申请提现</el-button>
+            </div>
+            <h3>邀请记录</h3>
+            <div v-if="records.length === 0" class="empty-state" style="padding: 40px"><div class="empty-icon">👥</div><div class="empty-text">暂无邀请记录</div></div>
+            <div v-else class="records-list">
+                <div class="record-item" v-for="record in records" :key="record.id">
+                    <div class="record-info"><div class="record-user">{{ record.invitee_nickname || '用户' }}</div><div class="record-time">{{ record.created_at?.slice(0, 10) }}</div></div>
+                    <div class="record-commission">+¥{{ record.commission || 0 }}</div>
+                </div>
+            </div>
+        </div>
+    `,
+    data() { return { group: null, stats: {}, records: [], withdrawAmount: '' } },
+    mounted() { this.loadData() },
+    methods: {
+        async loadData() {
+            try { const [groupRes, statsRes, recordsRes] = await Promise.all([api.getMyGroup(), api.getInviteStats(), api.getInviteRecords({ page: 1, page_size: 50 })]); this.group = groupRes.data; this.stats = statsRes.data; this.records = recordsRes.data?.items || [] } catch (error) {}
+        },
+        async createGroup() { try { await api.createGroup({ name: '我的团队' }); ElMessage.success('团队创建成功'); this.loadData() } catch (error) {} },
+        copyInviteCode() { navigator.clipboard.writeText(this.group?.invite_code); ElMessage.success('邀请码已复制') },
+        async applyWithdraw() { try { await api.applyWithdraw({ amount: parseFloat(this.withdrawAmount) }); ElMessage.success('提现申请已提交'); this.withdrawAmount = ''; this.loadData() } catch (error) {} }
+    }
+}
+
 // ==================== 主应用 ====================
 createApp({
     components: {
@@ -573,7 +1074,14 @@ createApp({
         ProjectDetail,
         OrdersView,
         ProfileView,
-        AboutView
+        AboutView,
+        FavoritesView,
+        CouponsView,
+        AddressView,
+        WalletView,
+        PointsView,
+        InvoiceView,
+        TeamView
     },
     data() {
         return {
@@ -583,115 +1091,171 @@ createApp({
             isLogin: false,
             userInfo: {},
             showLogin: false,
-            loginForm: {
-                phone: '',
-                sms_code: ''
-            },
+            loginForm: { phone: '', sms_code: '' },
             countdown: 0,
             loginLoading: false,
-            showMobileMenu: false
+            showMobileMenu: false,
+            // 预约下单
+            showBooking: false,
+            bookingProject: null,
+            bookingForm: { sample_name: '', quantity: 1, remark: '', address_id: null, coupon_id: null },
+            addresses: [],
+            availableCoupons: [],
+            bookingLoading: false,
+            // 支付
+            showPayment: false,
+            paymentOrder: null,
+            payMethod: 'balance',
+            paymentLoading: false,
+            balance: {},
+            // 评价
+            showReview: false,
+            reviewOrder: null,
+            reviewForm: { rating: 5, content: '' },
+            reviewLoading: false,
+            // 发票
+            showInvoice: false,
+            invoiceOrder: null,
+            invoiceForm: { invoice_type: 'personal', title: '', tax_id: '', email: '' },
+            invoiceLoading: false,
+            // 编辑资料
+            showEditProfile: false,
+            profileForm: { nickname: '', avatar: '' },
+            profileLoading: false
+        }
+    },
+    computed: {
+        orderTotalAmount() {
+            if (!this.bookingProject) return 0
+            let total = this.bookingProject.current_price * this.bookingForm.quantity
+            if (this.bookingForm.coupon_id) {
+                const coupon = this.availableCoupons.find(c => c.id === this.bookingForm.coupon_id)
+                if (coupon) total -= coupon.discount_value
+            }
+            return Math.max(0, total).toFixed(2)
         }
     },
     mounted() {
-        // 检测设备类型
         this.checkDevice()
         window.addEventListener('resize', this.checkDevice)
-        
-        // 检查登录状态
         this.checkLogin()
     },
     methods: {
-        checkDevice() {
-            this.isMobile = window.innerWidth < 768
-        },
+        checkDevice() { this.isMobile = window.innerWidth < 768 },
         checkLogin() {
             const token = localStorage.getItem('token')
             const userInfo = localStorage.getItem('userInfo')
-            if (token && userInfo) {
-                this.isLogin = true
-                this.userInfo = JSON.parse(userInfo)
-            }
+            if (token && userInfo) { this.isLogin = true; this.userInfo = JSON.parse(userInfo) }
         },
-        handleMenuSelect(index) {
-            this.currentView = index
-        },
-        handleMobileMenuSelect(index) {
-            this.currentView = index
-            this.showMobileMenu = false
-        },
-        handleTabClick(view) {
-            if (!this.isLogin && (view === 'orders' || view === 'profile')) {
-                this.showLogin = true
-            } else {
-                this.currentView = view
-            }
-        },
-        handleUserCommand(command) {
-            if (command === 'logout') {
-                this.logout()
-            } else {
-                this.currentView = command
-            }
-        },
-        goToDetail(projectId) {
-            this.currentProjectId = projectId
-            this.currentView = 'detail'
-        },
-        async sendSms() {
-            if (!this.loginForm.phone || this.loginForm.phone.length !== 11) {
-                ElMessage.error('请输入正确的手机号')
-                return
-            }
+        handleMenuSelect(index) { this.currentView = index },
+        handleMobileMenuSelect(index) { this.currentView = index; this.showMobileMenu = false },
+        handleTabClick(view) { if (!this.isLogin && (view === 'orders' || view === 'profile')) { this.showLogin = true } else { this.currentView = view } },
+        handleUserCommand(command) { if (command === 'logout') { this.logout() } else { this.currentView = command } },
+        goToDetail(projectId) { this.currentProjectId = projectId; this.currentView = 'detail' },
+        requireLogin() { this.showLogin = true },
+        // 预约下单
+        async openBooking(project) {
+            this.bookingProject = project
+            this.bookingForm = { sample_name: '', quantity: 1, remark: '', address_id: null, coupon_id: null }
             try {
-                const res = await api.sendSms({
-                    phone: this.loginForm.phone,
-                    scene: 'login'
-                })
-                ElMessage.success(res.message)
-                if (res.data?.code) {
-                    ElMessage.info(`开发模式验证码：${res.data.code}`)
+                const [addrRes, couponRes] = await Promise.all([api.getAddresses(), api.getAvailableCoupons(project.id)])
+                this.addresses = addrRes.data || []
+                this.availableCoupons = couponRes.data || []
+                if (this.addresses.length > 0) { const def = this.addresses.find(a => a.is_default) || this.addresses[0]; this.bookingForm.address_id = def.id }
+            } catch (error) {}
+            this.showBooking = true
+        },
+        async submitBooking() {
+            if (!this.bookingForm.sample_name) { ElMessage.error('请输入样品名称'); return }
+            if (!this.bookingForm.address_id) { ElMessage.error('请选择收货地址'); return }
+            this.bookingLoading = true
+            try {
+                const res = await api.createOrder({ project_id: this.bookingProject.id, ...this.bookingForm })
+                ElMessage.success('订单创建成功')
+                this.showBooking = false
+                this.paymentOrder = res.data
+                this.showPayment = true
+                this.loadBalance()
+            } catch (error) {} finally { this.bookingLoading = false }
+        },
+        // 支付
+        async loadBalance() { try { const res = await api.getBalance(); this.balance = res.data } catch (error) {} },
+        openPayment(order) { this.paymentOrder = order; this.payMethod = 'balance'; this.showPayment = true; this.loadBalance() },
+        async submitPayment() {
+            this.paymentLoading = true
+            try {
+                if (this.payMethod === 'balance') {
+                    await api.payWithBalance({ order_id: this.paymentOrder.id })
+                    ElMessage.success('支付成功')
+                    this.showPayment = false
+                    this.currentView = 'orders'
+                } else {
+                    const res = await api.createPayment({ order_id: this.paymentOrder.id, pay_method: this.payMethod })
+                    if (res.data?.pay_url) { window.open(res.data.pay_url, '_blank') }
+                    ElMessage.info('请在新窗口完成支付')
+                    this.showPayment = false
                 }
+            } catch (error) {} finally { this.paymentLoading = false }
+        },
+        // 评价
+        openReview(order) { this.reviewOrder = order; this.reviewForm = { rating: 5, content: '' }; this.showReview = true },
+        async submitReview() {
+            if (!this.reviewForm.content) { ElMessage.error('请输入评价内容'); return }
+            this.reviewLoading = true
+            try {
+                await api.createReview({ order_id: this.reviewOrder.id, project_id: this.reviewOrder.project_id, ...this.reviewForm })
+                ElMessage.success('评价成功'); this.showReview = false
+            } catch (error) {} finally { this.reviewLoading = false }
+        },
+        // 发票
+        openInvoice(order) { this.invoiceOrder = order; this.invoiceForm = { invoice_type: 'personal', title: '', tax_id: '', email: '' }; this.showInvoice = true },
+        async submitInvoice() {
+            if (!this.invoiceForm.title) { ElMessage.error('请输入发票抬头'); return }
+            if (!this.invoiceForm.email) { ElMessage.error('请输入接收邮箱'); return }
+            this.invoiceLoading = true
+            try {
+                await api.applyInvoice({ order_ids: [this.invoiceOrder.id], amount: this.invoiceOrder.total_amount, ...this.invoiceForm })
+                ElMessage.success('发票申请已提交'); this.showInvoice = false
+            } catch (error) {} finally { this.invoiceLoading = false }
+        },
+        // 编辑资料
+        openEditProfile() { this.profileForm = { nickname: this.userInfo.nickname || '', avatar: this.userInfo.avatar || '' }; this.showEditProfile = true },
+        async submitProfile() {
+            this.profileLoading = true
+            try {
+                await api.updateProfile(this.profileForm)
+                const res = await api.getUserInfo()
+                this.userInfo = res.data
+                localStorage.setItem('userInfo', JSON.stringify(res.data))
+                ElMessage.success('资料更新成功'); this.showEditProfile = false
+            } catch (error) {} finally { this.profileLoading = false }
+        },
+        // 登录
+        async sendSms() {
+            if (!this.loginForm.phone || this.loginForm.phone.length !== 11) { ElMessage.error('请输入正确的手机号'); return }
+            try {
+                const res = await api.sendSms({ phone: this.loginForm.phone, scene: 'login' })
+                ElMessage.success(res.message)
+                if (res.data?.code) { ElMessage.info(`开发模式验证码：${res.data.code}`) }
                 this.countdown = 60
-                const timer = setInterval(() => {
-                    this.countdown--
-                    if (this.countdown <= 0) {
-                        clearInterval(timer)
-                    }
-                }, 1000)
-            } catch (error) {
-                console.error('发送验证码失败', error)
-            }
+                const timer = setInterval(() => { this.countdown--; if (this.countdown <= 0) { clearInterval(timer) } }, 1000)
+            } catch (error) {}
         },
         async handleLogin() {
-            if (!this.loginForm.phone || !this.loginForm.sms_code) {
-                ElMessage.error('请填写完整信息')
-                return
-            }
+            if (!this.loginForm.phone || !this.loginForm.sms_code) { ElMessage.error('请填写完整信息'); return }
             this.loginLoading = true
             try {
                 const res = await api.smsLogin(this.loginForm)
                 localStorage.setItem('token', res.data.access_token)
-                
-                // 获取用户信息
                 const userRes = await api.getUserInfo()
                 localStorage.setItem('userInfo', JSON.stringify(userRes.data))
-                
-                this.isLogin = true
-                this.userInfo = userRes.data
-                this.showLogin = false
+                this.isLogin = true; this.userInfo = userRes.data; this.showLogin = false
                 ElMessage.success('登录成功')
-            } catch (error) {
-                console.error('登录失败', error)
-            } finally {
-                this.loginLoading = false
-            }
+            } catch (error) {} finally { this.loginLoading = false }
         },
         logout() {
-            localStorage.removeItem('token')
-            localStorage.removeItem('userInfo')
-            this.isLogin = false
-            this.userInfo = {}
-            this.currentView = 'home'
+            localStorage.removeItem('token'); localStorage.removeItem('userInfo')
+            this.isLogin = false; this.userInfo = {}; this.currentView = 'home'
             ElMessage.success('已退出登录')
         }
     }

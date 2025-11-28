@@ -8,17 +8,17 @@
     <meta name="keywords" content="科研检测,实验检测,检测服务,E测试">
     
     <!-- Vue 3 -->
-    <script src="https://cdn.jsdelivr.net/npm/vue@3.4.21/dist/vue.global.prod.js"></script>
+    <script src="https://unpkg.com/vue@3.4.21/dist/vue.global.prod.js"></script>
     
     <!-- Element Plus -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/element-plus@2.5.6/dist/index.css">
-    <script src="https://cdn.jsdelivr.net/npm/element-plus@2.5.6/dist/index.full.min.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/element-plus@2.5.6/dist/index.css">
+    <script src="https://unpkg.com/element-plus@2.5.6/dist/index.full.min.js"></script>
     
     <!-- Element Plus 图标 -->
-    <script src="https://cdn.jsdelivr.net/npm/@element-plus/icons-vue@2.3.1/dist/index.min.js"></script>
+    <script src="https://unpkg.com/@element-plus/icons-vue@2.3.1/dist/index.iife.min.js"></script>
     
     <!-- Axios -->
-    <script src="https://cdn.jsdelivr.net/npm/axios@1.6.7/dist/axios.min.js"></script>
+    <script src="https://unpkg.com/axios@1.6.7/dist/axios.min.js"></script>
     
     <!-- 自定义样式 -->
     <link rel="stylesheet" href="./assets/css/style.css">
@@ -81,16 +81,37 @@
                     <projects-view v-else-if="currentView === 'projects'" @go-detail="goToDetail"></projects-view>
                     
                     <!-- 项目详情 -->
-                    <project-detail v-else-if="currentView === 'detail'" :project-id="currentProjectId" @go-back="currentView = 'projects'"></project-detail>
+                    <project-detail v-else-if="currentView === 'detail'" :project-id="currentProjectId" @go-back="currentView = 'projects'" @show-booking="openBooking" @require-login="requireLogin"></project-detail>
                     
                     <!-- 订单列表 -->
-                    <orders-view v-else-if="currentView === 'orders'"></orders-view>
+                    <orders-view v-else-if="currentView === 'orders'" @show-payment="openPayment" @show-review="openReview" @show-invoice="openInvoice"></orders-view>
                     
                     <!-- 个人中心 -->
-                    <profile-view v-else-if="currentView === 'profile'"></profile-view>
+                    <profile-view v-else-if="currentView === 'profile'" @go-orders="currentView = 'orders'" @go-favorites="currentView = 'favorites'" @go-coupons="currentView = 'coupons'" @go-address="currentView = 'address'" @go-wallet="currentView = 'wallet'" @go-points="currentView = 'points'" @go-invoice="currentView = 'invoices'" @go-team="currentView = 'team'" @edit-profile="openEditProfile"></profile-view>
                     
                     <!-- 关于我们 -->
                     <about-view v-else-if="currentView === 'about'"></about-view>
+                    
+                    <!-- 我的收藏 -->
+                    <favorites-view v-else-if="currentView === 'favorites'" @go-back="currentView = 'profile'" @go-detail="goToDetail"></favorites-view>
+                    
+                    <!-- 优惠券 -->
+                    <coupons-view v-else-if="currentView === 'coupons'" @go-back="currentView = 'profile'"></coupons-view>
+                    
+                    <!-- 地址管理 -->
+                    <address-view v-else-if="currentView === 'address'" @go-back="currentView = 'profile'"></address-view>
+                    
+                    <!-- 钱包 -->
+                    <wallet-view v-else-if="currentView === 'wallet'" @go-back="currentView = 'profile'"></wallet-view>
+                    
+                    <!-- 积分商城 -->
+                    <points-view v-else-if="currentView === 'points'" @go-back="currentView = 'profile'"></points-view>
+                    
+                    <!-- 发票管理 -->
+                    <invoice-view v-else-if="currentView === 'invoices'" @go-back="currentView = 'profile'"></invoice-view>
+                    
+                    <!-- 团队邀请 -->
+                    <team-view v-else-if="currentView === 'team'" @go-back="currentView = 'profile'"></team-view>
                 </div>
             </el-main>
 
@@ -186,6 +207,132 @@
                 </el-menu-item>
             </el-menu>
         </el-drawer>
+
+        <!-- 预约下单对话框 -->
+        <el-dialog v-model="showBooking" title="预约下单" width="600px" :close-on-click-modal="false">
+            <div v-if="bookingProject" class="booking-form">
+                <div class="booking-project">
+                    <img :src="bookingProject.cover_image || 'https://via.placeholder.com/100'" style="width: 80px; height: 80px; object-fit: cover; border-radius: 8px;">
+                    <div class="booking-project-info">
+                        <div class="booking-project-name">{{ bookingProject.name }}</div>
+                        <div class="booking-project-price">¥{{ bookingProject.current_price }}</div>
+                    </div>
+                </div>
+                <el-form :model="bookingForm" label-width="100px" style="margin-top: 20px">
+                    <el-form-item label="样品名称" required>
+                        <el-input v-model="bookingForm.sample_name" placeholder="请输入样品名称"></el-input>
+                    </el-form-item>
+                    <el-form-item label="数量">
+                        <el-input-number v-model="bookingForm.quantity" :min="1" :max="100"></el-input-number>
+                    </el-form-item>
+                    <el-form-item label="收货地址" required>
+                        <el-select v-model="bookingForm.address_id" placeholder="请选择收货地址" style="width: 100%">
+                            <el-option v-for="addr in addresses" :key="addr.id" :label="addr.receiver_name + ' ' + addr.province + addr.city + addr.detail" :value="addr.id"></el-option>
+                        </el-select>
+                    </el-form-item>
+                    <el-form-item label="优惠券">
+                        <el-select v-model="bookingForm.coupon_id" placeholder="选择优惠券（可选）" clearable style="width: 100%">
+                            <el-option v-for="coupon in availableCoupons" :key="coupon.id" :label="coupon.name + ' -¥' + coupon.discount_value" :value="coupon.id"></el-option>
+                        </el-select>
+                    </el-form-item>
+                    <el-form-item label="备注">
+                        <el-input v-model="bookingForm.remark" type="textarea" placeholder="备注信息（可选）"></el-input>
+                    </el-form-item>
+                </el-form>
+                <div class="booking-total">
+                    <span>应付金额：</span>
+                    <span class="total-price">¥{{ orderTotalAmount }}</span>
+                </div>
+            </div>
+            <template #footer>
+                <el-button @click="showBooking = false">取消</el-button>
+                <el-button type="primary" @click="submitBooking" :loading="bookingLoading">提交订单</el-button>
+            </template>
+        </el-dialog>
+
+        <!-- 支付对话框 -->
+        <el-dialog v-model="showPayment" title="订单支付" width="500px" :close-on-click-modal="false">
+            <div v-if="paymentOrder" class="payment-form">
+                <div class="payment-amount">
+                    <div class="payment-label">支付金额</div>
+                    <div class="payment-value">¥{{ paymentOrder.total_amount }}</div>
+                </div>
+                <div class="payment-methods">
+                    <div class="payment-method" :class="{ active: payMethod === 'balance' }" @click="payMethod = 'balance'">
+                        <el-icon><wallet /></el-icon>
+                        <span>余额支付</span>
+                        <span class="method-balance">可用：¥{{ balance.prepaid_balance || 0 }}</span>
+                    </div>
+                    <div class="payment-method" :class="{ active: payMethod === 'alipay' }" @click="payMethod = 'alipay'">
+                        <span style="color: #1677FF; font-weight: bold;">支付宝</span>
+                    </div>
+                    <div class="payment-method" :class="{ active: payMethod === 'wechat' }" @click="payMethod = 'wechat'">
+                        <span style="color: #07C160; font-weight: bold;">微信支付</span>
+                    </div>
+                </div>
+            </div>
+            <template #footer>
+                <el-button @click="showPayment = false">取消</el-button>
+                <el-button type="primary" @click="submitPayment" :loading="paymentLoading">确认支付</el-button>
+            </template>
+        </el-dialog>
+
+        <!-- 评价对话框 -->
+        <el-dialog v-model="showReview" title="评价订单" width="500px" :close-on-click-modal="false">
+            <el-form :model="reviewForm" label-width="80px">
+                <el-form-item label="评分">
+                    <el-rate v-model="reviewForm.rating" :colors="['#F56C6C', '#E6A23C', '#67C23A']" show-text :texts="['很差', '较差', '一般', '较好', '很好']"></el-rate>
+                </el-form-item>
+                <el-form-item label="评价内容">
+                    <el-input v-model="reviewForm.content" type="textarea" :rows="4" placeholder="请输入您的评价"></el-input>
+                </el-form-item>
+            </el-form>
+            <template #footer>
+                <el-button @click="showReview = false">取消</el-button>
+                <el-button type="primary" @click="submitReview" :loading="reviewLoading">提交评价</el-button>
+            </template>
+        </el-dialog>
+
+        <!-- 发票申请对话框 -->
+        <el-dialog v-model="showInvoice" title="申请发票" width="500px" :close-on-click-modal="false">
+            <el-form :model="invoiceForm" label-width="100px">
+                <el-form-item label="发票类型">
+                    <el-radio-group v-model="invoiceForm.invoice_type">
+                        <el-radio value="personal">个人</el-radio>
+                        <el-radio value="company">企业</el-radio>
+                    </el-radio-group>
+                </el-form-item>
+                <el-form-item label="发票抬头" required>
+                    <el-input v-model="invoiceForm.title" placeholder="请输入发票抬头"></el-input>
+                </el-form-item>
+                <el-form-item label="税号" v-if="invoiceForm.invoice_type === 'company'">
+                    <el-input v-model="invoiceForm.tax_id" placeholder="请输入企业税号"></el-input>
+                </el-form-item>
+                <el-form-item label="接收邮箱" required>
+                    <el-input v-model="invoiceForm.email" placeholder="请输入接收邮箱"></el-input>
+                </el-form-item>
+            </el-form>
+            <template #footer>
+                <el-button @click="showInvoice = false">取消</el-button>
+                <el-button type="primary" @click="submitInvoice" :loading="invoiceLoading">提交申请</el-button>
+            </template>
+        </el-dialog>
+
+        <!-- 编辑资料对话框 -->
+        <el-dialog v-model="showEditProfile" title="编辑资料" width="400px" :close-on-click-modal="false">
+            <el-form :model="profileForm" label-width="80px">
+                <el-form-item label="昵称">
+                    <el-input v-model="profileForm.nickname" placeholder="请输入昵称"></el-input>
+                </el-form-item>
+                <el-form-item label="头像">
+                    <el-input v-model="profileForm.avatar" placeholder="请输入头像URL"></el-input>
+                </el-form-item>
+            </el-form>
+            <template #footer>
+                <el-button @click="showEditProfile = false">取消</el-button>
+                <el-button type="primary" @click="submitProfile" :loading="profileLoading">保存</el-button>
+            </template>
+        </el-dialog>
     </div>
 
     <!-- 应用脚本 -->

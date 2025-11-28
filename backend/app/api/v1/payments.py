@@ -200,6 +200,87 @@ async def create_payment(
         raise HTTPException(status_code=400, detail="不支持的支付方式")
 
 
+@router.post("/balance-pay")
+async def balance_pay(
+    data: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    余额支付（简化版，不需要支付密码）
+    """
+    order_id = data.get("order_id")
+    if not order_id:
+        raise HTTPException(status_code=400, detail="缺少订单ID")
+    
+    # 查询订单
+    order = db.query(Order).filter(
+        Order.id == order_id,
+        Order.user_id == current_user.id
+    ).first()
+    
+    if not order:
+        raise HTTPException(status_code=404, detail="订单不存在")
+    
+    if order.status != "pending_payment":
+        raise HTTPException(status_code=400, detail="订单状态不正确")
+    
+    # 计算待支付金额
+    amount_to_pay = order.total_fee - (order.paid_fee or Decimal("0"))
+    
+    # 检查余额
+    user_balance = current_user.prepaid_balance if current_user.prepaid_balance else Decimal("0")
+    
+    if user_balance < amount_to_pay:
+        raise HTTPException(status_code=400, detail=f"余额不足，当前余额：¥{user_balance}，需要支付：¥{amount_to_pay}")
+    
+    # 创建支付记录
+    payment = Payment(
+        payment_no=generate_payment_no(),
+        order_id=order.id,
+        order_no=order.order_no,
+        user_id=current_user.id,
+        payment_method="balance",
+        payment_channel="balance",
+        amount=amount_to_pay,
+        status="success",
+        paid_at=datetime.now()
+    )
+    db.add(payment)
+    
+    # 更新订单状态
+    order.paid_fee = order.total_fee
+    order.status = "confirmed"
+    order.payment_method = "balance"
+    order.paid_at = datetime.now()
+    
+    # 记录状态变更
+    history = OrderStatusHistory(
+        order_id=order.id,
+        from_status="pending_payment",
+        to_status="confirmed",
+        operator_id=current_user.id,
+        operator_type="user",
+        remark="余额支付成功"
+    )
+    db.add(history)
+    
+    # 扣除用户余额
+    current_user.prepaid_balance = current_user.prepaid_balance - amount_to_pay
+    current_user.total_spent = (current_user.total_spent or Decimal("0")) + amount_to_pay
+    current_user.total_orders = (current_user.total_orders or 0) + 1
+    
+    db.commit()
+    db.refresh(payment)
+    
+    return SuccessResponse(data={
+        "payment_id": payment.id,
+        "payment_no": payment.payment_no,
+        "status": "success",
+        "message": "支付成功"
+    }, message="支付成功")
+
+
 @router.get("/{payment_id}/status")
 async def get_payment_status(
     payment_id: int,
