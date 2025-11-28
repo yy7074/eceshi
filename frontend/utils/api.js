@@ -300,6 +300,72 @@ export default {
 	// 获取充值赠送规则
 	getBonusRules() {
 		return request.get('/api/v1/recharge/bonus/rules')
+	},
+	
+	// ========== 发票相关 ==========
+	
+	// 申请开票
+	applyInvoice(data) {
+		return request.post('/api/v1/invoices/apply', data)
+	},
+	
+	// 获取发票列表
+	getInvoices(params) {
+		return request.get('/api/v1/invoices/list', params)
+	},
+	
+	// 获取发票详情
+	getInvoiceDetail(invoiceId) {
+		return request.get(`/api/v1/invoices/${invoiceId}`)
+	},
+	
+	// 获取可开票订单
+	getInvoiceableOrders() {
+		return request.get('/api/v1/invoices/invoiceable/orders')
+	},
+	
+	// ========== 抽奖相关 ==========
+	
+	// 获取抽奖次数
+	getLotteryChances() {
+		return request.get('/api/v1/lottery/chances')
+	},
+	
+	// 进行抽奖
+	doLottery() {
+		return request.post('/api/v1/lottery/draw')
+	},
+	
+	// 获取奖品列表
+	getLotteryPrizes() {
+		return request.get('/api/v1/lottery/prizes')
+	},
+	
+	// 获取中奖记录
+	getLotteryRecords(params) {
+		return request.get('/api/v1/lottery/records', params)
+	},
+	
+	// 领取奖品
+	claimPrize(recordId) {
+		return request.post(`/api/v1/lottery/claim/${recordId}`)
+	},
+	
+	// 获取最近中奖记录
+	getRecentLotteryRecords(limit = 10) {
+		return request.get('/api/v1/lottery/recent', { limit })
+	},
+	
+	// ========== 预付记录相关 ==========
+	
+	// 获取预付统计
+	getPrepayStats() {
+		return request.get('/api/v1/prepay/stats')
+	},
+	
+	// 获取预付记录
+	getPrepayRecords(params) {
+		return request.get('/api/v1/prepay/records', params)
 	}
 }
 

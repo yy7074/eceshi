@@ -16,21 +16,31 @@
 			</view>
 		</view>
 		
+		<!-- Tab筛选 -->
+		<view class="filter-tabs">
+			<view :class="['filter-item', recordType === '' ? 'active' : '']" @click="switchType('')">全部</view>
+			<view :class="['filter-item', recordType === 'recharge' ? 'active' : '']" @click="switchType('recharge')">充值</view>
+			<view :class="['filter-item', recordType === 'consume' ? 'active' : '']" @click="switchType('consume')">消费</view>
+		</view>
+		
 		<!-- 记录列表 -->
 		<view class="records-section">
-			<view class="section-title">预付记录</view>
-			
 			<view v-if="records.length > 0" class="records-list">
 				<view v-for="(item, index) in records" :key="index" class="record-item">
 					<view class="record-left">
-						<text class="record-title">{{ item.title }}</text>
-						<text class="record-time">{{ item.time }}</text>
+						<view class="record-icon" :class="item.type">
+							{{ item.type === 'in' ? '💰' : '💳' }}
+						</view>
+						<view class="record-info">
+							<text class="record-title">{{ item.title }}</text>
+							<text class="record-time">{{ item.time }}</text>
+						</view>
 					</view>
 					<view class="record-right">
 						<text :class="['record-amount', item.type === 'in' ? 'income' : 'expense']">
 							{{ item.type === 'in' ? '+' : '-' }}{{ item.amount.toFixed(2) }}
 						</text>
-						<text class="record-status">{{ item.statusText }}</text>
+						<text class="record-status">{{ item.status_text }}</text>
 					</view>
 				</view>
 			</view>
@@ -39,19 +49,32 @@
 			<view v-else class="empty-state">
 				<text class="empty-icon">📊</text>
 				<text class="empty-text">暂无预付记录</text>
+				<button class="recharge-btn" @click="goRecharge">去充值</button>
 			</view>
+		</view>
+		
+		<!-- 加载更多 -->
+		<view v-if="records.length > 0 && hasMore" class="load-more" @click="loadMore">
+			<text>{{ loading ? '加载中...' : '加载更多' }}</text>
 		</view>
 	</view>
 </template>
 
 <script>
+import api from '@/utils/api.js'
+
 export default {
 	data() {
 		return {
 			totalPrepay: 0,
 			usedPrepay: 0,
 			remainPrepay: 0,
-			records: []
+			recordType: '',
+			records: [],
+			page: 1,
+			pageSize: 20,
+			hasMore: true,
+			loading: false
 		}
 	},
 	
@@ -59,18 +82,89 @@ export default {
 		this.loadData()
 	},
 	
+	onPullDownRefresh() {
+		this.page = 1
+		this.records = []
+		this.hasMore = true
+		this.loadData().finally(() => {
+			uni.stopPullDownRefresh()
+		})
+	},
+	
+	onReachBottom() {
+		if (this.hasMore && !this.loading) {
+			this.loadMore()
+		}
+	},
+	
 	methods: {
 		// 加载数据
 		async loadData() {
+			await Promise.all([
+				this.loadStats(),
+				this.loadRecords()
+			])
+		},
+		
+		// 加载统计数据
+		async loadStats() {
 			try {
-				// TODO: 调用API获取预付记录
-				this.totalPrepay = 0
-				this.usedPrepay = 0
-				this.remainPrepay = 0
-				this.records = []
+				const res = await api.getPrepayStats()
+				this.totalPrepay = res.data.total_prepay || 0
+				this.usedPrepay = res.data.used_prepay || 0
+				this.remainPrepay = res.data.remain_prepay || 0
+			} catch (error) {
+				console.error('加载预付统计失败', error)
+			}
+		},
+		
+		// 加载记录
+		async loadRecords() {
+			this.loading = true
+			try {
+				const res = await api.getPrepayRecords({
+					record_type: this.recordType || undefined,
+					page: this.page,
+					page_size: this.pageSize
+				})
+				
+				const items = res.data.items || []
+				
+				if (this.page === 1) {
+					this.records = items
+				} else {
+					this.records = [...this.records, ...items]
+				}
+				
+				this.hasMore = items.length >= this.pageSize
+				
 			} catch (error) {
 				console.error('加载预付记录失败', error)
+			} finally {
+				this.loading = false
 			}
+		},
+		
+		// 切换类型
+		switchType(type) {
+			this.recordType = type
+			this.page = 1
+			this.records = []
+			this.hasMore = true
+			this.loadRecords()
+		},
+		
+		// 加载更多
+		loadMore() {
+			this.page++
+			this.loadRecords()
+		},
+		
+		// 去充值
+		goRecharge() {
+			uni.navigateTo({
+				url: '/pagesA/recharge/recharge'
+			})
 		}
 	}
 }
@@ -83,7 +177,7 @@ export default {
 }
 
 .header-stats {
-	background: #1890ff;
+	background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 	padding: 60rpx 30rpx;
 	display: flex;
 	justify-content: space-around;
@@ -107,18 +201,31 @@ export default {
 	}
 }
 
+.filter-tabs {
+	display: flex;
+	background: white;
+	padding: 20rpx 30rpx;
+	gap: 20rpx;
+	
+	.filter-item {
+		padding: 15rpx 30rpx;
+		background: #f5f5f5;
+		border-radius: 50rpx;
+		font-size: 26rpx;
+		color: #666;
+		
+		&.active {
+			background: #667eea;
+			color: white;
+		}
+	}
+}
+
 .records-section {
 	background: white;
 	margin: 20rpx 30rpx;
 	border-radius: 16rpx;
 	padding: 30rpx;
-	
-	.section-title {
-		font-size: 32rpx;
-		font-weight: bold;
-		color: #333;
-		margin-bottom: 30rpx;
-	}
 	
 	.records-list {
 		.record-item {
@@ -134,17 +241,42 @@ export default {
 			
 			.record-left {
 				display: flex;
-				flex-direction: column;
+				align-items: center;
+				flex: 1;
 				
-				.record-title {
-					font-size: 28rpx;
-					color: #333;
-					margin-bottom: 10rpx;
+				.record-icon {
+					width: 80rpx;
+					height: 80rpx;
+					border-radius: 50%;
+					display: flex;
+					align-items: center;
+					justify-content: center;
+					font-size: 36rpx;
+					margin-right: 20rpx;
+					
+					&.in {
+						background: #fff3e0;
+					}
+					
+					&.out {
+						background: #e8f5e9;
+					}
 				}
 				
-				.record-time {
-					font-size: 24rpx;
-					color: #999;
+				.record-info {
+					display: flex;
+					flex-direction: column;
+					
+					.record-title {
+						font-size: 28rpx;
+						color: #333;
+						margin-bottom: 10rpx;
+					}
+					
+					.record-time {
+						font-size: 24rpx;
+						color: #999;
+					}
 				}
 			}
 			
@@ -169,7 +301,7 @@ export default {
 				
 				.record-status {
 					font-size: 24rpx;
-					color: #999;
+					color: #52c41a;
 				}
 			}
 		}
@@ -191,7 +323,23 @@ export default {
 	.empty-text {
 		font-size: 28rpx;
 		color: #999;
+		margin-bottom: 40rpx;
+	}
+	
+	.recharge-btn {
+		background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+		color: white;
+		border: none;
+		border-radius: 50rpx;
+		padding: 25rpx 60rpx;
+		font-size: 28rpx;
 	}
 }
-</style>
 
+.load-more {
+	text-align: center;
+	padding: 30rpx;
+	font-size: 26rpx;
+	color: #999;
+}
+</style>

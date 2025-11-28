@@ -113,6 +113,37 @@
             justify-content: space-between;
             align-items: center;
         }
+        .stat-card {
+            padding: 20px;
+            border-radius: 8px;
+            color: white;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        .stat-icon {
+            font-size: 36px;
+            opacity: 0.9;
+        }
+        .stat-info {
+            flex: 1;
+        }
+        .stat-value {
+            font-size: 28px;
+            font-weight: 700;
+            line-height: 1.2;
+        }
+        .stat-label {
+            font-size: 14px;
+            opacity: 0.9;
+            margin-top: 4px;
+        }
+        .stat-sub {
+            font-size: 12px;
+            opacity: 0.8;
+            margin-top: 4px;
+        }
     </style>
 </head>
 <body>
@@ -207,17 +238,49 @@
                         text-color="#fff"
                         active-text-color="#409EFF"
                         @select="handleMenuSelect">
+                        <el-menu-item index="dashboard">
+                            <el-icon><data-line /></el-icon>
+                            <span>数据面板</span>
+                        </el-menu-item>
                         <el-menu-item index="users">
                             <el-icon><user /></el-icon>
                             <span>用户管理</span>
+                        </el-menu-item>
+                        <el-menu-item index="orders">
+                            <el-icon><document /></el-icon>
+                            <span>订单管理</span>
                         </el-menu-item>
                         <el-menu-item index="projects">
                             <el-icon><picture /></el-icon>
                             <span>项目管理</span>
                         </el-menu-item>
-                        <el-menu-item index="orders">
-                            <el-icon><document /></el-icon>
-                            <span>订单管理</span>
+                        <el-menu-item index="categories">
+                            <el-icon><folder /></el-icon>
+                            <span>分类管理</span>
+                        </el-menu-item>
+                        <el-menu-item index="coupons">
+                            <el-icon><ticket /></el-icon>
+                            <span>优惠券管理</span>
+                        </el-menu-item>
+                        <el-menu-item index="recharges">
+                            <el-icon><wallet /></el-icon>
+                            <span>充值管理</span>
+                        </el-menu-item>
+                        <el-menu-item index="points">
+                            <el-icon><present /></el-icon>
+                            <span>积分商品</span>
+                        </el-menu-item>
+                        <el-menu-item index="reviews">
+                            <el-icon><chat-line-square /></el-icon>
+                            <span>评价管理</span>
+                        </el-menu-item>
+                        <el-menu-item index="groups">
+                            <el-icon><office-building /></el-icon>
+                            <span>团体管理</span>
+                        </el-menu-item>
+                        <el-menu-item index="invites">
+                            <el-icon><share /></el-icon>
+                            <span>邀请管理</span>
                         </el-menu-item>
                         <el-menu-item index="settings">
                             <el-icon><setting /></el-icon>
@@ -228,6 +291,118 @@
 
                 <!-- 右侧内容 -->
                 <el-main class="admin-main">
+                    <!-- 数据面板 -->
+                    <div v-show="activeMenu === 'dashboard'">
+                        <div class="page-header">
+                            <h3>📊 数据面板</h3>
+                        </div>
+                        
+                        <!-- 统计卡片 -->
+                        <el-row :gutter="16" style="margin-bottom: 16px;">
+                            <el-col :span="6">
+                                <div class="stat-card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                                    <div class="stat-icon">👥</div>
+                                    <div class="stat-info">
+                                        <div class="stat-value">{{ dashboardData.users?.total || 0 }}</div>
+                                        <div class="stat-label">总用户数</div>
+                                        <div class="stat-sub">今日新增: {{ dashboardData.users?.today || 0 }}</div>
+                                    </div>
+                                </div>
+                            </el-col>
+                            <el-col :span="6">
+                                <div class="stat-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                                    <div class="stat-icon">📦</div>
+                                    <div class="stat-info">
+                                        <div class="stat-value">{{ dashboardData.orders?.total || 0 }}</div>
+                                        <div class="stat-label">总订单数</div>
+                                        <div class="stat-sub">待处理: {{ dashboardData.orders?.pending || 0 }}</div>
+                                    </div>
+                                </div>
+                            </el-col>
+                            <el-col :span="6">
+                                <div class="stat-card" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+                                    <div class="stat-icon">💰</div>
+                                    <div class="stat-info">
+                                        <div class="stat-value">¥{{ (dashboardData.revenue?.total || 0).toFixed(2) }}</div>
+                                        <div class="stat-label">总收入</div>
+                                        <div class="stat-sub">今日: ¥{{ (dashboardData.revenue?.today || 0).toFixed(2) }}</div>
+                                    </div>
+                                </div>
+                            </el-col>
+                            <el-col :span="6">
+                                <div class="stat-card" style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);">
+                                    <div class="stat-icon">🔬</div>
+                                    <div class="stat-info">
+                                        <div class="stat-value">{{ dashboardData.projects?.total || 0 }}</div>
+                                        <div class="stat-label">检测项目</div>
+                                        <div class="stat-sub">在架: {{ dashboardData.projects?.active || 0 }}</div>
+                                    </div>
+                                </div>
+                            </el-col>
+                        </el-row>
+
+                        <el-row :gutter="16">
+                            <el-col :span="16">
+                                <div class="content-card">
+                                    <h4 style="margin-bottom: 16px;">📈 近7天订单趋势</h4>
+                                    <div style="display: flex; height: 200px; align-items: flex-end; gap: 12px;">
+                                        <div v-for="item in dashboardData.trends?.orders || []" :key="item.date" 
+                                            style="flex: 1; display: flex; flex-direction: column; align-items: center;">
+                                            <div :style="{
+                                                width: '100%',
+                                                height: Math.max((item.count / maxOrderCount) * 160, 5) + 'px',
+                                                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                                                borderRadius: '4px 4px 0 0',
+                                                transition: 'height 0.3s'
+                                            }"></div>
+                                            <div style="font-size: 12px; color: #666; margin-top: 8px;">{{ item.date }}</div>
+                                            <div style="font-size: 12px; color: #333; font-weight: 600;">{{ item.count }}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </el-col>
+                            <el-col :span="8">
+                                <div class="content-card">
+                                    <h4 style="margin-bottom: 16px;">📊 订单状态分布</h4>
+                                    <div v-for="item in dashboardData.order_status_distribution || []" :key="item.status" 
+                                        style="margin-bottom: 12px;">
+                                        <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                                            <span>{{ getOrderStatusText(item.status) }}</span>
+                                            <span style="font-weight: 600;">{{ item.count }}</span>
+                                        </div>
+                                        <el-progress 
+                                            :percentage="totalOrders > 0 ? (item.count / totalOrders * 100) : 0" 
+                                            :show-text="false"
+                                            :color="getOrderStatusColor(item.status)">
+                                        </el-progress>
+                                    </div>
+                                </div>
+                            </el-col>
+                        </el-row>
+
+                        <el-row :gutter="16" style="margin-top: 16px;">
+                            <el-col :span="12">
+                                <div class="content-card">
+                                    <h4 style="margin-bottom: 16px;">💳 充值统计</h4>
+                                    <el-descriptions :column="1" border size="small">
+                                        <el-descriptions-item label="累计充值">¥{{ (dashboardData.recharge?.total || 0).toFixed(2) }}</el-descriptions-item>
+                                        <el-descriptions-item label="待处理充值">{{ dashboardData.recharge?.pending_count || 0 }} 笔</el-descriptions-item>
+                                    </el-descriptions>
+                                </div>
+                            </el-col>
+                            <el-col :span="12">
+                                <div class="content-card">
+                                    <h4 style="margin-bottom: 16px;">📅 本月数据</h4>
+                                    <el-descriptions :column="1" border size="small">
+                                        <el-descriptions-item label="新增用户">{{ dashboardData.users?.this_month || 0 }}</el-descriptions-item>
+                                        <el-descriptions-item label="新增订单">{{ dashboardData.orders?.this_month || 0 }}</el-descriptions-item>
+                                        <el-descriptions-item label="本月收入">¥{{ (dashboardData.revenue?.this_month || 0).toFixed(2) }}</el-descriptions-item>
+                                    </el-descriptions>
+                                </div>
+                            </el-col>
+                        </el-row>
+                    </div>
+
                     <!-- 用户管理 -->
                     <div v-show="activeMenu === 'users'">
                         <div class="page-header">
@@ -675,6 +850,491 @@
                         </div>
                     </div>
 
+                    <!-- 分类管理 -->
+                    <div v-show="activeMenu === 'categories'">
+                        <div class="page-header">
+                            <h3>📂 分类管理</h3>
+                        </div>
+                        <div class="content-card">
+                            <div style="margin-bottom: 16px; display: flex; justify-content: space-between;">
+                                <div>
+                                    <el-input v-model="categorySearch" placeholder="搜索分类名称" style="width: 250px;" clearable @change="loadCategories">
+                                        <template #prefix><el-icon><search /></el-icon></template>
+                                    </el-input>
+                                    <el-button type="primary" @click="loadCategories" style="margin-left: 10px;">搜索</el-button>
+                                </div>
+                                <el-button type="primary" @click="showCategoryDialog()"><el-icon><plus /></el-icon> 添加分类</el-button>
+                            </div>
+                            <el-table :data="categoryList" v-loading="categoryLoading">
+                                <el-table-column prop="id" label="ID" width="80"></el-table-column>
+                                <el-table-column label="图标" width="80">
+                                    <template #default="scope">
+                                        <el-image v-if="scope.row.icon" :src="scope.row.icon" style="width: 40px; height: 40px;" fit="cover"></el-image>
+                                        <span v-else style="color: #ccc;">-</span>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column prop="name" label="名称" width="150"></el-table-column>
+                                <el-table-column prop="code" label="编码" width="120"></el-table-column>
+                                <el-table-column prop="sort_order" label="排序" width="80"></el-table-column>
+                                <el-table-column label="热门" width="80">
+                                    <template #default="scope">
+                                        <el-tag :type="scope.row.is_hot ? 'danger' : 'info'" size="small">{{ scope.row.is_hot ? '是' : '否' }}</el-tag>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column label="状态" width="80">
+                                    <template #default="scope">
+                                        <el-tag :type="scope.row.is_active ? 'success' : 'info'" size="small">{{ scope.row.is_active ? '启用' : '禁用' }}</el-tag>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column label="操作" width="180">
+                                    <template #default="scope">
+                                        <el-button link type="primary" size="small" @click="showCategoryDialog(scope.row)">编辑</el-button>
+                                        <el-button link type="danger" size="small" @click="deleteCategory(scope.row.id)">删除</el-button>
+                                    </template>
+                                </el-table-column>
+                            </el-table>
+                            <el-pagination v-model:current-page="categoryPage" v-model:page-size="categoryPageSize" :total="categoryTotal"
+                                layout="total, prev, pager, next" @current-change="loadCategories" style="margin-top: 16px; justify-content: center;">
+                            </el-pagination>
+                        </div>
+                        <!-- 分类对话框 -->
+                        <el-dialog v-model="categoryDialogVisible" :title="categoryForm.id ? '编辑分类' : '添加分类'" width="500px">
+                            <el-form :model="categoryForm" label-width="80px">
+                                <el-form-item label="名称" required><el-input v-model="categoryForm.name"></el-input></el-form-item>
+                                <el-form-item label="编码"><el-input v-model="categoryForm.code" placeholder="如: SEM"></el-input></el-form-item>
+                                <el-form-item label="图标"><el-input v-model="categoryForm.icon" placeholder="图标URL"></el-input></el-form-item>
+                                <el-form-item label="排序"><el-input-number v-model="categoryForm.sort_order" :min="0"></el-input-number></el-form-item>
+                                <el-form-item label="热门"><el-switch v-model="categoryForm.is_hot"></el-switch></el-form-item>
+                                <el-form-item label="描述"><el-input v-model="categoryForm.description" type="textarea" :rows="2"></el-input></el-form-item>
+                            </el-form>
+                            <template #footer>
+                                <el-button @click="categoryDialogVisible = false">取消</el-button>
+                                <el-button type="primary" @click="saveCategory" :loading="loading">保存</el-button>
+                            </template>
+                        </el-dialog>
+                    </div>
+
+                    <!-- 优惠券管理 -->
+                    <div v-show="activeMenu === 'coupons'">
+                        <div class="page-header">
+                            <h3>🎁 优惠券管理</h3>
+                        </div>
+                        <div class="content-card">
+                            <div style="margin-bottom: 16px; display: flex; justify-content: space-between;">
+                                <div>
+                                    <el-input v-model="couponSearch" placeholder="搜索优惠券名称" style="width: 250px;" clearable @change="loadCoupons">
+                                        <template #prefix><el-icon><search /></el-icon></template>
+                                    </el-input>
+                                    <el-button type="primary" @click="loadCoupons" style="margin-left: 10px;">搜索</el-button>
+                                </div>
+                                <el-button type="primary" @click="showCouponDialog()"><el-icon><plus /></el-icon> 添加优惠券</el-button>
+                            </div>
+                            <el-table :data="couponList" v-loading="couponLoading">
+                                <el-table-column prop="id" label="ID" width="60"></el-table-column>
+                                <el-table-column prop="name" label="名称" width="150"></el-table-column>
+                                <el-table-column label="类型" width="100">
+                                    <template #default="scope">
+                                        <el-tag size="small">{{ getCouponTypeText(scope.row.type) }}</el-tag>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column label="优惠" width="120">
+                                    <template #default="scope">
+                                        <span v-if="scope.row.type === 'cash'">¥{{ scope.row.cash_amount }}</span>
+                                        <span v-else-if="scope.row.type === 'discount'">{{ (scope.row.discount_rate * 10).toFixed(1) }}折</span>
+                                        <span v-else>满{{ scope.row.full_amount }}减{{ scope.row.reduction_amount }}</span>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column label="发放/领取" width="100">
+                                    <template #default="scope">{{ scope.row.received_quantity }}/{{ scope.row.total_quantity || '不限' }}</template>
+                                </el-table-column>
+                                <el-table-column prop="valid_days" label="有效期" width="80">
+                                    <template #default="scope">{{ scope.row.valid_days }}天</template>
+                                </el-table-column>
+                                <el-table-column label="状态" width="80">
+                                    <template #default="scope">
+                                        <el-tag :type="scope.row.status === 'active' ? 'success' : 'info'" size="small">{{ scope.row.status === 'active' ? '可领' : '已下架' }}</el-tag>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column label="操作" width="160">
+                                    <template #default="scope">
+                                        <el-button link type="primary" size="small" @click="showCouponDialog(scope.row)">编辑</el-button>
+                                        <el-button link type="danger" size="small" @click="deleteCoupon(scope.row.id)">下架</el-button>
+                                    </template>
+                                </el-table-column>
+                            </el-table>
+                            <el-pagination v-model:current-page="couponPage" v-model:page-size="couponPageSize" :total="couponTotal"
+                                layout="total, prev, pager, next" @current-change="loadCoupons" style="margin-top: 16px; justify-content: center;">
+                            </el-pagination>
+                        </div>
+                        <!-- 优惠券对话框 -->
+                        <el-dialog v-model="couponDialogVisible" :title="couponForm.id ? '编辑优惠券' : '添加优惠券'" width="550px">
+                            <el-form :model="couponForm" label-width="100px">
+                                <el-form-item label="名称" required><el-input v-model="couponForm.name"></el-input></el-form-item>
+                                <el-form-item label="类型" required>
+                                    <el-select v-model="couponForm.type" style="width: 100%;">
+                                        <el-option label="代金券" value="cash"></el-option>
+                                        <el-option label="折扣券" value="discount"></el-option>
+                                        <el-option label="满减券" value="full_reduction"></el-option>
+                                    </el-select>
+                                </el-form-item>
+                                <el-form-item label="代金金额" v-if="couponForm.type === 'cash'">
+                                    <el-input-number v-model="couponForm.cash_amount" :min="0" :precision="2" style="width: 100%;"></el-input-number>
+                                </el-form-item>
+                                <el-form-item label="折扣率" v-if="couponForm.type === 'discount'">
+                                    <el-input-number v-model="couponForm.discount_rate" :min="0.1" :max="0.99" :step="0.1" :precision="2" style="width: 100%;"></el-input-number>
+                                    <div style="font-size: 12px; color: #999;">如0.9表示9折</div>
+                                </el-form-item>
+                                <el-form-item label="满减门槛" v-if="couponForm.type === 'full_reduction'">
+                                    <el-input-number v-model="couponForm.full_amount" :min="0" :precision="2" style="width: 100%;"></el-input-number>
+                                </el-form-item>
+                                <el-form-item label="减免金额" v-if="couponForm.type === 'full_reduction'">
+                                    <el-input-number v-model="couponForm.reduction_amount" :min="0" :precision="2" style="width: 100%;"></el-input-number>
+                                </el-form-item>
+                                <el-form-item label="最低消费"><el-input-number v-model="couponForm.min_order_amount" :min="0" :precision="2" style="width: 100%;"></el-input-number></el-form-item>
+                                <el-form-item label="发放数量"><el-input-number v-model="couponForm.total_quantity" :min="0" style="width: 100%;"></el-input-number><div style="font-size: 12px; color: #999;">0表示不限量</div></el-form-item>
+                                <el-form-item label="有效天数"><el-input-number v-model="couponForm.valid_days" :min="1" style="width: 100%;"></el-input-number></el-form-item>
+                                <el-form-item label="描述"><el-input v-model="couponForm.description" type="textarea" :rows="2"></el-input></el-form-item>
+                            </el-form>
+                            <template #footer>
+                                <el-button @click="couponDialogVisible = false">取消</el-button>
+                                <el-button type="primary" @click="saveCoupon" :loading="loading">保存</el-button>
+                            </template>
+                        </el-dialog>
+                    </div>
+
+                    <!-- 充值管理 -->
+                    <div v-show="activeMenu === 'recharges'">
+                        <div class="page-header">
+                            <h3>💰 充值管理</h3>
+                        </div>
+                        <div class="content-card">
+                            <div style="margin-bottom: 16px; display: flex; gap: 10px;">
+                                <el-input v-model="rechargeSearch" placeholder="搜索充值单号/手机号" style="width: 250px;" clearable @change="loadRecharges">
+                                    <template #prefix><el-icon><search /></el-icon></template>
+                                </el-input>
+                                <el-select v-model="rechargeStatusFilter" placeholder="状态筛选" style="width: 120px;" clearable @change="loadRecharges">
+                                    <el-option label="待支付" value="pending"></el-option>
+                                    <el-option label="成功" value="success"></el-option>
+                                    <el-option label="失败" value="failed"></el-option>
+                                    <el-option label="已退款" value="refunded"></el-option>
+                                </el-select>
+                                <el-button type="primary" @click="loadRecharges">搜索</el-button>
+                                <el-button @click="rechargeSearch=''; rechargeStatusFilter=null; loadRecharges()">重置</el-button>
+                            </div>
+                            <el-table :data="rechargeList" v-loading="rechargeLoading">
+                                <el-table-column prop="id" label="ID" width="60"></el-table-column>
+                                <el-table-column prop="recharge_no" label="充值单号" width="180"></el-table-column>
+                                <el-table-column label="用户" width="150">
+                                    <template #default="scope">
+                                        <div>{{ scope.row.user_nickname }}</div>
+                                        <div style="font-size: 12px; color: #999;">{{ scope.row.user_phone }}</div>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column label="充值金额" width="100">
+                                    <template #default="scope"><span style="color: #ff4d4f; font-weight: 600;">¥{{ scope.row.amount }}</span></template>
+                                </el-table-column>
+                                <el-table-column label="实际到账" width="100">
+                                    <template #default="scope"><span style="color: #52c41a;">¥{{ scope.row.actual_amount }}</span></template>
+                                </el-table-column>
+                                <el-table-column label="赠送" width="80">
+                                    <template #default="scope">¥{{ scope.row.bonus_amount || 0 }}</template>
+                                </el-table-column>
+                                <el-table-column label="方式" width="80">
+                                    <template #default="scope">
+                                        <el-tag size="small" :type="scope.row.payment_method === 'wechat' ? 'success' : 'primary'">{{ scope.row.payment_method === 'wechat' ? '微信' : '支付宝' }}</el-tag>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column label="状态" width="80">
+                                    <template #default="scope">
+                                        <el-tag :type="getRechargeStatusType(scope.row.status)" size="small">{{ getRechargeStatusText(scope.row.status) }}</el-tag>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column label="时间" width="160">
+                                    <template #default="scope">{{ formatDateTime(scope.row.created_at) }}</template>
+                                </el-table-column>
+                                <el-table-column label="操作" width="120">
+                                    <template #default="scope">
+                                        <el-button v-if="scope.row.status === 'pending'" link type="success" size="small" @click="updateRechargeStatus(scope.row.id, 'success')">确认</el-button>
+                                        <el-button v-if="scope.row.status === 'pending'" link type="danger" size="small" @click="updateRechargeStatus(scope.row.id, 'failed')">失败</el-button>
+                                    </template>
+                                </el-table-column>
+                            </el-table>
+                            <el-pagination v-model:current-page="rechargePage" v-model:page-size="rechargePageSize" :total="rechargeTotal"
+                                layout="total, prev, pager, next" @current-change="loadRecharges" style="margin-top: 16px; justify-content: center;">
+                            </el-pagination>
+                        </div>
+                    </div>
+
+                    <!-- 积分商品管理 -->
+                    <div v-show="activeMenu === 'points'">
+                        <div class="page-header">
+                            <h3>🎯 积分商品管理</h3>
+                        </div>
+                        <div class="content-card">
+                            <div style="margin-bottom: 16px; display: flex; justify-content: space-between;">
+                                <div style="display: flex; gap: 10px;">
+                                    <el-input v-model="pointsGoodsSearch" placeholder="搜索商品名称" style="width: 200px;" clearable @change="loadPointsGoods">
+                                        <template #prefix><el-icon><search /></el-icon></template>
+                                    </el-input>
+                                    <el-select v-model="pointsGoodsCategoryFilter" placeholder="分类" style="width: 120px;" clearable @change="loadPointsGoods">
+                                        <el-option label="优惠券" value="优惠券"></el-option>
+                                        <el-option label="京东E卡" value="京东E卡"></el-option>
+                                        <el-option label="实物礼" value="实物礼"></el-option>
+                                    </el-select>
+                                    <el-button type="primary" @click="loadPointsGoods">搜索</el-button>
+                                </div>
+                                <el-button type="primary" @click="showPointsGoodsDialog()"><el-icon><plus /></el-icon> 添加商品</el-button>
+                            </div>
+                            <el-table :data="pointsGoodsList" v-loading="pointsGoodsLoading">
+                                <el-table-column prop="id" label="ID" width="60"></el-table-column>
+                                <el-table-column label="图片" width="80">
+                                    <template #default="scope">
+                                        <el-image v-if="scope.row.image" :src="scope.row.image" style="width: 50px; height: 50px;" fit="cover"></el-image>
+                                        <span v-else style="color: #ccc;">-</span>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column prop="name" label="商品名称" width="180"></el-table-column>
+                                <el-table-column label="积分" width="100">
+                                    <template #default="scope"><span style="color: #ff9500; font-weight: 600;">{{ scope.row.points }}</span></template>
+                                </el-table-column>
+                                <el-table-column prop="category" label="分类" width="100"></el-table-column>
+                                <el-table-column prop="stock" label="库存" width="80"></el-table-column>
+                                <el-table-column label="状态" width="80">
+                                    <template #default="scope">
+                                        <el-tag :type="scope.row.is_active ? 'success' : 'info'" size="small">{{ scope.row.is_active ? '上架' : '下架' }}</el-tag>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column label="操作" width="160">
+                                    <template #default="scope">
+                                        <el-button link type="primary" size="small" @click="showPointsGoodsDialog(scope.row)">编辑</el-button>
+                                        <el-button link :type="scope.row.is_active ? 'warning' : 'success'" size="small" @click="togglePointsGoodsStatus(scope.row)">
+                                            {{ scope.row.is_active ? '下架' : '上架' }}
+                                        </el-button>
+                                    </template>
+                                </el-table-column>
+                            </el-table>
+                            <el-pagination v-model:current-page="pointsGoodsPage" v-model:page-size="pointsGoodsPageSize" :total="pointsGoodsTotal"
+                                layout="total, prev, pager, next" @current-change="loadPointsGoods" style="margin-top: 16px; justify-content: center;">
+                            </el-pagination>
+                        </div>
+                        <!-- 积分商品对话框 -->
+                        <el-dialog v-model="pointsGoodsDialogVisible" :title="pointsGoodsForm.id ? '编辑商品' : '添加商品'" width="500px">
+                            <el-form :model="pointsGoodsForm" label-width="80px">
+                                <el-form-item label="名称" required><el-input v-model="pointsGoodsForm.name"></el-input></el-form-item>
+                                <el-form-item label="积分" required><el-input-number v-model="pointsGoodsForm.points" :min="1" style="width: 100%;"></el-input-number></el-form-item>
+                                <el-form-item label="分类" required>
+                                    <el-select v-model="pointsGoodsForm.category" style="width: 100%;">
+                                        <el-option label="优惠券" value="优惠券"></el-option>
+                                        <el-option label="京东E卡" value="京东E卡"></el-option>
+                                        <el-option label="实物礼" value="实物礼"></el-option>
+                                    </el-select>
+                                </el-form-item>
+                                <el-form-item label="库存"><el-input-number v-model="pointsGoodsForm.stock" :min="0" style="width: 100%;"></el-input-number></el-form-item>
+                                <el-form-item label="图片"><el-input v-model="pointsGoodsForm.image" placeholder="图片URL"></el-input></el-form-item>
+                                <el-form-item label="描述"><el-input v-model="pointsGoodsForm.description" type="textarea" :rows="2"></el-input></el-form-item>
+                            </el-form>
+                            <template #footer>
+                                <el-button @click="pointsGoodsDialogVisible = false">取消</el-button>
+                                <el-button type="primary" @click="savePointsGoods" :loading="loading">保存</el-button>
+                            </template>
+                        </el-dialog>
+                    </div>
+
+                    <!-- 评价管理 -->
+                    <div v-show="activeMenu === 'reviews'">
+                        <div class="page-header">
+                            <h3>⭐ 评价管理</h3>
+                        </div>
+                        <div class="content-card">
+                            <div style="margin-bottom: 16px;">
+                                <el-select v-model="reviewStatusFilter" placeholder="状态筛选" style="width: 120px;" clearable @change="loadReviews">
+                                    <el-option label="已发布" value="published"></el-option>
+                                    <el-option label="已隐藏" value="hidden"></el-option>
+                                </el-select>
+                                <el-button type="primary" @click="loadReviews" style="margin-left: 10px;">搜索</el-button>
+                            </div>
+                            <el-table :data="reviewList" v-loading="reviewLoading">
+                                <el-table-column prop="id" label="ID" width="60"></el-table-column>
+                                <el-table-column prop="user_nickname" label="用户" width="100"></el-table-column>
+                                <el-table-column prop="project_name" label="项目" width="180" show-overflow-tooltip></el-table-column>
+                                <el-table-column label="评分" width="120">
+                                    <template #default="scope">
+                                        <el-rate v-model="scope.row.rating" disabled text-color="#ff9900"></el-rate>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column prop="content" label="内容" show-overflow-tooltip></el-table-column>
+                                <el-table-column label="状态" width="80">
+                                    <template #default="scope">
+                                        <el-tag :type="scope.row.status === 'published' ? 'success' : 'info'" size="small">{{ scope.row.status === 'published' ? '显示' : '隐藏' }}</el-tag>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column label="时间" width="160">
+                                    <template #default="scope">{{ formatDateTime(scope.row.created_at) }}</template>
+                                </el-table-column>
+                                <el-table-column label="操作" width="160">
+                                    <template #default="scope">
+                                        <el-button link type="primary" size="small" @click="replyReview(scope.row)">回复</el-button>
+                                        <el-button link :type="scope.row.status === 'published' ? 'warning' : 'success'" size="small" @click="toggleReviewStatus(scope.row)">
+                                            {{ scope.row.status === 'published' ? '隐藏' : '显示' }}
+                                        </el-button>
+                                    </template>
+                                </el-table-column>
+                            </el-table>
+                            <el-pagination v-model:current-page="reviewPage" v-model:page-size="reviewPageSize" :total="reviewTotal"
+                                layout="total, prev, pager, next" @current-change="loadReviews" style="margin-top: 16px; justify-content: center;">
+                            </el-pagination>
+                        </div>
+                    </div>
+
+                    <!-- 团体管理 -->
+                    <div v-show="activeMenu === 'groups'">
+                        <div class="page-header">
+                            <h3>👥 团体管理</h3>
+                        </div>
+                        <div class="content-card">
+                            <div style="margin-bottom: 16px; display: flex; gap: 10px;">
+                                <el-input v-model="groupSearch" placeholder="搜索团体名称/邀请码" style="width: 250px;" clearable @change="loadGroups">
+                                    <template #prefix><el-icon><search /></el-icon></template>
+                                </el-input>
+                                <el-button type="primary" @click="loadGroups">搜索</el-button>
+                            </div>
+                            <el-table :data="groupList" v-loading="groupLoading">
+                                <el-table-column prop="id" label="ID" width="60"></el-table-column>
+                                <el-table-column prop="name" label="团体名称" width="150"></el-table-column>
+                                <el-table-column prop="owner_name" label="负责人" width="100"></el-table-column>
+                                <el-table-column prop="owner_phone" label="联系电话" width="120"></el-table-column>
+                                <el-table-column prop="university" label="所属高校" width="150"></el-table-column>
+                                <el-table-column prop="invite_code" label="邀请码" width="100"></el-table-column>
+                                <el-table-column prop="member_count" label="成员数" width="80"></el-table-column>
+                                <el-table-column label="累计消费" width="100">
+                                    <template #default="scope">¥{{ scope.row.total_spent }}</template>
+                                </el-table-column>
+                                <el-table-column label="认证" width="80">
+                                    <template #default="scope">
+                                        <el-tag :type="scope.row.is_certified ? 'success' : 'info'" size="small">{{ scope.row.is_certified ? '已认证' : '未认证' }}</el-tag>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column label="状态" width="80">
+                                    <template #default="scope">
+                                        <el-tag :type="scope.row.status === 'active' ? 'success' : 'danger'" size="small">{{ scope.row.status === 'active' ? '正常' : '禁用' }}</el-tag>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column label="操作" width="160">
+                                    <template #default="scope">
+                                        <el-button link :type="scope.row.is_certified ? 'warning' : 'success'" size="small" @click="toggleGroupCertify(scope.row)">
+                                            {{ scope.row.is_certified ? '取消认证' : '认证' }}
+                                        </el-button>
+                                        <el-button link :type="scope.row.status === 'active' ? 'danger' : 'success'" size="small" @click="toggleGroupStatus(scope.row)">
+                                            {{ scope.row.status === 'active' ? '禁用' : '启用' }}
+                                        </el-button>
+                                    </template>
+                                </el-table-column>
+                            </el-table>
+                            <el-pagination v-model:current-page="groupPage" v-model:page-size="groupPageSize" :total="groupTotal"
+                                layout="total, prev, pager, next" @current-change="loadGroups" style="margin-top: 16px; justify-content: center;">
+                            </el-pagination>
+                        </div>
+                    </div>
+
+                    <!-- 邀请管理 -->
+                    <div v-show="activeMenu === 'invites'">
+                        <div class="page-header">
+                            <h3>🔗 邀请管理</h3>
+                        </div>
+                        <el-tabs v-model="inviteTab">
+                            <el-tab-pane label="邀请记录" name="records">
+                                <div class="content-card">
+                                    <div style="margin-bottom: 16px;">
+                                        <el-input v-model="inviteSearch" placeholder="搜索手机号" style="width: 250px;" clearable @change="loadInvites"></el-input>
+                                        <el-button type="primary" @click="loadInvites" style="margin-left: 10px;">搜索</el-button>
+                                    </div>
+                                    <el-table :data="inviteList" v-loading="inviteLoading">
+                                        <el-table-column prop="id" label="ID" width="60"></el-table-column>
+                                        <el-table-column label="邀请人" width="150">
+                                            <template #default="scope">
+                                                <div>{{ scope.row.inviter_name }}</div>
+                                                <div style="font-size: 12px; color: #999;">{{ scope.row.inviter_phone }}</div>
+                                            </template>
+                                        </el-table-column>
+                                        <el-table-column label="被邀请人" width="150">
+                                            <template #default="scope">
+                                                <div>{{ scope.row.invitee_name }}</div>
+                                                <div style="font-size: 12px; color: #999;">{{ scope.row.invitee_phone }}</div>
+                                            </template>
+                                        </el-table-column>
+                                        <el-table-column label="奖励" width="100">
+                                            <template #default="scope"><span style="color: #ff4d4f;">¥{{ scope.row.reward_amount }}</span></template>
+                                        </el-table-column>
+                                        <el-table-column label="首单金额" width="100">
+                                            <template #default="scope">¥{{ scope.row.first_order_amount || 0 }}</template>
+                                        </el-table-column>
+                                        <el-table-column label="状态" width="100">
+                                            <template #default="scope">
+                                                <el-tag :type="getInviteStatusType(scope.row.status)" size="small">{{ getInviteStatusText(scope.row.status) }}</el-tag>
+                                            </template>
+                                        </el-table-column>
+                                        <el-table-column label="邀请时间" width="160">
+                                            <template #default="scope">{{ formatDateTime(scope.row.invited_at) }}</template>
+                                        </el-table-column>
+                                    </el-table>
+                                    <el-pagination v-model:current-page="invitePage" v-model:page-size="invitePageSize" :total="inviteTotal"
+                                        layout="total, prev, pager, next" @current-change="loadInvites" style="margin-top: 16px; justify-content: center;">
+                                    </el-pagination>
+                                </div>
+                            </el-tab-pane>
+                            <el-tab-pane label="提现审核" name="withdraws">
+                                <div class="content-card">
+                                    <div style="margin-bottom: 16px;">
+                                        <el-select v-model="withdrawStatusFilter" placeholder="状态筛选" style="width: 120px;" clearable @change="loadWithdraws">
+                                            <el-option label="待审核" value="pending"></el-option>
+                                            <el-option label="已通过" value="approved"></el-option>
+                                            <el-option label="已拒绝" value="rejected"></el-option>
+                                        </el-select>
+                                        <el-button type="primary" @click="loadWithdraws" style="margin-left: 10px;">搜索</el-button>
+                                    </div>
+                                    <el-table :data="withdrawList" v-loading="withdrawLoading">
+                                        <el-table-column prop="id" label="ID" width="60"></el-table-column>
+                                        <el-table-column label="用户" width="150">
+                                            <template #default="scope">
+                                                <div>{{ scope.row.user_nickname }}</div>
+                                                <div style="font-size: 12px; color: #999;">{{ scope.row.user_phone }}</div>
+                                            </template>
+                                        </el-table-column>
+                                        <el-table-column label="金额" width="100">
+                                            <template #default="scope"><span style="color: #ff4d4f; font-weight: 600;">¥{{ scope.row.amount }}</span></template>
+                                        </el-table-column>
+                                        <el-table-column label="账户" width="180">
+                                            <template #default="scope">
+                                                <div>{{ scope.row.account_type === 'alipay' ? '支付宝' : scope.row.account_type === 'wechat' ? '微信' : '银行卡' }}</div>
+                                                <div style="font-size: 12px; color: #999;">{{ scope.row.account_name }} {{ scope.row.account_number }}</div>
+                                            </template>
+                                        </el-table-column>
+                                        <el-table-column label="状态" width="100">
+                                            <template #default="scope">
+                                                <el-tag :type="getWithdrawStatusType(scope.row.status)" size="small">{{ getWithdrawStatusText(scope.row.status) }}</el-tag>
+                                            </template>
+                                        </el-table-column>
+                                        <el-table-column label="申请时间" width="160">
+                                            <template #default="scope">{{ formatDateTime(scope.row.created_at) }}</template>
+                                        </el-table-column>
+                                        <el-table-column label="操作" width="150">
+                                            <template #default="scope">
+                                                <template v-if="scope.row.status === 'pending'">
+                                                    <el-button link type="success" size="small" @click="reviewWithdraw(scope.row.id, 'approve')">通过</el-button>
+                                                    <el-button link type="danger" size="small" @click="reviewWithdraw(scope.row.id, 'reject')">拒绝</el-button>
+                                                </template>
+                                                <span v-else style="color: #999;">已处理</span>
+                                            </template>
+                                        </el-table-column>
+                                    </el-table>
+                                    <el-pagination v-model:current-page="withdrawPage" v-model:page-size="withdrawPageSize" :total="withdrawTotal"
+                                        layout="total, prev, pager, next" @current-change="loadWithdraws" style="margin-top: 16px; justify-content: center;">
+                                    </el-pagination>
+                                </div>
+                            </el-tab-pane>
+                        </el-tabs>
+                    </div>
+
                     <!-- 系统设置 -->
                     <div v-show="activeMenu === 'settings'">
                         <div class="page-header">
@@ -683,7 +1343,7 @@
                         <div class="content-card">
                             <el-descriptions title="系统信息" :column="2" border>
                                 <el-descriptions-item label="系统名称">科研检测服务平台</el-descriptions-item>
-                                <el-descriptions-item label="版本">v1.0.0</el-descriptions-item>
+                                <el-descriptions-item label="版本">v1.1.0</el-descriptions-item>
                                 <el-descriptions-item label="后端地址">{{ baseUrl }}</el-descriptions-item>
                                 <el-descriptions-item label="当前管理员">{{ userInfo.nickname }}</el-descriptions-item>
                             </el-descriptions>
@@ -705,18 +1365,15 @@
                     token: localStorage.getItem('admin_token') || '',
                     userInfo: JSON.parse(localStorage.getItem('admin_user') || '{}'),
                     loginType: 'admin',
-                    adminLoginForm: {
-                        username: '',
-                        password: ''
-                    },
-                    loginForm: {
-                        phone: '',
-                        sms_code: ''
-                    },
+                    adminLoginForm: { username: '', password: '' },
+                    loginForm: { phone: '', sms_code: '' },
                     countdown: 0,
                     loading: false,
-                    activeMenu: 'users', // 默认用户管理
+                    activeMenu: 'dashboard',
                     uploadedImages: [],
+                    // 仪表盘
+                    dashboardData: {},
+                    // 用户管理
                     users: [],
                     usersLoading: false,
                     userSearch: '',
@@ -736,19 +1393,7 @@
                     projectPageSize: 20,
                     projectTotal: 0,
                     projectDialogVisible: false,
-                    projectForm: {
-                        id: null,
-                        name: '',
-                        project_no: '',
-                        category_id: null,
-                        description: '',
-                        original_price: '',
-                        current_price: '',
-                        cover_image: '',
-                        is_hot: false,
-                        is_recommended: false,
-                        status: 'active'
-                    },
+                    projectForm: { id: null, name: '', project_no: '', category_id: null, description: '', original_price: '', current_price: '', cover_image: '', is_hot: false, is_recommended: false, status: 'active' },
                     categories: [],
                     // 订单管理
                     orders: [],
@@ -757,35 +1402,115 @@
                     orderStatusFilter: null,
                     orderPage: 1,
                     orderPageSize: 20,
-                    orderTotal: 0
+                    orderTotal: 0,
+                    // 分类管理
+                    categoryList: [],
+                    categoryLoading: false,
+                    categorySearch: '',
+                    categoryPage: 1,
+                    categoryPageSize: 20,
+                    categoryTotal: 0,
+                    categoryDialogVisible: false,
+                    categoryForm: { id: null, name: '', code: '', icon: '', description: '', sort_order: 0, is_hot: false },
+                    // 优惠券管理
+                    couponList: [],
+                    couponLoading: false,
+                    couponSearch: '',
+                    couponPage: 1,
+                    couponPageSize: 20,
+                    couponTotal: 0,
+                    couponDialogVisible: false,
+                    couponForm: { id: null, name: '', type: 'cash', description: '', cash_amount: 10, discount_rate: 0.9, full_amount: 100, reduction_amount: 10, min_order_amount: 0, total_quantity: 0, valid_days: 30 },
+                    // 充值管理
+                    rechargeList: [],
+                    rechargeLoading: false,
+                    rechargeSearch: '',
+                    rechargeStatusFilter: null,
+                    rechargePage: 1,
+                    rechargePageSize: 20,
+                    rechargeTotal: 0,
+                    // 积分商品管理
+                    pointsGoodsList: [],
+                    pointsGoodsLoading: false,
+                    pointsGoodsSearch: '',
+                    pointsGoodsCategoryFilter: null,
+                    pointsGoodsPage: 1,
+                    pointsGoodsPageSize: 20,
+                    pointsGoodsTotal: 0,
+                    pointsGoodsDialogVisible: false,
+                    pointsGoodsForm: { id: null, name: '', points: 100, category: '优惠券', image: '', description: '', stock: 0, sort_order: 0 },
+                    // 评价管理
+                    reviewList: [],
+                    reviewLoading: false,
+                    reviewStatusFilter: null,
+                    reviewPage: 1,
+                    reviewPageSize: 20,
+                    reviewTotal: 0,
+                    // 团体管理
+                    groupList: [],
+                    groupLoading: false,
+                    groupSearch: '',
+                    groupPage: 1,
+                    groupPageSize: 20,
+                    groupTotal: 0,
+                    // 邀请管理
+                    inviteTab: 'records',
+                    inviteList: [],
+                    inviteLoading: false,
+                    inviteSearch: '',
+                    invitePage: 1,
+                    invitePageSize: 20,
+                    inviteTotal: 0,
+                    withdrawList: [],
+                    withdrawLoading: false,
+                    withdrawStatusFilter: null,
+                    withdrawPage: 1,
+                    withdrawPageSize: 20,
+                    withdrawTotal: 0
                 }
             },
             computed: {
-                uploadUrl() {
-                    return `${this.baseUrl}/api/v1/upload/image`
+                uploadUrl() { return `${this.baseUrl}/api/v1/upload/image` },
+                uploadHeaders() { return { 'Authorization': `Bearer ${this.token}` } },
+                maxOrderCount() {
+                    const orders = this.dashboardData.trends?.orders || []
+                    return Math.max(...orders.map(o => o.count), 1)
                 },
-                uploadHeaders() {
-                    return {
-                        'Authorization': `Bearer ${this.token}`
-                    }
+                totalOrders() {
+                    return (this.dashboardData.order_status_distribution || []).reduce((sum, item) => sum + item.count, 0)
                 }
             },
             mounted() {
                 if (this.token) {
-                    this.loadUsers()
-                    this.loadCategories()
+                    this.loadDashboard()
+                    this.loadCategoriesForSelect()
                 }
             },
             methods: {
                 handleMenuSelect(index) {
                     this.activeMenu = index
-                    if (index === 'users' && this.users.length === 0) {
-                        this.loadUsers()
-                    } else if (index === 'projects') {
-                        this.loadProjects()
-                    } else if (index === 'orders') {
-                        this.loadOrders()
-                    }
+                    if (index === 'dashboard') this.loadDashboard()
+                    else if (index === 'users' && this.users.length === 0) this.loadUsers()
+                    else if (index === 'projects') this.loadProjects()
+                    else if (index === 'orders') this.loadOrders()
+                    else if (index === 'categories') this.loadCategories()
+                    else if (index === 'coupons') this.loadCoupons()
+                    else if (index === 'recharges') this.loadRecharges()
+                    else if (index === 'points') this.loadPointsGoods()
+                    else if (index === 'reviews') this.loadReviews()
+                    else if (index === 'groups') this.loadGroups()
+                    else if (index === 'invites') { this.loadInvites(); this.loadWithdraws() }
+                },
+                // 仪表盘
+                async loadDashboard() {
+                    try {
+                        const res = await axios.get(`${this.baseUrl}/api/v1/admin/dashboard/stats`, { headers: this.uploadHeaders })
+                        this.dashboardData = res.data.data || {}
+                    } catch (error) { console.error('加载统计数据失败', error) }
+                },
+                getOrderStatusColor(status) {
+                    const colors = { unpaid: '#E6A23C', paid: '#409EFF', confirmed: '#67C23A', testing: '#909399', completed: '#67C23A', cancelled: '#F56C6C' }
+                    return colors[status] || '#909399'
                 },
                 copyImageUrl(url) {
                     if (navigator.clipboard) {
@@ -1030,15 +1755,282 @@
                         minute: '2-digit'
                     })
                 },
-                // 项目管理方法
-                async loadCategories() {
+                // 分类管理方法（下拉选择用）
+                async loadCategoriesForSelect() {
                     try {
                         const res = await axios.get(`${this.baseUrl}/api/v1/projects/categories`)
                         this.categories = res.data.data || []
-                    } catch (error) {
-                        console.error('加载分类失败', error)
+                    } catch (error) { console.error('加载分类失败', error) }
+                },
+                // 分类管理方法（后台管理用）
+                async loadCategories() {
+                    this.categoryLoading = true
+                    try {
+                        const res = await axios.get(`${this.baseUrl}/api/v1/admin/categories`, {
+                            headers: this.uploadHeaders,
+                            params: { page: this.categoryPage, page_size: this.categoryPageSize, search: this.categorySearch || undefined }
+                        })
+                        this.categoryList = res.data.data.items || []
+                        this.categoryTotal = res.data.data.total || 0
+                    } catch (error) { ElMessage.error('加载分类失败') }
+                    finally { this.categoryLoading = false }
+                },
+                showCategoryDialog(category = null) {
+                    if (category) this.categoryForm = { ...category }
+                    else this.categoryForm = { id: null, name: '', code: '', icon: '', description: '', sort_order: 0, is_hot: false }
+                    this.categoryDialogVisible = true
+                },
+                async saveCategory() {
+                    if (!this.categoryForm.name) { ElMessage.error('请填写分类名称'); return }
+                    this.loading = true
+                    try {
+                        if (this.categoryForm.id) {
+                            await axios.put(`${this.baseUrl}/api/v1/admin/categories/${this.categoryForm.id}`, this.categoryForm, { headers: this.uploadHeaders })
+                            ElMessage.success('更新成功')
+                        } else {
+                            await axios.post(`${this.baseUrl}/api/v1/admin/categories`, this.categoryForm, { headers: this.uploadHeaders })
+                            ElMessage.success('创建成功')
+                        }
+                        this.categoryDialogVisible = false
+                        this.loadCategories()
+                        this.loadCategoriesForSelect()
+                    } catch (error) { ElMessage.error(error.response?.data?.detail || '保存失败') }
+                    finally { this.loading = false }
+                },
+                async deleteCategory(id) {
+                    try {
+                        await ElMessageBox.confirm('确定要删除该分类吗？', '提示', { type: 'warning' })
+                        await axios.delete(`${this.baseUrl}/api/v1/admin/categories/${id}`, { headers: this.uploadHeaders })
+                        ElMessage.success('删除成功')
+                        this.loadCategories()
+                        this.loadCategoriesForSelect()
+                    } catch (error) { if (error !== 'cancel') ElMessage.error(error.response?.data?.detail || '删除失败') }
+                },
+                // 优惠券管理方法
+                async loadCoupons() {
+                    this.couponLoading = true
+                    try {
+                        const res = await axios.get(`${this.baseUrl}/api/v1/admin/coupons`, {
+                            headers: this.uploadHeaders,
+                            params: { page: this.couponPage, page_size: this.couponPageSize, search: this.couponSearch || undefined }
+                        })
+                        this.couponList = res.data.data.items || []
+                        this.couponTotal = res.data.data.total || 0
+                    } catch (error) { ElMessage.error('加载优惠券失败') }
+                    finally { this.couponLoading = false }
+                },
+                showCouponDialog(coupon = null) {
+                    if (coupon) this.couponForm = { ...coupon }
+                    else this.couponForm = { id: null, name: '', type: 'cash', description: '', cash_amount: 10, discount_rate: 0.9, full_amount: 100, reduction_amount: 10, min_order_amount: 0, total_quantity: 0, valid_days: 30 }
+                    this.couponDialogVisible = true
+                },
+                async saveCoupon() {
+                    if (!this.couponForm.name) { ElMessage.error('请填写优惠券名称'); return }
+                    this.loading = true
+                    try {
+                        if (this.couponForm.id) {
+                            await axios.put(`${this.baseUrl}/api/v1/admin/coupons/${this.couponForm.id}`, this.couponForm, { headers: this.uploadHeaders })
+                            ElMessage.success('更新成功')
+                        } else {
+                            await axios.post(`${this.baseUrl}/api/v1/admin/coupons`, this.couponForm, { headers: this.uploadHeaders })
+                            ElMessage.success('创建成功')
+                        }
+                        this.couponDialogVisible = false
+                        this.loadCoupons()
+                    } catch (error) { ElMessage.error(error.response?.data?.detail || '保存失败') }
+                    finally { this.loading = false }
+                },
+                async deleteCoupon(id) {
+                    try {
+                        await ElMessageBox.confirm('确定要下架该优惠券吗？', '提示', { type: 'warning' })
+                        await axios.delete(`${this.baseUrl}/api/v1/admin/coupons/${id}`, { headers: this.uploadHeaders })
+                        ElMessage.success('已下架')
+                        this.loadCoupons()
+                    } catch (error) { if (error !== 'cancel') ElMessage.error(error.response?.data?.detail || '操作失败') }
+                },
+                getCouponTypeText(type) {
+                    return { cash: '代金券', discount: '折扣券', full_reduction: '满减券' }[type] || type
+                },
+                // 充值管理方法
+                async loadRecharges() {
+                    this.rechargeLoading = true
+                    try {
+                        const res = await axios.get(`${this.baseUrl}/api/v1/admin/recharges`, {
+                            headers: this.uploadHeaders,
+                            params: { page: this.rechargePage, page_size: this.rechargePageSize, search: this.rechargeSearch || undefined, status: this.rechargeStatusFilter || undefined }
+                        })
+                        this.rechargeList = res.data.data.items || []
+                        this.rechargeTotal = res.data.data.total || 0
+                    } catch (error) { ElMessage.error('加载充值记录失败') }
+                    finally { this.rechargeLoading = false }
+                },
+                async updateRechargeStatus(id, status) {
+                    try {
+                        await ElMessageBox.confirm(`确定要将充值状态改为${status === 'success' ? '成功' : '失败'}吗？`, '提示', { type: 'warning' })
+                        await axios.put(`${this.baseUrl}/api/v1/admin/recharges/${id}/status`, null, { headers: this.uploadHeaders, params: { new_status: status } })
+                        ElMessage.success('状态已更新')
+                        this.loadRecharges()
+                    } catch (error) { if (error !== 'cancel') ElMessage.error(error.response?.data?.detail || '操作失败') }
+                },
+                getRechargeStatusText(status) {
+                    return { pending: '待支付', success: '成功', failed: '失败', refunded: '已退款' }[status] || status
+                },
+                getRechargeStatusType(status) {
+                    return { pending: 'warning', success: 'success', failed: 'danger', refunded: 'info' }[status] || 'info'
+                },
+                // 积分商品管理方法
+                async loadPointsGoods() {
+                    this.pointsGoodsLoading = true
+                    try {
+                        const res = await axios.get(`${this.baseUrl}/api/v1/admin/points-goods`, {
+                            headers: this.uploadHeaders,
+                            params: { page: this.pointsGoodsPage, page_size: this.pointsGoodsPageSize, search: this.pointsGoodsSearch || undefined, category: this.pointsGoodsCategoryFilter || undefined }
+                        })
+                        this.pointsGoodsList = res.data.data.items || []
+                        this.pointsGoodsTotal = res.data.data.total || 0
+                    } catch (error) { ElMessage.error('加载积分商品失败') }
+                    finally { this.pointsGoodsLoading = false }
+                },
+                showPointsGoodsDialog(goods = null) {
+                    if (goods) this.pointsGoodsForm = { ...goods }
+                    else this.pointsGoodsForm = { id: null, name: '', points: 100, category: '优惠券', image: '', description: '', stock: 0, sort_order: 0 }
+                    this.pointsGoodsDialogVisible = true
+                },
+                async savePointsGoods() {
+                    if (!this.pointsGoodsForm.name) { ElMessage.error('请填写商品名称'); return }
+                    this.loading = true
+                    try {
+                        if (this.pointsGoodsForm.id) {
+                            await axios.put(`${this.baseUrl}/api/v1/admin/points-goods/${this.pointsGoodsForm.id}`, this.pointsGoodsForm, { headers: this.uploadHeaders })
+                            ElMessage.success('更新成功')
+                        } else {
+                            await axios.post(`${this.baseUrl}/api/v1/admin/points-goods`, this.pointsGoodsForm, { headers: this.uploadHeaders })
+                            ElMessage.success('创建成功')
+                        }
+                        this.pointsGoodsDialogVisible = false
+                        this.loadPointsGoods()
+                    } catch (error) { ElMessage.error(error.response?.data?.detail || '保存失败') }
+                    finally { this.loading = false }
+                },
+                async togglePointsGoodsStatus(goods) {
+                    try {
+                        await axios.put(`${this.baseUrl}/api/v1/admin/points-goods/${goods.id}`, { is_active: !goods.is_active }, { headers: this.uploadHeaders })
+                        ElMessage.success(goods.is_active ? '已下架' : '已上架')
+                        this.loadPointsGoods()
+                    } catch (error) { ElMessage.error('操作失败') }
+                },
+                // 评价管理方法
+                async loadReviews() {
+                    this.reviewLoading = true
+                    try {
+                        const res = await axios.get(`${this.baseUrl}/api/v1/admin/reviews`, {
+                            headers: this.uploadHeaders,
+                            params: { page: this.reviewPage, page_size: this.reviewPageSize, status: this.reviewStatusFilter || undefined }
+                        })
+                        this.reviewList = res.data.data.items || []
+                        this.reviewTotal = res.data.data.total || 0
+                    } catch (error) { ElMessage.error('加载评价失败') }
+                    finally { this.reviewLoading = false }
+                },
+                async replyReview(review) {
+                    const { value } = await ElMessageBox.prompt('请输入回复内容', '回复评价', { inputValue: review.reply_content || '' })
+                    if (value) {
+                        try {
+                            await axios.put(`${this.baseUrl}/api/v1/admin/reviews/${review.id}/reply`, null, { headers: this.uploadHeaders, params: { content: value } })
+                            ElMessage.success('回复成功')
+                            this.loadReviews()
+                        } catch (error) { ElMessage.error('回复失败') }
                     }
                 },
+                async toggleReviewStatus(review) {
+                    const newStatus = review.status === 'published' ? 'hidden' : 'published'
+                    try {
+                        await axios.put(`${this.baseUrl}/api/v1/admin/reviews/${review.id}/status`, null, { headers: this.uploadHeaders, params: { status: newStatus } })
+                        ElMessage.success('状态已更新')
+                        this.loadReviews()
+                    } catch (error) { ElMessage.error('操作失败') }
+                },
+                // 团体管理方法
+                async loadGroups() {
+                    this.groupLoading = true
+                    try {
+                        const res = await axios.get(`${this.baseUrl}/api/v1/admin/groups`, {
+                            headers: this.uploadHeaders,
+                            params: { page: this.groupPage, page_size: this.groupPageSize, search: this.groupSearch || undefined }
+                        })
+                        this.groupList = res.data.data.items || []
+                        this.groupTotal = res.data.data.total || 0
+                    } catch (error) { ElMessage.error('加载团体失败') }
+                    finally { this.groupLoading = false }
+                },
+                async toggleGroupCertify(group) {
+                    try {
+                        await axios.put(`${this.baseUrl}/api/v1/admin/groups/${group.id}/certify`, null, { headers: this.uploadHeaders, params: { is_certified: !group.is_certified } })
+                        ElMessage.success(group.is_certified ? '已取消认证' : '已认证')
+                        this.loadGroups()
+                    } catch (error) { ElMessage.error('操作失败') }
+                },
+                async toggleGroupStatus(group) {
+                    const newStatus = group.status === 'active' ? 'inactive' : 'active'
+                    try {
+                        await axios.put(`${this.baseUrl}/api/v1/admin/groups/${group.id}/status`, null, { headers: this.uploadHeaders, params: { status: newStatus } })
+                        ElMessage.success('状态已更新')
+                        this.loadGroups()
+                    } catch (error) { ElMessage.error('操作失败') }
+                },
+                // 邀请管理方法
+                async loadInvites() {
+                    this.inviteLoading = true
+                    try {
+                        const res = await axios.get(`${this.baseUrl}/api/v1/admin/invites`, {
+                            headers: this.uploadHeaders,
+                            params: { page: this.invitePage, page_size: this.invitePageSize, search: this.inviteSearch || undefined }
+                        })
+                        this.inviteList = res.data.data.items || []
+                        this.inviteTotal = res.data.data.total || 0
+                    } catch (error) { ElMessage.error('加载邀请记录失败') }
+                    finally { this.inviteLoading = false }
+                },
+                async loadWithdraws() {
+                    this.withdrawLoading = true
+                    try {
+                        const res = await axios.get(`${this.baseUrl}/api/v1/admin/withdraws`, {
+                            headers: this.uploadHeaders,
+                            params: { page: this.withdrawPage, page_size: this.withdrawPageSize, status: this.withdrawStatusFilter || undefined }
+                        })
+                        this.withdrawList = res.data.data.items || []
+                        this.withdrawTotal = res.data.data.total || 0
+                    } catch (error) { ElMessage.error('加载提现记录失败') }
+                    finally { this.withdrawLoading = false }
+                },
+                async reviewWithdraw(id, action) {
+                    let rejectReason = null
+                    if (action === 'reject') {
+                        const { value } = await ElMessageBox.prompt('请输入拒绝原因', '拒绝提现')
+                        rejectReason = value
+                    }
+                    try {
+                        await axios.put(`${this.baseUrl}/api/v1/admin/withdraws/${id}/review`, null, { 
+                            headers: this.uploadHeaders, 
+                            params: { action, reject_reason: rejectReason } 
+                        })
+                        ElMessage.success(action === 'approve' ? '已通过' : '已拒绝')
+                        this.loadWithdraws()
+                    } catch (error) { ElMessage.error('操作失败') }
+                },
+                getInviteStatusText(status) {
+                    return { pending: '待完成', completed: '已完成', withdrawn: '已提现' }[status] || status
+                },
+                getInviteStatusType(status) {
+                    return { pending: 'warning', completed: 'success', withdrawn: 'info' }[status] || 'info'
+                },
+                getWithdrawStatusText(status) {
+                    return { pending: '待审核', approved: '已通过', rejected: '已拒绝', completed: '已完成' }[status] || status
+                },
+                getWithdrawStatusType(status) {
+                    return { pending: 'warning', approved: 'success', rejected: 'danger', completed: 'info' }[status] || 'info'
+                },
+                // 项目管理方法
                 async loadProjects() {
                     this.projectsLoading = true
                     try {

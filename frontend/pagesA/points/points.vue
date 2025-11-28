@@ -66,6 +66,8 @@
 </template>
 
 <script>
+import api from '@/utils/api.js'
+
 export default {
 	data() {
 		return {
@@ -192,10 +194,43 @@ export default {
 		
 		// 积分明细
 		goPointsDetail() {
-			uni.showToast({
-				title: '积分明细功能开发中',
-				icon: 'none'
+			uni.showModal({
+				title: '积分明细',
+				content: '查看积分获取和使用记录',
+				confirmText: '查看',
+				success: async (res) => {
+					if (res.confirm) {
+						this.showPointsRecords()
+					}
+				}
 			})
+		},
+		
+		// 显示积分记录
+		async showPointsRecords() {
+			try {
+				const res = await api.getPointsRecords({ page: 1, page_size: 20 })
+				const records = res.data.items || []
+				
+				if (records.length === 0) {
+					uni.showToast({ title: '暂无积分记录', icon: 'none' })
+					return
+				}
+				
+				// 简单展示前几条记录
+				let content = records.slice(0, 5).map(r => {
+					const sign = r.points > 0 ? '+' : ''
+					return `${r.description}: ${sign}${r.points}积分`
+				}).join('\n')
+				
+				uni.showModal({
+					title: '最近积分记录',
+					content: content,
+					showCancel: false
+				})
+			} catch (error) {
+				uni.showToast({ title: '加载失败', icon: 'none' })
+			}
 		},
 		
 		// 积分规则
@@ -251,10 +286,8 @@ export default {
 			try {
 				uni.showLoading({ title: '兑换中...' })
 				
-				// TODO: 调用API兑换商品
-				// const res = await api.exchangeGoods(item.id)
-				
-				await new Promise(resolve => setTimeout(resolve, 1000))
+				// 调用API兑换商品
+				await api.exchangePoints(item.id)
 				
 				uni.hideLoading()
 				
@@ -266,6 +299,7 @@ export default {
 				// 刷新积分
 				this.currentPoints -= item.points
 				this.loadPoints()
+				this.loadGoods()
 			} catch (error) {
 				uni.hideLoading()
 				console.error('兑换失败', error)

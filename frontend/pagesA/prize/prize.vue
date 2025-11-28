@@ -13,14 +13,15 @@
 			
 			<view v-if="prizes.length > 0" class="prizes-list">
 				<view v-for="(item, index) in prizes" :key="index" class="prize-item">
-					<view class="prize-icon">{{ item.icon }}</view>
+					<view class="prize-icon">{{ item.prize_icon || '🎁' }}</view>
 					<view class="prize-info">
-						<text class="prize-name">{{ item.name }}</text>
-						<text class="prize-time">{{ item.time }}</text>
+						<text class="prize-name">{{ item.prize_name }}</text>
+						<text class="prize-time">{{ formatTime(item.created_at) }}</text>
 					</view>
 					<view class="prize-action">
 						<text v-if="item.status === 'unclaimed'" class="claim-btn" @click="claimPrize(item)">立即领取</text>
-						<text v-else class="claimed-text">已领取</text>
+						<text v-else-if="item.status === 'claimed'" class="claimed-text">已领取</text>
+						<text v-else class="expired-text">已过期</text>
 					</view>
 				</view>
 			</view>
@@ -32,16 +33,27 @@
 				<button class="lottery-btn" @click="goLottery">去抽奖</button>
 			</view>
 		</view>
+		
+		<!-- 加载更多 -->
+		<view v-if="prizes.length > 0 && hasMore" class="load-more" @click="loadMore">
+			<text>{{ loading ? '加载中...' : '加载更多' }}</text>
+		</view>
 	</view>
 </template>
 
 <script>
+import api from '@/utils/api.js'
+
 export default {
 	data() {
 		return {
 			totalPrizes: 0,
 			totalAmount: 0,
-			prizes: []
+			prizes: [],
+			page: 1,
+			pageSize: 20,
+			hasMore: true,
+			loading: false
 		}
 	},
 	
@@ -49,30 +61,81 @@ export default {
 		this.loadPrizes()
 	},
 	
+	onPullDownRefresh() {
+		this.page = 1
+		this.prizes = []
+		this.hasMore = true
+		this.loadPrizes().finally(() => {
+			uni.stopPullDownRefresh()
+		})
+	},
+	
+	onReachBottom() {
+		if (this.hasMore && !this.loading) {
+			this.loadMore()
+		}
+	},
+	
 	methods: {
 		// 加载中奖记录
 		async loadPrizes() {
+			this.loading = true
 			try {
-				// TODO: 调用API获取中奖记录
-				this.totalPrizes = 0
-				this.totalAmount = 0
-				this.prizes = []
+				const res = await api.getLotteryRecords({
+					page: this.page,
+					page_size: this.pageSize
+				})
+				
+				const items = res.data.items || []
+				
+				if (this.page === 1) {
+					this.prizes = items
+				} else {
+					this.prizes = [...this.prizes, ...items]
+				}
+				
+				// 计算统计
+				this.totalPrizes = res.data.total || this.prizes.length
+				this.totalAmount = this.prizes
+					.filter(p => p.prize_type !== 'empty')
+					.reduce((sum, p) => sum + (p.prize_value || 0), 0)
+				
+				this.hasMore = items.length >= this.pageSize
+				
 			} catch (error) {
 				console.error('加载中奖记录失败', error)
+			} finally {
+				this.loading = false
 			}
 		},
 		
+		// 加载更多
+		loadMore() {
+			this.page++
+			this.loadPrizes()
+		},
+		
+		// 格式化时间
+		formatTime(timeStr) {
+			if (!timeStr) return ''
+			return timeStr.replace('T', ' ').substring(0, 16)
+		},
+		
 		// 领取奖品
-		claimPrize(item) {
+		async claimPrize(item) {
 			uni.showModal({
 				title: '领取奖品',
-				content: '确认领取该奖品吗？',
-				success: (res) => {
+				content: `确认领取【${item.prize_name}】吗？`,
+				success: async (res) => {
 					if (res.confirm) {
-						uni.showToast({
-							title: '领取功能开发中',
-							icon: 'none'
-						})
+						try {
+							await api.claimPrize(item.id)
+							uni.showToast({ title: '领取成功', icon: 'success' })
+							item.status = 'claimed'
+							this.$forceUpdate()
+						} catch (error) {
+							uni.showToast({ title: error.message || '领取失败', icon: 'none' })
+						}
 					}
 				}
 			})
@@ -168,7 +231,7 @@ export default {
 			
 			.prize-action {
 				.claim-btn {
-					padding: 10rpx 30rpx;
+					padding: 15rpx 30rpx;
 					background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
 					color: white;
 					border-radius: 50rpx;
@@ -176,6 +239,11 @@ export default {
 				}
 				
 				.claimed-text {
+					font-size: 24rpx;
+					color: #52c41a;
+				}
+				
+				.expired-text {
 					font-size: 24rpx;
 					color: #999;
 				}
@@ -211,5 +279,11 @@ export default {
 		font-size: 28rpx;
 	}
 }
-</style>
 
+.load-more {
+	text-align: center;
+	padding: 30rpx;
+	font-size: 26rpx;
+	color: #999;
+}
+</style>
