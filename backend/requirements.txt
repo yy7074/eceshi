@@ -28,7 +28,7 @@ alibabacloud_tea_openapi==0.3.9
 alibabacloud_tea_util==0.3.13
 
 # 支付
-alipay-sdk-python==3.7.3
+alipay-sdk-python>=3.7.0
 
 # 其他
 pillow==10.1.0
