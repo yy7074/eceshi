@@ -179,6 +179,10 @@
 					</view>
 					<text class="service-text">报告下载</text>
 				</view>
+				<view class="service-item" @click="goPage('/pagesA/contract/contract')">
+					<text class="service-icon">📋</text>
+					<text class="service-text">合同管理</text>
+				</view>
 				<view class="service-item" @click="goPage('/pagesA/help/help')">
 					<text class="service-icon">❓</text>
 					<text class="service-text">帮助中心</text>
@@ -187,9 +191,23 @@
 					<text class="service-icon">👩‍💼</text>
 					<text class="service-text">在线客服</text>
 				</view>
+				
+				<!-- 第五行 -->
 				<view class="service-item" @click="goPage('/pagesA/notice/notice')">
 					<text class="service-icon">🔔</text>
 					<text class="service-text">消息通知</text>
+				</view>
+				<view class="service-item" @click="goPage('/pagesA/favorite/favorite')">
+					<text class="service-icon">⭐</text>
+					<text class="service-text">我的收藏</text>
+				</view>
+				<view class="service-item" @click="goPage('/pagesA/address/address')">
+					<text class="service-icon">📍</text>
+					<text class="service-text">地址管理</text>
+				</view>
+				<view class="service-item" @click="callService">
+					<text class="service-icon">📞</text>
+					<text class="service-text">电话咨询</text>
 				</view>
 			</view>
 		</view>
@@ -361,6 +379,20 @@ export default {
 		goLogin() {
 			uni.navigateTo({
 				url: '/pages/login/login'
+			})
+		},
+		
+		// 电话咨询
+		callService() {
+			uni.showModal({
+				title: '电话咨询',
+				content: '客服电话：400-123-4567\n工作时间：9:00-18:00',
+				confirmText: '拨打',
+				success: (res) => {
+					if (res.confirm) {
+						uni.makePhoneCall({ phoneNumber: '400-123-4567' })
+					}
+				}
 			})
 		}
 	}

@@ -27,18 +27,33 @@
 			</view>
 		</view>
 		
-		<!-- 活动banner -->
-		<view class="promo-banner">
-			<view class="banner-content">
-				<view class="banner-left">
-					<text class="banner-title">金秋检测季 测试34元</text>
-					<text class="banner-subtitle">XPS 6折 SEM/FT-IR 6折</text>
-					<view class="banner-btn">立即参与</view>
+		<!-- 轮播图Banner -->
+		<swiper class="banner-swiper" :autoplay="true" :interval="4000" :circular="true" indicator-dots indicator-color="rgba(255,255,255,0.5)" indicator-active-color="#fff">
+			<swiper-item v-for="banner in banners" :key="banner.id" @click="handleBannerClick(banner)">
+				<view class="banner-slide" :style="{ background: banner.bgColor }">
+					<view class="banner-content">
+						<view class="banner-left">
+							<text class="banner-title">{{ banner.title }}</text>
+							<text class="banner-subtitle">{{ banner.subtitle }}</text>
+							<view class="banner-btn" v-if="banner.btnText">{{ banner.btnText }}</view>
+						</view>
+						<view class="banner-right">
+							<text class="banner-emoji">{{ banner.emoji }}</text>
+						</view>
+					</view>
 				</view>
-				<view class="banner-right">
-					<text class="banner-emoji">🎉</text>
-				</view>
-			</view>
+			</swiper-item>
+		</swiper>
+		
+		<!-- 公告栏 -->
+		<view class="notice-bar" v-if="announcements.length > 0">
+			<text class="notice-icon">📢</text>
+			<swiper class="notice-swiper" :autoplay="true" :interval="3000" :circular="true" vertical>
+				<swiper-item v-for="ann in announcements" :key="ann.id">
+					<text class="notice-text" @click="showAnnouncement(ann)">{{ ann.title }}</text>
+				</swiper-item>
+			</swiper>
+			<text class="notice-more" @click="goNoticeList">更多</text>
 		</view>
 		
 		<!-- 分类导航 -->
@@ -90,6 +105,15 @@
 		data() {
 			return {
 				unreadCount: 2, // 未读消息数
+				banners: [
+					{ id: 1, title: '金秋检测季', subtitle: 'XPS 6折 SEM/FT-IR 6折', btnText: '立即参与', emoji: '🎉', bgColor: 'linear-gradient(135deg, #faad14 0%, #fa8c16 100%)' },
+					{ id: 2, title: '新用户专享', subtitle: '首单立减50元 注册送100积分', btnText: '领取优惠', emoji: '🎁', bgColor: 'linear-gradient(135deg, #1890ff 0%, #096dd9 100%)' },
+					{ id: 3, title: '充值有礼', subtitle: '充1000送100 充5000送800', btnText: '去充值', emoji: '💰', bgColor: 'linear-gradient(135deg, #52c41a 0%, #389e0d 100%)' }
+				],
+				announcements: [
+					{ id: 1, title: '12月优惠活动火热进行中', content: '金秋检测季活动详情...' },
+					{ id: 2, title: '新增检测项目上线通知', content: '新增材料表征、生物科学等检测类目...' }
+				],
 				quickNavs: [
 					{ icon: '🤝', name: '邀请好友', bg: '#e6fcf5', color: '#12b886' },
 					{ icon: '🎯', name: '优惠券', bg: '#fff4e6', color: '#ff922b' },
@@ -294,6 +318,40 @@
 		},
 		goChat() {
 			uni.navigateTo({ url: '/pagesA/chat/chat' })
+		},
+		handleBannerClick(banner) {
+			// 根据banner类型跳转
+			if (banner.title.includes('充值')) {
+				const token = uni.getStorageSync('token')
+				if (!token) {
+					uni.showModal({
+						title: '提示',
+						content: '请先登录',
+						success: (res) => {
+							if (res.confirm) {
+								uni.navigateTo({ url: '/pages/login/login' })
+							}
+						}
+					})
+					return
+				}
+				uni.navigateTo({ url: '/pagesA/recharge/recharge' })
+			} else if (banner.title.includes('新用户')) {
+				uni.navigateTo({ url: '/pagesA/coupon/coupon' })
+			} else {
+				uni.showToast({ title: '活动详情加载中', icon: 'none' })
+			}
+		},
+		showAnnouncement(ann) {
+			uni.showModal({
+				title: ann.title,
+				content: ann.content,
+				showCancel: false,
+				confirmText: '我知道了'
+			})
+		},
+		goNoticeList() {
+			uni.navigateTo({ url: '/pagesA/notice/notice' })
 		}
 		}
 	}
@@ -369,6 +427,95 @@
 					justify-content: center;
 				}
 			}
+		}
+	}
+	
+	/* 轮播图Banner */
+	.banner-swiper {
+		height: 280rpx;
+		margin: 16rpx 24rpx;
+		border-radius: 16rpx;
+		overflow: hidden;
+		
+		.banner-slide {
+			height: 100%;
+			border-radius: 16rpx;
+		}
+		
+		.banner-content {
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+			height: 100%;
+			padding: 32rpx;
+			
+			.banner-left {
+				flex: 1;
+				
+				.banner-title {
+					display: block;
+					font-size: 36rpx;
+					font-weight: 700;
+					color: #fff;
+					margin-bottom: 12rpx;
+				}
+				
+				.banner-subtitle {
+					display: block;
+					font-size: 26rpx;
+					color: rgba(255,255,255,0.9);
+					margin-bottom: 20rpx;
+				}
+				
+				.banner-btn {
+					display: inline-block;
+					background: rgba(255,255,255,0.95);
+					color: #333;
+					padding: 12rpx 28rpx;
+					border-radius: 8rpx;
+					font-size: 26rpx;
+					font-weight: 500;
+				}
+			}
+			
+			.banner-right {
+				.banner-emoji {
+					font-size: 100rpx;
+				}
+			}
+		}
+	}
+	
+	/* 公告栏 */
+	.notice-bar {
+		display: flex;
+		align-items: center;
+		background: #fffbe6;
+		margin: 0 24rpx 16rpx;
+		padding: 16rpx 20rpx;
+		border-radius: 8rpx;
+		border: 1rpx solid #ffe58f;
+		
+		.notice-icon {
+			font-size: 28rpx;
+			margin-right: 12rpx;
+		}
+		
+		.notice-swiper {
+			flex: 1;
+			height: 40rpx;
+		}
+		
+		.notice-text {
+			font-size: 26rpx;
+			color: #8c6d1f;
+			line-height: 40rpx;
+		}
+		
+		.notice-more {
+			font-size: 24rpx;
+			color: #1890ff;
+			margin-left: 12rpx;
 		}
 	}
 	

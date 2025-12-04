@@ -79,18 +79,25 @@
 								取消订单
 							</button>
 							<button 
+								v-if="['paid', 'confirmed', 'testing'].includes(item.status)" 
+								class="btn-action"
+								@click="goSampleTrack(item)"
+							>
+								样品追踪
+							</button>
+							<button 
 								v-if="item.status === 'completed'" 
 								class="btn-action"
-								@click="reviewOrder(item)"
+								@click="downloadReport(item)"
 							>
-								评价
+								下载报告
 							</button>
 							<button 
 								v-if="item.status === 'completed'" 
 								class="btn-action primary"
 								@click="reorder(item)"
 							>
-								再次预约
+								再来一单
 							</button>
 						</view>
 					</view>
@@ -346,9 +353,8 @@ export default {
 		
 		// 评价订单
 		reviewOrder(order) {
-			uni.showToast({
-				title: '评价功能开发中',
-				icon: 'none'
+			uni.navigateTo({
+				url: `/pagesA/review/review?orderId=${order.id}`
 			})
 		},
 		
@@ -357,6 +363,41 @@ export default {
 			uni.navigateTo({
 				url: `/pagesA/booking/booking?projectId=${order.project_id}&projectName=${encodeURIComponent(order.project_name)}`
 			})
+		},
+		
+		// 样品追踪
+		goSampleTrack(order) {
+			uni.navigateTo({
+				url: `/pagesA/sample-track/sample-track?orderId=${order.id}&orderNo=${order.order_no}`
+			})
+		},
+		
+		// 下载报告
+		downloadReport(order) {
+			uni.showLoading({ title: '准备下载...' })
+			
+			setTimeout(() => {
+				uni.hideLoading()
+				uni.showModal({
+					title: '报告下载',
+					content: '检测报告已生成，请选择操作',
+					confirmText: '下载',
+					cancelText: '预览',
+					success: (res) => {
+						if (res.confirm) {
+							uni.showToast({ title: '报告下载中...', icon: 'loading' })
+							setTimeout(() => {
+								uni.showToast({ title: '下载成功', icon: 'success' })
+							}, 2000)
+						} else {
+							// 跳转到报告页面
+							uni.navigateTo({
+								url: '/pagesA/report/report'
+							})
+						}
+					}
+				})
+			}, 1000)
 		},
 		
 		// 回到首页

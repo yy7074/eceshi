@@ -230,6 +230,12 @@
 			"style": {
 				"navigationBarTitleText": "样品追踪"
 			}
+		},
+		{
+			"path": "contract/contract",
+			"style": {
+				"navigationBarTitleText": "合同管理"
+			}
 		}
 	]
 }
