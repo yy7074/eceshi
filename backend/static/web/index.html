@@ -75,7 +75,7 @@
             <el-main class="app-main">
                 <div class="main-content">
                     <!-- 首页 -->
-                    <home-view v-if="currentView === 'home'" @go-projects="currentView = 'projects'" @go-detail="goToDetail"></home-view>
+                    <home-view v-if="currentView === 'home'" @go-projects="currentView = 'projects'" @go-detail="goToDetail" @go-help="currentView = 'help'" @go-chat="currentView = 'chat'" @go-lottery="currentView = 'lottery'" @go-reports="currentView = 'reports'" @go-announcements="currentView = 'announcements'"></home-view>
                     
                     <!-- 项目列表 -->
                     <projects-view v-else-if="currentView === 'projects'" @go-detail="goToDetail"></projects-view>
@@ -84,10 +84,10 @@
                     <project-detail v-else-if="currentView === 'detail'" :project-id="currentProjectId" @go-back="currentView = 'projects'" @show-booking="openBooking" @require-login="requireLogin"></project-detail>
                     
                     <!-- 订单列表 -->
-                    <orders-view v-else-if="currentView === 'orders'" @show-payment="openPayment" @show-review="openReview" @show-invoice="openInvoice"></orders-view>
+                    <orders-view v-else-if="currentView === 'orders'" @show-payment="openPayment" @show-review="openReview" @show-invoice="openInvoice" @go-sample-track="goToSampleTrack"></orders-view>
                     
                     <!-- 个人中心 -->
-                    <profile-view v-else-if="currentView === 'profile'" @go-orders="currentView = 'orders'" @go-favorites="currentView = 'favorites'" @go-coupons="currentView = 'coupons'" @go-address="currentView = 'address'" @go-wallet="currentView = 'wallet'" @go-points="currentView = 'points'" @go-invoice="currentView = 'invoices'" @go-team="currentView = 'team'" @edit-profile="openEditProfile"></profile-view>
+                    <profile-view v-else-if="currentView === 'profile'" @go-orders="currentView = 'orders'" @go-favorites="currentView = 'favorites'" @go-coupons="currentView = 'coupons'" @go-address="currentView = 'address'" @go-wallet="currentView = 'wallet'" @go-points="currentView = 'points'" @go-invoice="currentView = 'invoices'" @go-team="currentView = 'team'" @go-reports="currentView = 'reports'" @go-help="currentView = 'help'" @go-chat="currentView = 'chat'" @go-announcements="currentView = 'announcements'" @go-contracts="currentView = 'contracts'" @go-lottery="currentView = 'lottery'" @edit-profile="openEditProfile"></profile-view>
                     
                     <!-- 关于我们 -->
                     <about-view v-else-if="currentView === 'about'"></about-view>
@@ -112,6 +112,27 @@
                     
                     <!-- 团队邀请 -->
                     <team-view v-else-if="currentView === 'team'" @go-back="currentView = 'profile'"></team-view>
+                    
+                    <!-- 帮助中心 -->
+                    <help-view v-else-if="currentView === 'help'" @go-back="currentView = 'home'"></help-view>
+                    
+                    <!-- 在线客服 -->
+                    <chat-view v-else-if="currentView === 'chat'" @go-back="currentView = 'home'"></chat-view>
+                    
+                    <!-- 抽奖活动 -->
+                    <lottery-view v-else-if="currentView === 'lottery'" @go-back="currentView = 'home'"></lottery-view>
+                    
+                    <!-- 报告下载 -->
+                    <reports-view v-else-if="currentView === 'reports'" @go-back="currentView = 'profile'" @go-sample-track="goToSampleTrack"></reports-view>
+                    
+                    <!-- 样品追踪 -->
+                    <sample-track-view v-else-if="currentView === 'sampletrack'" :order-id="currentOrderId" @go-back="currentView = 'reports'"></sample-track-view>
+                    
+                    <!-- 公告列表 -->
+                    <announcements-view v-else-if="currentView === 'announcements'" @go-back="currentView = 'home'"></announcements-view>
+                    
+                    <!-- 合同管理 -->
+                    <contracts-view v-else-if="currentView === 'contracts'" @go-back="currentView = 'profile'"></contracts-view>
                 </div>
             </el-main>
 

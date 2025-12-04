@@ -366,6 +366,83 @@ export default {
 	// 获取预付记录
 	getPrepayRecords(params) {
 		return request.get('/api/v1/prepay/records', params)
+	},
+	
+	// ========== 帮助中心相关 ==========
+	
+	// 获取帮助分类
+	getHelpCategories() {
+		return request.get('/api/v1/help/categories')
+	},
+	
+	// 获取帮助文章
+	getHelpArticles(params) {
+		return request.get('/api/v1/help/articles', params)
+	},
+	
+	// ========== 公告相关 ==========
+	
+	// 获取公告列表
+	getAnnouncements(params) {
+		return request.get('/api/v1/announcements/list', params)
+	},
+	
+	// 获取公告详情
+	getAnnouncementDetail(id) {
+		return request.get(`/api/v1/announcements/${id}`)
+	},
+	
+	// ========== 客服相关 ==========
+	
+	// 获取聊天历史
+	getChatHistory() {
+		return request.get('/api/v1/chat/history')
+	},
+	
+	// 发送消息
+	sendChatMessage(data) {
+		return request.post('/api/v1/chat/send', data)
+	},
+	
+	// ========== 报告相关 ==========
+	
+	// 获取报告列表
+	getReports(params) {
+		return request.get('/api/v1/reports/list', params)
+	},
+	
+	// 下载报告
+	downloadReport(orderId) {
+		return request.get(`/api/v1/reports/${orderId}/download`)
+	},
+	
+	// ========== 样品追踪相关 ==========
+	
+	// 获取样品状态
+	getSampleStatus(orderId) {
+		return request.get(`/api/v1/samples/${orderId}/status`)
+	},
+	
+	// 提交快递单号
+	submitExpressNo(orderId, data) {
+		return request.post(`/api/v1/samples/${orderId}/express`, data)
+	},
+	
+	// ========== 合同相关 ==========
+	
+	// 获取合同列表
+	getContracts(params) {
+		return request.get('/api/v1/contracts/list', params)
+	},
+	
+	// 获取合同详情
+	getContractDetail(id) {
+		return request.get(`/api/v1/contracts/${id}`)
+	},
+	
+	// 下载合同
+	downloadContract(id) {
+		return request.get(`/api/v1/contracts/${id}/download`)
 	}
 }
 

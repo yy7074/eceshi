@@ -1268,4 +1268,718 @@ html, body, #app {
     }
 }
 
+/* ==================== 轮播图Banner样式 ==================== */
+.banner-carousel {
+    margin-bottom: 24px;
+    border-radius: 16px;
+    overflow: hidden;
+}
+
+.banner-item {
+    height: 400px;
+    background-size: cover;
+    background-position: center;
+    display: flex;
+    align-items: center;
+    padding: 0 80px;
+    position: relative;
+}
+
+.banner-item::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(90deg, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0.2) 100%);
+}
+
+.banner-content {
+    position: relative;
+    z-index: 1;
+    color: #fff;
+}
+
+.banner-content h2 {
+    font-size: 42px;
+    margin-bottom: 16px;
+    font-weight: 700;
+}
+
+.banner-content p {
+    font-size: 20px;
+    margin-bottom: 24px;
+    opacity: 0.9;
+}
+
+/* ==================== 公告栏样式 ==================== */
+.announcement-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: #fffbe6;
+    border: 1px solid #ffe58f;
+    border-radius: 8px;
+    padding: 12px 20px;
+    margin-bottom: 24px;
+}
+
+.announcement-icon {
+    font-size: 20px;
+}
+
+.announcement-bar .el-carousel {
+    flex: 1;
+}
+
+.announcement-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    line-height: 36px;
+}
+
+.announcement-title {
+    color: #595959;
+    font-size: 14px;
+}
+
+.announcement-time {
+    color: #8c8c8c;
+    font-size: 13px;
+}
+
+/* ==================== 快捷入口样式 ==================== */
+.quick-entry {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 32px;
+}
+
+.quick-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 24px;
+    background: #fff;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.3s;
+    border: 1px solid #f0f0f0;
+}
+
+.quick-item:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+}
+
+.quick-icon {
+    width: 56px;
+    height: 56px;
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 28px;
+}
+
+.quick-item span {
+    font-size: 14px;
+    color: #595959;
+    font-weight: 500;
+}
+
+/* ==================== 帮助中心样式 ==================== */
+.help-view {
+    padding: 24px;
+}
+
+.help-content {
+    display: grid;
+    grid-template-columns: 240px 1fr;
+    gap: 24px;
+}
+
+.help-sidebar {
+    background: #fff;
+    border-radius: 12px;
+    padding: 24px;
+}
+
+.help-sidebar h3 {
+    margin: 0 0 16px;
+    font-size: 16px;
+}
+
+.help-main {
+    background: #fff;
+    border-radius: 12px;
+    padding: 24px;
+}
+
+.help-articles .el-collapse-item__header {
+    font-size: 15px;
+    font-weight: 500;
+}
+
+.article-content {
+    color: #595959;
+    line-height: 1.8;
+}
+
+.article-content p {
+    margin-bottom: 12px;
+}
+
+.article-content ul {
+    padding-left: 20px;
+}
+
+/* ==================== 在线客服样式 ==================== */
+.chat-view {
+    padding: 24px;
+}
+
+.chat-container {
+    background: #fff;
+    border-radius: 12px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    height: 600px;
+}
+
+.chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px;
+    background: #f5f5f5;
+}
+
+.message {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.message.user {
+    flex-direction: row-reverse;
+}
+
+.message-content {
+    max-width: 70%;
+}
+
+.message-text {
+    padding: 12px 16px;
+    border-radius: 12px;
+    background: #fff;
+    line-height: 1.6;
+}
+
+.message.user .message-text {
+    background: #1890ff;
+    color: #fff;
+}
+
+.message-time {
+    font-size: 12px;
+    color: #8c8c8c;
+    margin-top: 4px;
+}
+
+.message.user .message-time {
+    text-align: right;
+}
+
+.chat-quick-replies {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 16px;
+    background: #fafafa;
+    border-top: 1px solid #f0f0f0;
+    flex-wrap: wrap;
+}
+
+.quick-label {
+    color: #8c8c8c;
+    font-size: 13px;
+}
+
+.quick-tag {
+    cursor: pointer;
+}
+
+.chat-input {
+    padding: 16px;
+    border-top: 1px solid #f0f0f0;
+}
+
+/* ==================== 抽奖活动样式 ==================== */
+.lottery-view {
+    padding: 24px;
+}
+
+.lottery-main {
+    background: linear-gradient(135deg, #ff6b6b 0%, #ff8e53 100%);
+    border-radius: 16px;
+    padding: 48px;
+    text-align: center;
+    margin-bottom: 32px;
+}
+
+.lottery-wheel {
+    position: relative;
+    width: 320px;
+    height: 320px;
+    margin: 0 auto 32px;
+}
+
+.wheel-container {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    background: #fff;
+    transition: transform 4s cubic-bezier(0.17, 0.67, 0.12, 0.99);
+    overflow: hidden;
+    position: relative;
+}
+
+.wheel-item {
+    position: absolute;
+    width: 50%;
+    height: 50%;
+    top: 0;
+    left: 50%;
+    transform-origin: 0% 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding-left: 30px;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.wheel-center {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 80px;
+    height: 80px;
+    background: linear-gradient(135deg, #ff4d4f 0%, #ff7875 100%);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 4px 16px rgba(255,77,79,0.4);
+    z-index: 10;
+}
+
+.wheel-center:hover {
+    transform: translate(-50%, -50%) scale(1.1);
+}
+
+.wheel-center.disabled {
+    background: #d9d9d9;
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
+.lottery-info {
+    color: #fff;
+}
+
+.chances-info {
+    font-size: 18px;
+    margin-bottom: 8px;
+}
+
+.chances-value {
+    font-size: 36px;
+    font-weight: 700;
+}
+
+.lottery-tip {
+    opacity: 0.9;
+    font-size: 14px;
+}
+
+.lottery-prizes, .lottery-records {
+    background: #fff;
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 24px;
+}
+
+.lottery-prizes h3, .lottery-records h3 {
+    margin: 0 0 20px;
+    font-size: 18px;
+}
+
+.prizes-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+}
+
+.prize-card {
+    background: #f9f9f9;
+    border-radius: 12px;
+    padding: 20px;
+    text-align: center;
+}
+
+.prize-icon {
+    font-size: 36px;
+    margin-bottom: 8px;
+}
+
+.prize-name {
+    font-size: 14px;
+    color: #595959;
+}
+
+/* ==================== 报告下载样式 ==================== */
+.reports-view {
+    padding: 24px;
+}
+
+.reports-list {
+    display: grid;
+    gap: 16px;
+}
+
+.report-card {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding: 24px;
+    background: #fff;
+    border-radius: 12px;
+}
+
+.report-icon {
+    font-size: 48px;
+}
+
+.report-info {
+    flex: 1;
+}
+
+.report-name {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 8px;
+}
+
+.report-order, .report-time {
+    font-size: 13px;
+    color: #8c8c8c;
+}
+
+.report-actions {
+    display: flex;
+    gap: 12px;
+}
+
+/* ==================== 样品追踪样式 ==================== */
+.sample-track-view {
+    padding: 24px;
+}
+
+.track-info {
+    background: #fff;
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 24px;
+}
+
+.order-brief {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+}
+
+.brief-item .label {
+    color: #8c8c8c;
+}
+
+.track-timeline {
+    background: #fff;
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 24px;
+}
+
+.track-timeline h3 {
+    margin: 0 0 20px;
+}
+
+.timeline-title {
+    font-size: 15px;
+    font-weight: 500;
+    margin-bottom: 4px;
+}
+
+.timeline-desc {
+    font-size: 13px;
+    color: #8c8c8c;
+}
+
+.track-express {
+    background: #fff;
+    border-radius: 12px;
+    padding: 24px;
+}
+
+.track-express h3 {
+    margin: 0 0 16px;
+}
+
+.express-card {
+    background: #f9f9f9;
+    padding: 16px;
+    border-radius: 8px;
+}
+
+.express-item {
+    margin-bottom: 8px;
+}
+
+.express-item:last-child {
+    margin-bottom: 0;
+}
+
+.express-item .label {
+    color: #8c8c8c;
+}
+
+/* ==================== 公告列表样式 ==================== */
+.announcements-view {
+    padding: 24px;
+}
+
+.announcements-list {
+    display: grid;
+    gap: 16px;
+}
+
+.announcement-card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 24px;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.announcement-card:hover {
+    box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+}
+
+.ann-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.ann-title {
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.ann-summary {
+    color: #595959;
+    line-height: 1.6;
+    margin-bottom: 12px;
+}
+
+.ann-footer {
+    display: flex;
+    gap: 24px;
+    color: #8c8c8c;
+    font-size: 13px;
+}
+
+/* ==================== 个人中心优化 ==================== */
+.profile-badges {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.profile-menu {
+    margin-bottom: 24px;
+}
+
+.menu-item {
+    position: relative;
+}
+
+.menu-item.highlight {
+    background: #e6f7ff;
+    border: 1px solid #91d5ff;
+}
+
+.menu-badge {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    padding: 2px 6px;
+    background: #ff4d4f;
+    color: #fff;
+    font-size: 10px;
+    border-radius: 4px;
+    font-weight: 600;
+}
+
+/* ==================== 订单进度条 ==================== */
+.order-progress {
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid #f0f0f0;
+}
+
+.order-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+/* ==================== 合同管理样式 ==================== */
+.contracts-view {
+    padding: 24px;
+}
+
+.contracts-tabs {
+    margin-bottom: 24px;
+}
+
+.contracts-list {
+    display: grid;
+    gap: 16px;
+}
+
+.contract-card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 24px;
+}
+
+.contract-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 16px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.contract-icon {
+    font-size: 40px;
+}
+
+.contract-title {
+    flex: 1;
+}
+
+.contract-title .title-text {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.contract-title .contract-no {
+    font-size: 13px;
+    color: #8c8c8c;
+}
+
+.contract-info {
+    margin-bottom: 16px;
+}
+
+.contract-info .info-row {
+    display: flex;
+    margin-bottom: 8px;
+}
+
+.contract-info .label {
+    width: 100px;
+    color: #8c8c8c;
+}
+
+.contract-info .value {
+    color: #262626;
+}
+
+.contract-actions {
+    display: flex;
+    gap: 12px;
+}
+
+/* ==================== 响应式优化 ==================== */
+@media (max-width: 768px) {
+    .banner-item {
+        height: 200px;
+        padding: 0 24px;
+    }
+    
+    .banner-content h2 {
+        font-size: 24px;
+    }
+    
+    .banner-content p {
+        font-size: 14px;
+    }
+    
+    .quick-entry {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .help-content {
+        grid-template-columns: 1fr;
+    }
+    
+    .chat-container {
+        height: 500px;
+    }
+    
+    .lottery-main {
+        padding: 24px;
+    }
+    
+    .lottery-wheel {
+        width: 240px;
+        height: 240px;
+    }
+    
+    .prizes-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .order-brief {
+        grid-template-columns: 1fr;
+    }
+    
+    .report-card {
+        flex-direction: column;
+        text-align: center;
+    }
+    
+    .report-actions {
+        flex-direction: column;
+        width: 100%;
+    }
+}
+
 

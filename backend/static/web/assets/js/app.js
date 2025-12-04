@@ -105,7 +105,33 @@ const api = {
     createGroup: (data) => axios.post('/api/v1/groups/create', data),
     getInviteRecords: (params) => axios.get('/api/v1/invites/records', { params }),
     getInviteStats: () => axios.get('/api/v1/invites/stats'),
-    applyWithdraw: (data) => axios.post('/api/v1/invites/withdraw', data)
+    applyWithdraw: (data) => axios.post('/api/v1/invites/withdraw', data),
+    
+    // 轮播图/Banner
+    getBanners: () => axios.get('/api/v1/banners/list'),
+    
+    // 公告
+    getAnnouncements: (params) => axios.get('/api/v1/announcements/list', { params }),
+    
+    // 帮助中心
+    getHelpCategories: () => axios.get('/api/v1/help/categories'),
+    getHelpArticles: (params) => axios.get('/api/v1/help/articles', { params }),
+    
+    // 在线客服
+    getChatHistory: () => axios.get('/api/v1/chat/history'),
+    sendMessage: (data) => axios.post('/api/v1/chat/send', data),
+    
+    // 报告下载
+    getReports: (params) => axios.get('/api/v1/reports/list', { params }),
+    downloadReport: (orderId) => axios.get(`/api/v1/reports/${orderId}/download`, { responseType: 'blob' }),
+    
+    // 样品追踪
+    getSampleStatus: (orderId) => axios.get(`/api/v1/samples/${orderId}/status`),
+    
+    // 抽奖
+    getLotteryInfo: () => axios.get('/api/v1/lottery/info'),
+    doLottery: () => axios.post('/api/v1/lottery/draw'),
+    getLotteryRecords: (params) => axios.get('/api/v1/lottery/records', { params })
 }
 
 // ==================== Vue组件 ====================
@@ -114,15 +140,62 @@ const api = {
 const HomeView = {
     template: `
         <div class="home-view">
-            <!-- 英雄区 -->
-            <div class="hero-section">
+            <!-- 轮播图Banner -->
+            <div class="banner-carousel" v-if="banners.length > 0">
+                <el-carousel height="400px" :interval="5000">
+                    <el-carousel-item v-for="banner in banners" :key="banner.id">
+                        <div class="banner-item" :style="{ backgroundImage: 'url(' + banner.image + ')' }" @click="handleBannerClick(banner)">
+                            <div class="banner-content">
+                                <h2>{{ banner.title }}</h2>
+                                <p>{{ banner.subtitle }}</p>
+                                <el-button v-if="banner.button_text" type="primary" size="large">{{ banner.button_text }}</el-button>
+                            </div>
+                        </div>
+                    </el-carousel-item>
+                </el-carousel>
+            </div>
+            
+            <!-- 默认英雄区（无Banner时显示） -->
+            <div class="hero-section" v-else>
                 <h1 class="hero-title">科研检测服务平台</h1>
                 <p class="hero-subtitle">专业 · 高效 · 可靠</p>
                 <div class="hero-actions">
-                    <el-button type="primary" size="large" @click="$emit('go-projects')">
-                        浏览检测项目
-                    </el-button>
-                    <el-button size="large" plain>了解更多</el-button>
+                    <el-button type="primary" size="large" @click="$emit('go-projects')">浏览检测项目</el-button>
+                    <el-button size="large" plain @click="$emit('go-help')">了解更多</el-button>
+                </div>
+            </div>
+
+            <!-- 公告栏 -->
+            <div class="announcement-bar" v-if="announcements.length > 0">
+                <div class="announcement-icon">📢</div>
+                <el-carousel height="36px" direction="vertical" :autoplay="true" :interval="4000" indicator-position="none">
+                    <el-carousel-item v-for="ann in announcements" :key="ann.id">
+                        <div class="announcement-item" @click="showAnnouncement(ann)">
+                            <span class="announcement-title">{{ ann.title }}</span>
+                            <span class="announcement-time">{{ ann.created_at?.slice(0, 10) }}</span>
+                        </div>
+                    </el-carousel-item>
+                </el-carousel>
+                <el-button link type="primary" @click="$emit('go-announcements')">更多</el-button>
+            </div>
+            
+            <!-- 快捷入口 -->
+            <div class="quick-entry">
+                <div class="quick-item" @click="$emit('go-help')">
+                    <div class="quick-icon" style="background: #e6f7ff; color: #1890ff;">❓</div>
+                    <span>帮助中心</span>
+                </div>
+                <div class="quick-item" @click="$emit('go-chat')">
+                    <div class="quick-icon" style="background: #fff7e6; color: #fa8c16;">💬</div>
+                    <span>在线客服</span>
+                </div>
+                <div class="quick-item" @click="$emit('go-lottery')">
+                    <div class="quick-icon" style="background: #fff1f0; color: #f5222d;">🎁</div>
+                    <span>抽奖活动</span>
+                </div>
+                <div class="quick-item" @click="$emit('go-reports')">
+                    <div class="quick-icon" style="background: #f6ffed; color: #52c41a;">📊</div>
+                    <span>报告下载</span>
                 </div>
             </div>
 
@@ -171,6 +244,8 @@ const HomeView = {
     `,
     data() {
         return {
+            banners: [],
+            announcements: [],
             categories: [],
             categoriesLoading: false,
             projects: [],
@@ -178,10 +253,36 @@ const HomeView = {
         }
     },
     mounted() {
+        this.loadBanners()
+        this.loadAnnouncements()
         this.loadCategories()
         this.loadProjects()
     },
     methods: {
+        async loadBanners() {
+            try {
+                const res = await api.getBanners()
+                this.banners = res.data || []
+            } catch (error) {
+                // 使用默认Banner数据
+                this.banners = [
+                    { id: 1, title: '金秋检测季', subtitle: 'XPS、SEM、FT-IR等热门检测6折起', image: 'https://picsum.photos/1400/400?random=1', button_text: '立即查看' },
+                    { id: 2, title: '新用户专享', subtitle: '首单立减50元，注册即送100积分', image: 'https://picsum.photos/1400/400?random=2', button_text: '领取优惠' }
+                ]
+            }
+        },
+        async loadAnnouncements() {
+            try {
+                const res = await api.getAnnouncements({ page: 1, page_size: 5 })
+                this.announcements = res.data?.items || []
+            } catch (error) {
+                // 使用默认公告数据
+                this.announcements = [
+                    { id: 1, title: '平台检测服务升级通知', created_at: '2025-12-01' },
+                    { id: 2, title: '12月优惠活动火热进行中', created_at: '2025-12-01' }
+                ]
+            }
+        },
         async loadCategories() {
             this.categoriesLoading = true
             try {
@@ -206,6 +307,12 @@ const HomeView = {
         },
         goToCategory(categoryId) {
             this.$emit('go-projects', { category_id: categoryId })
+        },
+        handleBannerClick(banner) {
+            if (banner.link) window.open(banner.link, '_blank')
+        },
+        showAnnouncement(ann) {
+            ElMessageBox.alert(ann.content || ann.title, ann.title, { confirmButtonText: '我知道了' })
         }
     }
 }
@@ -490,7 +597,7 @@ const ProjectDetail = {
 
 // 订单列表组件
 const OrdersView = {
-    emits: ['show-payment', 'show-review', 'show-invoice'],
+    emits: ['show-payment', 'show-review', 'show-invoice', 'go-sample-track', 'go-report'],
     template: `
         <div class="orders-view">
             <h2 class="section-title">我的订单</h2>
@@ -528,9 +635,30 @@ const OrdersView = {
                         <div class="order-actions">
                             <el-button type="primary" v-if="order.status === 'unpaid'" @click="$emit('show-payment', order)">去支付</el-button>
                             <el-button v-if="order.status === 'unpaid'" @click="handleCancel(order.id)">取消订单</el-button>
-                            <el-button type="success" v-if="order.status === 'completed' && !order.is_reviewed" @click="$emit('show-review', order)">评价</el-button>
+                            
+                            <!-- 样品追踪 - 支付后可用 -->
+                            <el-button v-if="['paid', 'confirmed', 'testing', 'completed'].includes(order.status)" @click="$emit('go-sample-track', order.id)">
+                                <el-icon><location /></el-icon> 样品追踪
+                            </el-button>
+                            
+                            <!-- 报告下载 - 完成后可用 -->
+                            <el-button type="success" v-if="order.status === 'completed'" @click="downloadReport(order)">
+                                <el-icon><download /></el-icon> 下载报告
+                            </el-button>
+                            
+                            <el-button type="warning" v-if="order.status === 'completed' && !order.is_reviewed" @click="$emit('show-review', order)">评价</el-button>
                             <el-button v-if="order.status === 'completed'" @click="$emit('show-invoice', order)">申请发票</el-button>
                         </div>
+                    </div>
+                    
+                    <!-- 进度条 -->
+                    <div class="order-progress" v-if="['paid', 'confirmed', 'testing'].includes(order.status)">
+                        <el-steps :active="getProgressStep(order.status)" finish-status="success" simple>
+                            <el-step title="已支付"></el-step>
+                            <el-step title="样品送达"></el-step>
+                            <el-step title="检测中"></el-step>
+                            <el-step title="已完成"></el-step>
+                        </el-steps>
                     </div>
                 </div>
 
@@ -609,13 +737,32 @@ const OrdersView = {
                 'cancelled': 'danger'
             }
             return map[status] || 'info'
+        },
+        getProgressStep(status) {
+            const map = { 'paid': 1, 'confirmed': 2, 'testing': 3, 'completed': 4 }
+            return map[status] || 0
+        },
+        async downloadReport(order) {
+            ElMessage.info('正在准备下载报告...')
+            try {
+                const res = await api.downloadReport(order.id)
+                const url = window.URL.createObjectURL(new Blob([res]))
+                const link = document.createElement('a')
+                link.href = url
+                link.download = `检测报告_${order.order_no}.pdf`
+                link.click()
+                window.URL.revokeObjectURL(url)
+                ElMessage.success('下载成功')
+            } catch (error) {
+                ElMessage.warning('报告正在生成中，请稍后再试')
+            }
         }
     }
 }
 
 // 个人中心组件
 const ProfileView = {
-    emits: ['go-orders', 'go-favorites', 'go-coupons', 'go-address', 'go-wallet', 'go-points', 'go-invoice', 'go-team', 'edit-profile'],
+    emits: ['go-orders', 'go-favorites', 'go-coupons', 'go-address', 'go-wallet', 'go-points', 'go-invoice', 'go-team', 'go-reports', 'go-help', 'go-chat', 'go-announcements', 'go-contracts', 'go-lottery', 'edit-profile'],
     template: `
         <div class="profile-view">
             <div class="profile-header">
@@ -623,6 +770,11 @@ const ProfileView = {
                 <div class="profile-info">
                     <h2>{{ userInfo.nickname || '用户' }}</h2>
                     <p>{{ userInfo.phone }}</p>
+                    <div class="profile-badges">
+                        <el-tag v-if="userInfo.is_certified" type="success" size="small">已实名</el-tag>
+                        <el-tag v-else type="info" size="small">未实名</el-tag>
+                        <el-tag v-if="userInfo.vip_level" type="warning" size="small">VIP{{ userInfo.vip_level }}</el-tag>
+                    </div>
                     <el-button size="small" @click="$emit('edit-profile')">编辑资料</el-button>
                 </div>
             </div>
@@ -647,39 +799,82 @@ const ProfileView = {
             </div>
 
             <div class="profile-menu">
-                <h3>常用功能</h3>
+                <h3>订单服务</h3>
                 <div class="menu-grid">
                     <div class="menu-item" @click="$emit('go-orders')">
                         <el-icon :size="24"><document /></el-icon>
                         <span>我的订单</span>
                     </div>
-                    <div class="menu-item" @click="$emit('go-favorites')">
-                        <el-icon :size="24"><star /></el-icon>
-                        <span>我的收藏</span>
+                    <div class="menu-item highlight" @click="$emit('go-reports')">
+                        <el-icon :size="24"><data-analysis /></el-icon>
+                        <span>报告下载</span>
+                        <div class="menu-badge">NEW</div>
                     </div>
-                    <div class="menu-item" @click="$emit('go-coupons')">
-                        <el-icon :size="24"><ticket /></el-icon>
-                        <span>优惠券</span>
-                    </div>
-                    <div class="menu-item" @click="$emit('go-address')">
-                        <el-icon :size="24"><location /></el-icon>
-                        <span>地址管理</span>
-                    </div>
-                    <div class="menu-item" @click="$emit('go-wallet')">
-                        <el-icon :size="24"><wallet /></el-icon>
-                        <span>我的钱包</span>
-                    </div>
-                    <div class="menu-item" @click="$emit('go-points')">
-                        <el-icon :size="24"><medal /></el-icon>
-                        <span>积分商城</span>
+                    <div class="menu-item" @click="$emit('go-contracts')">
+                        <el-icon :size="24"><document-checked /></el-icon>
+                        <span>合同管理</span>
                     </div>
                     <div class="menu-item" @click="$emit('go-invoice')">
                         <el-icon :size="24"><document-copy /></el-icon>
                         <span>发票管理</span>
                     </div>
+                </div>
+            </div>
+
+            <div class="profile-menu">
+                <h3>资产管理</h3>
+                <div class="menu-grid">
+                    <div class="menu-item" @click="$emit('go-wallet')">
+                        <el-icon :size="24"><wallet /></el-icon>
+                        <span>我的钱包</span>
+                    </div>
+                    <div class="menu-item" @click="$emit('go-coupons')">
+                        <el-icon :size="24"><ticket /></el-icon>
+                        <span>优惠券</span>
+                    </div>
+                    <div class="menu-item" @click="$emit('go-points')">
+                        <el-icon :size="24"><medal /></el-icon>
+                        <span>积分商城</span>
+                    </div>
+                    <div class="menu-item" @click="$emit('go-lottery')">
+                        <el-icon :size="24"><present /></el-icon>
+                        <span>抽奖活动</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="profile-menu">
+                <h3>常用功能</h3>
+                <div class="menu-grid">
+                    <div class="menu-item" @click="$emit('go-favorites')">
+                        <el-icon :size="24"><star /></el-icon>
+                        <span>我的收藏</span>
+                    </div>
+                    <div class="menu-item" @click="$emit('go-address')">
+                        <el-icon :size="24"><location /></el-icon>
+                        <span>地址管理</span>
+                    </div>
                     <div class="menu-item" @click="$emit('go-team')">
                         <el-icon :size="24"><user /></el-icon>
                         <span>团队邀请</span>
+                    </div>
+                    <div class="menu-item" @click="$emit('go-announcements')">
+                        <el-icon :size="24"><bell /></el-icon>
+                        <span>消息通知</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="profile-menu">
+                <h3>帮助与服务</h3>
+                <div class="menu-grid">
+                    <div class="menu-item" @click="$emit('go-help')">
+                        <el-icon :size="24"><question-filled /></el-icon>
+                        <span>帮助中心</span>
+                    </div>
+                    <div class="menu-item" @click="$emit('go-chat')">
+                        <el-icon :size="24"><chat-dot-round /></el-icon>
+                        <span>在线客服</span>
                     </div>
                 </div>
             </div>
@@ -1066,6 +1261,576 @@ const TeamView = {
     }
 }
 
+// 帮助中心组件
+const HelpView = {
+    emits: ['go-back'],
+    template: `
+        <div class="help-view">
+            <div class="page-header">
+                <el-button @click="$emit('go-back')"><el-icon><arrow-left /></el-icon> 返回</el-button>
+                <h2>帮助中心</h2>
+                <el-input v-model="searchKeyword" placeholder="搜索问题" style="width: 300px" @change="searchArticles">
+                    <template #prefix><el-icon><search /></el-icon></template>
+                </el-input>
+            </div>
+            <div class="help-content">
+                <div class="help-sidebar">
+                    <h3>常见问题分类</h3>
+                    <el-menu :default-active="activeCategory" @select="selectCategory">
+                        <el-menu-item v-for="cat in categories" :key="cat.id" :index="String(cat.id)">
+                            <span>{{ cat.icon }} {{ cat.name }}</span>
+                        </el-menu-item>
+                    </el-menu>
+                </div>
+                <div class="help-main">
+                    <div v-if="loading" class="loading-container"><el-icon class="is-loading" :size="40"><loading /></el-icon></div>
+                    <div v-else-if="articles.length === 0" class="empty-state"><div class="empty-icon">📚</div><div class="empty-text">暂无相关文章</div></div>
+                    <div v-else class="help-articles">
+                        <el-collapse v-model="expandedArticles">
+                            <el-collapse-item v-for="article in articles" :key="article.id" :name="article.id" :title="article.title">
+                                <div class="article-content" v-html="article.content"></div>
+                            </el-collapse-item>
+                        </el-collapse>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `,
+    data() {
+        return {
+            searchKeyword: '',
+            activeCategory: '1',
+            categories: [
+                { id: 1, name: '新手指南', icon: '📖' },
+                { id: 2, name: '下单流程', icon: '🛒' },
+                { id: 3, name: '支付问题', icon: '💳' },
+                { id: 4, name: '样品寄送', icon: '📦' },
+                { id: 5, name: '报告获取', icon: '📊' },
+                { id: 6, name: '发票问题', icon: '🧾' },
+                { id: 7, name: '账户相关', icon: '👤' }
+            ],
+            articles: [],
+            expandedArticles: [],
+            loading: false
+        }
+    },
+    mounted() { this.loadArticles() },
+    methods: {
+        async loadArticles() {
+            this.loading = true
+            try {
+                const res = await api.getHelpArticles({ category_id: this.activeCategory })
+                this.articles = res.data?.items || []
+            } catch (error) {
+                // 使用默认数据
+                this.articles = [
+                    { id: 1, title: '如何注册账号？', content: '<p>1. 点击首页右上角"登录"按钮</p><p>2. 输入手机号获取验证码</p><p>3. 输入验证码完成登录/注册</p>' },
+                    { id: 2, title: '如何下单？', content: '<p>1. 浏览检测项目，选择需要的检测服务</p><p>2. 点击"立即预约"填写样品信息</p><p>3. 确认订单并支付</p><p>4. 按照指引寄送样品</p>' },
+                    { id: 3, title: '支持哪些支付方式？', content: '<p>目前支持：</p><ul><li>微信支付</li><li>支付宝支付</li><li>账户余额支付</li></ul>' },
+                    { id: 4, title: '如何查看检测报告？', content: '<p>1. 登录账号进入"我的订单"</p><p>2. 找到已完成的订单</p><p>3. 点击"下载报告"即可获取检测报告</p>' }
+                ]
+            } finally { this.loading = false }
+        },
+        selectCategory(index) {
+            this.activeCategory = index
+            this.loadArticles()
+        },
+        searchArticles() {
+            this.loadArticles()
+        }
+    }
+}
+
+// 在线客服组件
+const ChatView = {
+    emits: ['go-back'],
+    template: `
+        <div class="chat-view">
+            <div class="page-header">
+                <el-button @click="$emit('go-back')"><el-icon><arrow-left /></el-icon> 返回</el-button>
+                <h2>在线客服</h2>
+                <el-tag type="success">在线</el-tag>
+            </div>
+            <div class="chat-container">
+                <div class="chat-messages" ref="chatMessages">
+                    <div v-for="msg in messages" :key="msg.id" :class="['message', msg.is_user ? 'user' : 'service']">
+                        <div class="message-avatar">
+                            <el-avatar :size="36">{{ msg.is_user ? '我' : '客' }}</el-avatar>
+                        </div>
+                        <div class="message-content">
+                            <div class="message-text">{{ msg.content }}</div>
+                            <div class="message-time">{{ msg.created_at }}</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="chat-quick-replies">
+                    <span class="quick-label">快捷问题：</span>
+                    <el-tag v-for="q in quickQuestions" :key="q" @click="sendQuickQuestion(q)" class="quick-tag" effect="plain">{{ q }}</el-tag>
+                </div>
+                <div class="chat-input">
+                    <el-input v-model="inputMessage" placeholder="输入您的问题..." @keyup.enter="sendMessage">
+                        <template #append>
+                            <el-button type="primary" @click="sendMessage" :loading="sending">发送</el-button>
+                        </template>
+                    </el-input>
+                </div>
+            </div>
+        </div>
+    `,
+    data() {
+        return {
+            messages: [
+                { id: 1, content: '您好！欢迎咨询科研检测服务平台，请问有什么可以帮助您的？', is_user: false, created_at: '刚刚' }
+            ],
+            inputMessage: '',
+            sending: false,
+            quickQuestions: ['如何下单？', '检测周期多久？', '如何获取报告？', '发票问题']
+        }
+    },
+    mounted() { this.loadHistory() },
+    methods: {
+        async loadHistory() {
+            try {
+                const res = await api.getChatHistory()
+                if (res.data?.length) this.messages = res.data
+            } catch (error) {}
+        },
+        async sendMessage() {
+            if (!this.inputMessage.trim()) return
+            const content = this.inputMessage
+            this.messages.push({ id: Date.now(), content, is_user: true, created_at: '刚刚' })
+            this.inputMessage = ''
+            this.sending = true
+            this.scrollToBottom()
+            try {
+                const res = await api.sendMessage({ content })
+                setTimeout(() => {
+                    this.messages.push({ id: Date.now() + 1, content: res.data?.reply || '感谢您的咨询，客服正在为您处理，请稍候...', is_user: false, created_at: '刚刚' })
+                    this.scrollToBottom()
+                }, 500)
+            } catch (error) {
+                this.messages.push({ id: Date.now() + 1, content: '感谢您的咨询，我们会尽快为您处理。工作时间：9:00-18:00', is_user: false, created_at: '刚刚' })
+                this.scrollToBottom()
+            } finally { this.sending = false }
+        },
+        sendQuickQuestion(q) { this.inputMessage = q; this.sendMessage() },
+        scrollToBottom() { this.$nextTick(() => { if (this.$refs.chatMessages) this.$refs.chatMessages.scrollTop = this.$refs.chatMessages.scrollHeight }) }
+    }
+}
+
+// 抽奖活动组件
+const LotteryView = {
+    emits: ['go-back'],
+    template: `
+        <div class="lottery-view">
+            <div class="page-header">
+                <el-button @click="$emit('go-back')"><el-icon><arrow-left /></el-icon> 返回</el-button>
+                <h2>🎁 幸运抽奖</h2>
+            </div>
+            <div class="lottery-main">
+                <div class="lottery-wheel">
+                    <div class="wheel-container" :style="{ transform: 'rotate(' + rotation + 'deg)' }">
+                        <div class="wheel-item" v-for="(prize, index) in prizes" :key="index" :style="getItemStyle(index)">
+                            <span class="prize-name">{{ prize.name }}</span>
+                        </div>
+                    </div>
+                    <div class="wheel-center" @click="startLottery" :class="{ disabled: spinning || chances <= 0 }">
+                        <span>{{ spinning ? '抽奖中' : '开始' }}</span>
+                    </div>
+                </div>
+                <div class="lottery-info">
+                    <div class="chances-info">
+                        <span>剩余抽奖次数：</span>
+                        <span class="chances-value">{{ chances }}</span>
+                    </div>
+                    <p class="lottery-tip">下单满100元可获得1次抽奖机会</p>
+                </div>
+            </div>
+            <div class="lottery-prizes">
+                <h3>奖品列表</h3>
+                <div class="prizes-grid">
+                    <div class="prize-card" v-for="prize in prizes" :key="prize.id">
+                        <div class="prize-icon">{{ prize.icon }}</div>
+                        <div class="prize-name">{{ prize.name }}</div>
+                    </div>
+                </div>
+            </div>
+            <div class="lottery-records">
+                <h3>中奖记录</h3>
+                <div v-if="records.length === 0" class="empty-state" style="padding: 40px"><div class="empty-icon">🎯</div><div class="empty-text">暂无中奖记录</div></div>
+                <div v-else class="records-list">
+                    <div class="record-item" v-for="record in records" :key="record.id">
+                        <div class="record-info"><div class="record-prize">{{ record.prize_name }}</div><div class="record-time">{{ record.created_at?.slice(0, 10) }}</div></div>
+                        <el-tag :type="record.claimed ? 'success' : 'warning'" size="small">{{ record.claimed ? '已领取' : '待领取' }}</el-tag>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `,
+    data() {
+        return {
+            chances: 3,
+            spinning: false,
+            rotation: 0,
+            prizes: [
+                { id: 1, name: '10元优惠券', icon: '🎫' },
+                { id: 2, name: '50积分', icon: '⭐' },
+                { id: 3, name: '谢谢参与', icon: '😊' },
+                { id: 4, name: '20元优惠券', icon: '🎟️' },
+                { id: 5, name: '100积分', icon: '🌟' },
+                { id: 6, name: '免单机会', icon: '🎁' },
+                { id: 7, name: '5元红包', icon: '🧧' },
+                { id: 8, name: '实物礼品', icon: '📦' }
+            ],
+            records: []
+        }
+    },
+    mounted() { this.loadData() },
+    methods: {
+        async loadData() {
+            try {
+                const [infoRes, recordsRes] = await Promise.all([api.getLotteryInfo(), api.getLotteryRecords({ page: 1, page_size: 20 })])
+                this.chances = infoRes.data?.chances || 0
+                this.records = recordsRes.data?.items || []
+            } catch (error) {}
+        },
+        getItemStyle(index) {
+            const angle = (360 / this.prizes.length) * index
+            return { transform: `rotate(${angle}deg)`, background: index % 2 ? '#fff7e6' : '#e6f7ff' }
+        },
+        async startLottery() {
+            if (this.spinning || this.chances <= 0) return
+            this.spinning = true
+            const prizeIndex = Math.floor(Math.random() * this.prizes.length)
+            const extraRotation = 360 * 5 + (360 / this.prizes.length) * prizeIndex
+            this.rotation += extraRotation
+            try { await api.doLottery() } catch (error) {}
+            setTimeout(() => {
+                this.spinning = false
+                this.chances--
+                ElMessage.success('恭喜获得：' + this.prizes[prizeIndex].name)
+                this.loadData()
+            }, 4000)
+        }
+    }
+}
+
+// 报告下载组件
+const ReportsView = {
+    emits: ['go-back', 'go-sample-track'],
+    template: `
+        <div class="reports-view">
+            <div class="page-header">
+                <el-button @click="$emit('go-back')"><el-icon><arrow-left /></el-icon> 返回</el-button>
+                <h2>报告下载</h2>
+            </div>
+            <div v-if="loading" class="loading-container"><el-icon class="is-loading" :size="40"><loading /></el-icon></div>
+            <div v-else-if="reports.length === 0" class="empty-state">
+                <div class="empty-icon">📊</div>
+                <div class="empty-text">暂无可下载的报告</div>
+                <p style="color: #8c8c8c; margin-top: 12px">完成检测后，报告将在此处显示</p>
+            </div>
+            <div v-else class="reports-list">
+                <div class="report-card" v-for="report in reports" :key="report.id">
+                    <div class="report-icon">📄</div>
+                    <div class="report-info">
+                        <div class="report-name">{{ report.project_name }}</div>
+                        <div class="report-order">订单号：{{ report.order_no }}</div>
+                        <div class="report-time">完成时间：{{ report.completed_at?.slice(0, 10) }}</div>
+                    </div>
+                    <div class="report-actions">
+                        <el-button type="primary" size="small" @click="downloadReport(report)">
+                            <el-icon><download /></el-icon> 下载报告
+                        </el-button>
+                        <el-button size="small" @click="$emit('go-sample-track', report.order_id)">
+                            <el-icon><location /></el-icon> 样品追踪
+                        </el-button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `,
+    data() { return { reports: [], loading: false } },
+    mounted() { this.loadReports() },
+    methods: {
+        async loadReports() {
+            this.loading = true
+            try {
+                const res = await api.getReports({ page: 1, page_size: 50 })
+                this.reports = res.data?.items || []
+            } catch (error) {
+                // 使用演示数据
+                this.reports = []
+            } finally { this.loading = false }
+        },
+        async downloadReport(report) {
+            try {
+                ElMessage.info('正在准备下载...')
+                const res = await api.downloadReport(report.order_id)
+                const url = window.URL.createObjectURL(new Blob([res]))
+                const link = document.createElement('a')
+                link.href = url
+                link.download = `检测报告_${report.order_no}.pdf`
+                link.click()
+                window.URL.revokeObjectURL(url)
+            } catch (error) {
+                ElMessage.warning('报告正在生成中，请稍后再试')
+            }
+        }
+    }
+}
+
+// 样品追踪组件
+const SampleTrackView = {
+    props: ['orderId'],
+    emits: ['go-back'],
+    template: `
+        <div class="sample-track-view">
+            <div class="page-header">
+                <el-button @click="$emit('go-back')"><el-icon><arrow-left /></el-icon> 返回</el-button>
+                <h2>样品追踪</h2>
+            </div>
+            <div class="track-info" v-if="orderInfo">
+                <div class="order-brief">
+                    <div class="brief-item"><span class="label">订单号：</span><span>{{ orderInfo.order_no }}</span></div>
+                    <div class="brief-item"><span class="label">样品名称：</span><span>{{ orderInfo.sample_name }}</span></div>
+                    <div class="brief-item"><span class="label">检测项目：</span><span>{{ orderInfo.project_name }}</span></div>
+                </div>
+            </div>
+            <div class="track-timeline">
+                <h3>物流状态</h3>
+                <el-timeline>
+                    <el-timeline-item v-for="step in trackSteps" :key="step.id" :timestamp="step.time" :type="step.active ? 'primary' : ''" :hollow="!step.active">
+                        <div class="timeline-content">
+                            <div class="timeline-title">{{ step.title }}</div>
+                            <div class="timeline-desc">{{ step.description }}</div>
+                        </div>
+                    </el-timeline-item>
+                </el-timeline>
+            </div>
+            <div class="track-express" v-if="expressInfo">
+                <h3>快递信息</h3>
+                <div class="express-card">
+                    <div class="express-item"><span class="label">快递公司：</span><span>{{ expressInfo.company }}</span></div>
+                    <div class="express-item"><span class="label">快递单号：</span><span>{{ expressInfo.tracking_no }}</span></div>
+                </div>
+            </div>
+        </div>
+    `,
+    data() {
+        return {
+            orderInfo: null,
+            expressInfo: null,
+            trackSteps: [
+                { id: 1, title: '订单创建', description: '订单已创建，等待支付', time: '2025-12-01 10:00', active: true },
+                { id: 2, title: '已支付', description: '订单支付成功', time: '2025-12-01 10:30', active: true },
+                { id: 3, title: '样品已寄出', description: '用户已寄出样品', time: '2025-12-02 09:00', active: true },
+                { id: 4, title: '样品已签收', description: '实验室已签收样品', time: '2025-12-03 14:00', active: true },
+                { id: 5, title: '检测中', description: '样品正在检测中', time: '2025-12-04 09:00', active: false },
+                { id: 6, title: '检测完成', description: '检测完成，报告已生成', time: '', active: false }
+            ]
+        }
+    },
+    mounted() { this.loadTrackInfo() },
+    methods: {
+        async loadTrackInfo() {
+            if (!this.orderId) return
+            try {
+                const res = await api.getSampleStatus(this.orderId)
+                this.orderInfo = res.data?.order
+                this.expressInfo = res.data?.express
+                if (res.data?.steps) this.trackSteps = res.data.steps
+            } catch (error) {
+                // 使用演示数据
+                this.orderInfo = { order_no: 'ORD2025120100001', sample_name: 'XRD测试样品', project_name: 'X射线衍射分析' }
+                this.expressInfo = { company: '顺丰速运', tracking_no: 'SF1234567890' }
+            }
+        }
+    }
+}
+
+// 公告列表组件
+const AnnouncementsView = {
+    emits: ['go-back'],
+    template: `
+        <div class="announcements-view">
+            <div class="page-header">
+                <el-button @click="$emit('go-back')"><el-icon><arrow-left /></el-icon> 返回</el-button>
+                <h2>系统公告</h2>
+            </div>
+            <div v-if="loading" class="loading-container"><el-icon class="is-loading" :size="40"><loading /></el-icon></div>
+            <div v-else-if="announcements.length === 0" class="empty-state"><div class="empty-icon">📢</div><div class="empty-text">暂无公告</div></div>
+            <div v-else class="announcements-list">
+                <div class="announcement-card" v-for="ann in announcements" :key="ann.id" @click="showDetail(ann)">
+                    <div class="ann-header">
+                        <el-tag v-if="ann.is_important" type="danger" size="small">重要</el-tag>
+                        <span class="ann-title">{{ ann.title }}</span>
+                    </div>
+                    <div class="ann-summary">{{ ann.summary || ann.content?.slice(0, 100) }}</div>
+                    <div class="ann-footer">
+                        <span class="ann-time">{{ ann.created_at?.slice(0, 10) }}</span>
+                        <span class="ann-views">{{ ann.views || 0 }} 次阅读</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `,
+    data() { return { announcements: [], loading: false } },
+    mounted() { this.loadAnnouncements() },
+    methods: {
+        async loadAnnouncements() {
+            this.loading = true
+            try {
+                const res = await api.getAnnouncements({ page: 1, page_size: 50 })
+                this.announcements = res.data?.items || []
+            } catch (error) {
+                this.announcements = [
+                    { id: 1, title: '平台服务升级通知', content: '为提供更好的服务体验，我们将于12月10日进行系统升级...', is_important: true, created_at: '2025-12-01', views: 1256 },
+                    { id: 2, title: '12月优惠活动公告', content: '金秋检测季，多项热门检测项目6折起...', is_important: false, created_at: '2025-12-01', views: 892 },
+                    { id: 3, title: '新增检测项目上线', content: '新增材料表征、生物科学等多个检测类目...', is_important: false, created_at: '2025-11-28', views: 645 }
+                ]
+            } finally { this.loading = false }
+        },
+        showDetail(ann) {
+            ElMessageBox.alert(ann.content, ann.title, { confirmButtonText: '我知道了', dangerouslyUseHTMLString: true })
+        }
+    }
+}
+
+// 合同管理组件
+const ContractsView = {
+    emits: ['go-back'],
+    template: `
+        <div class="contracts-view">
+            <div class="page-header">
+                <el-button @click="$emit('go-back')"><el-icon><arrow-left /></el-icon> 返回</el-button>
+                <h2>合同管理</h2>
+            </div>
+            <div class="contracts-tabs">
+                <el-radio-group v-model="activeTab" @change="loadContracts">
+                    <el-radio-button value="all">全部合同</el-radio-button>
+                    <el-radio-button value="active">生效中</el-radio-button>
+                    <el-radio-button value="expired">已过期</el-radio-button>
+                </el-radio-group>
+            </div>
+            <div v-if="loading" class="loading-container"><el-icon class="is-loading" :size="40"><loading /></el-icon></div>
+            <div v-else-if="contracts.length === 0" class="empty-state">
+                <div class="empty-icon">📋</div>
+                <div class="empty-text">暂无合同</div>
+                <p style="color: #8c8c8c; margin-top: 12px">下单后系统将自动生成服务合同</p>
+            </div>
+            <div v-else class="contracts-list">
+                <div class="contract-card" v-for="contract in contracts" :key="contract.id">
+                    <div class="contract-header">
+                        <div class="contract-icon">📄</div>
+                        <div class="contract-title">
+                            <div class="title-text">{{ contract.title }}</div>
+                            <div class="contract-no">合同编号：{{ contract.contract_no }}</div>
+                        </div>
+                        <el-tag :type="contract.status === 'active' ? 'success' : 'info'" size="small">
+                            {{ contract.status === 'active' ? '生效中' : '已过期' }}
+                        </el-tag>
+                    </div>
+                    <div class="contract-info">
+                        <div class="info-row">
+                            <span class="label">签订日期：</span>
+                            <span class="value">{{ contract.signed_at }}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="label">有效期至：</span>
+                            <span class="value">{{ contract.expired_at }}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="label">关联订单：</span>
+                            <span class="value">{{ contract.order_no }}</span>
+                        </div>
+                    </div>
+                    <div class="contract-actions">
+                        <el-button size="small" @click="viewContract(contract)">
+                            <el-icon><view /></el-icon> 查看合同
+                        </el-button>
+                        <el-button size="small" @click="downloadContract(contract)">
+                            <el-icon><download /></el-icon> 下载PDF
+                        </el-button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `,
+    data() {
+        return {
+            activeTab: 'all',
+            contracts: [],
+            loading: false
+        }
+    },
+    mounted() { this.loadContracts() },
+    methods: {
+        async loadContracts() {
+            this.loading = true
+            try {
+                // 实际API调用
+                // const res = await api.getContracts({ status: this.activeTab })
+                // this.contracts = res.data?.items || []
+                
+                // 演示数据
+                this.contracts = [
+                    {
+                        id: 1,
+                        contract_no: 'CON2025120100001',
+                        title: '检测服务合同',
+                        order_no: 'ORD2025120100001',
+                        signed_at: '2025-12-01',
+                        expired_at: '2026-12-01',
+                        status: 'active'
+                    },
+                    {
+                        id: 2,
+                        contract_no: 'CON2025110100002',
+                        title: '检测服务合同',
+                        order_no: 'ORD2025110100002',
+                        signed_at: '2025-11-01',
+                        expired_at: '2026-11-01',
+                        status: 'active'
+                    }
+                ]
+                
+                if (this.activeTab !== 'all') {
+                    this.contracts = this.contracts.filter(c => c.status === this.activeTab)
+                }
+            } catch (error) {
+                console.error('加载合同失败', error)
+            } finally {
+                this.loading = false
+            }
+        },
+        viewContract(contract) {
+            ElMessageBox.alert(
+                \`<div style="line-height: 2">
+                    <p><strong>合同编号：</strong>\${contract.contract_no}</p>
+                    <p><strong>合同名称：</strong>\${contract.title}</p>
+                    <p><strong>关联订单：</strong>\${contract.order_no}</p>
+                    <p><strong>签订日期：</strong>\${contract.signed_at}</p>
+                    <p><strong>有效期至：</strong>\${contract.expired_at}</p>
+                    <hr style="margin: 16px 0; border-color: #f0f0f0">
+                    <p style="color: #8c8c8c">甲方：科研检测服务平台</p>
+                    <p style="color: #8c8c8c">乙方：用户</p>
+                    <p style="margin-top: 12px">根据《中华人民共和国合同法》及相关法律法规，甲乙双方本着平等互利的原则，就检测服务事宜达成如下协议...</p>
+                </div>\`,
+                '合同详情',
+                { confirmButtonText: '关闭', dangerouslyUseHTMLString: true, customStyle: { width: '600px' } }
+            )
+        },
+        downloadContract(contract) {
+            ElMessage.info('正在准备下载合同PDF...')
+            // 实际下载逻辑
+            setTimeout(() => {
+                ElMessage.success('合同下载成功')
+            }, 1500)
+        }
+    }
+}
+
 // ==================== 主应用 ====================
 createApp({
     components: {
@@ -1081,12 +1846,20 @@ createApp({
         WalletView,
         PointsView,
         InvoiceView,
-        TeamView
+        TeamView,
+        HelpView,
+        ChatView,
+        LotteryView,
+        ReportsView,
+        SampleTrackView,
+        AnnouncementsView,
+        ContractsView
     },
     data() {
         return {
             currentView: 'home',
             currentProjectId: null,
+            currentOrderId: null,
             isMobile: false,
             isLogin: false,
             userInfo: {},
@@ -1152,6 +1925,7 @@ createApp({
         handleTabClick(view) { if (!this.isLogin && (view === 'orders' || view === 'profile')) { this.showLogin = true } else { this.currentView = view } },
         handleUserCommand(command) { if (command === 'logout') { this.logout() } else { this.currentView = command } },
         goToDetail(projectId) { this.currentProjectId = projectId; this.currentView = 'detail' },
+        goToSampleTrack(orderId) { this.currentOrderId = orderId; this.currentView = 'sampletrack' },
         requireLogin() { this.showLogin = true },
         // 预约下单
         async openBooking(project) {

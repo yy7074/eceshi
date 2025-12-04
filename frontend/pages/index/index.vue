@@ -1,10 +1,19 @@
 <template>
 	<view class="container">
-		<!-- 搜索栏 -->
-		<view class="search-bar">
+		<!-- 顶部栏 -->
+		<view class="top-bar">
 			<view class="search-input" @click="goSearch">
 				<text class="icon">🔍</text>
 				<text class="placeholder">输入仪器名称/型号，如 XRD、SEM、FT-IR</text>
+			</view>
+			<view class="top-icons">
+				<view class="icon-item" @click="goNotice">
+					<text class="icon-emoji">🔔</text>
+					<view class="badge" v-if="unreadCount > 0">{{ unreadCount > 99 ? '99+' : unreadCount }}</view>
+				</view>
+				<view class="icon-item" @click="goChat">
+					<text class="icon-emoji">💬</text>
+				</view>
 			</view>
 		</view>
 		
@@ -80,6 +89,7 @@
 	export default {
 		data() {
 			return {
+				unreadCount: 2, // 未读消息数
 				quickNavs: [
 					{ icon: '🤝', name: '邀请好友', bg: '#e6fcf5', color: '#12b886' },
 					{ icon: '🎯', name: '优惠券', bg: '#fff4e6', color: '#ff922b' },
@@ -265,6 +275,25 @@
 			uni.navigateTo({
 				url: `/pagesA/booking/booking?projectId=${item.id}&projectName=${encodeURIComponent(item.name)}`
 			})
+		},
+		goNotice() {
+			const token = uni.getStorageSync('token')
+			if (!token) {
+				uni.showModal({
+					title: '提示',
+					content: '请先登录',
+					success: (res) => {
+						if (res.confirm) {
+							uni.navigateTo({ url: '/pages/login/login' })
+						}
+					}
+				})
+				return
+			}
+			uni.navigateTo({ url: '/pagesA/notice/notice' })
+		},
+		goChat() {
+			uni.navigateTo({ url: '/pagesA/chat/chat' })
 		}
 		}
 	}
@@ -277,13 +306,17 @@
 		padding-bottom: 20rpx;
 	}
 	
-	/* 搜索栏 */
-	.search-bar {
+	/* 顶部栏 */
+	.top-bar {
 		background: #fff;
 		padding: 16rpx 24rpx;
 		border-bottom: 1rpx solid #f0f0f0;
+		display: flex;
+		align-items: center;
+		gap: 16rpx;
 		
 		.search-input {
+			flex: 1;
 			background: #f5f5f5;
 			border-radius: 8rpx;
 			padding: 16rpx 24rpx;
@@ -299,6 +332,42 @@
 			.placeholder {
 				color: #8c8c8c;
 				font-size: 26rpx;
+			}
+		}
+		
+		.top-icons {
+			display: flex;
+			gap: 16rpx;
+			
+			.icon-item {
+				position: relative;
+				width: 72rpx;
+				height: 72rpx;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				background: #f5f5f5;
+				border-radius: 50%;
+				
+				.icon-emoji {
+					font-size: 36rpx;
+				}
+				
+				.badge {
+					position: absolute;
+					top: -4rpx;
+					right: -4rpx;
+					min-width: 32rpx;
+					height: 32rpx;
+					padding: 0 8rpx;
+					background: #ff4d4f;
+					color: #fff;
+					font-size: 20rpx;
+					border-radius: 16rpx;
+					display: flex;
+					align-items: center;
+					justify-content: center;
+				}
 			}
 		}
 	}

@@ -170,6 +170,27 @@
 					<text class="service-icon">⚙️</text>
 					<text class="service-text">设置</text>
 				</view>
+				
+				<!-- 第四行 - 新增功能 -->
+				<view class="service-item" @click="goPage('/pagesA/report/report')">
+					<view class="icon-wrap">
+						<text class="service-icon">📊</text>
+						<text class="badge new">NEW</text>
+					</view>
+					<text class="service-text">报告下载</text>
+				</view>
+				<view class="service-item" @click="goPage('/pagesA/help/help')">
+					<text class="service-icon">❓</text>
+					<text class="service-text">帮助中心</text>
+				</view>
+				<view class="service-item" @click="goPage('/pagesA/chat/chat')">
+					<text class="service-icon">👩‍💼</text>
+					<text class="service-text">在线客服</text>
+				</view>
+				<view class="service-item" @click="goPage('/pagesA/notice/notice')">
+					<text class="service-icon">🔔</text>
+					<text class="service-text">消息通知</text>
+				</view>
 			</view>
 		</view>
 		

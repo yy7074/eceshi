@@ -132,6 +132,26 @@
 			<text class="error-text">订单不存在</text>
 		</view>
 		
+		<!-- 快捷操作 -->
+		<view class="quick-actions" v-if="['paid', 'confirmed', 'testing', 'completed'].includes(order.status)">
+			<view class="action-item" @click="goSampleTrack">
+				<text class="action-icon">📦</text>
+				<text class="action-text">样品追踪</text>
+			</view>
+			<view class="action-item" v-if="order.status === 'completed'" @click="downloadReport">
+				<text class="action-icon">📊</text>
+				<text class="action-text">下载报告</text>
+			</view>
+			<view class="action-item" @click="goChat">
+				<text class="action-icon">💬</text>
+				<text class="action-text">在线客服</text>
+			</view>
+			<view class="action-item" v-if="order.status === 'completed'" @click="goReview">
+				<text class="action-icon">⭐</text>
+				<text class="action-text">评价订单</text>
+			</view>
+		</view>
+		
 		<!-- 底部操作栏 -->
 		<view class="bottom-bar" v-if="order.id">
 			<button 
@@ -149,11 +169,18 @@
 				立即支付
 			</button>
 			<button 
+				v-if="['paid', 'confirmed'].includes(order.status)" 
+				class="btn-action secondary"
+				@click="goSampleTrack"
+			>
+				样品追踪
+			</button>
+			<button 
 				v-if="order.status === 'completed'" 
 				class="btn-action secondary"
-				@click="contactService"
+				@click="downloadReport"
 			>
-				联系客服
+				下载报告
 			</button>
 			<button 
 				v-if="order.status === 'completed'" 
@@ -351,6 +378,56 @@ export default {
 		reorder() {
 			uni.navigateTo({
 				url: `/pagesA/booking/booking?projectId=${this.order.project_id}&projectName=${encodeURIComponent(this.order.project_name)}`
+			})
+		},
+		
+		// 样品追踪
+		goSampleTrack() {
+			uni.navigateTo({
+				url: `/pagesA/sample-track/sample-track?orderId=${this.order.id}&orderNo=${this.order.order_no}`
+			})
+		},
+		
+		// 下载报告
+		downloadReport() {
+			uni.showLoading({ title: '准备下载...' })
+			
+			// 模拟下载过程
+			setTimeout(() => {
+				uni.hideLoading()
+				uni.showModal({
+					title: '报告下载',
+					content: '检测报告已生成，请选择操作',
+					confirmText: '下载',
+					cancelText: '预览',
+					success: (res) => {
+						if (res.confirm) {
+							uni.showToast({ title: '报告下载中...', icon: 'loading' })
+							setTimeout(() => {
+								uni.showToast({ title: '下载成功', icon: 'success' })
+							}, 2000)
+						} else {
+							// 预览
+							uni.showModal({
+								title: '报告预览',
+								content: `项目：${this.order.project_name}\n订单号：${this.order.order_no}\n\n报告内容正在加载...`,
+								showCancel: false
+							})
+						}
+					}
+				})
+			}, 1000)
+		},
+		
+		// 在线客服
+		goChat() {
+			uni.navigateTo({ url: '/pagesA/chat/chat' })
+		},
+		
+		// 评价订单
+		goReview() {
+			uni.navigateTo({
+				url: `/pagesA/review/review?orderId=${this.order.id}`
 			})
 		}
 	}
@@ -569,6 +646,32 @@ export default {
 	.value {
 		font-size: 28rpx;
 		color: #333;
+	}
+}
+
+/* 快捷操作 */
+.quick-actions {
+	display: flex;
+	background: #fff;
+	margin: 20rpx;
+	border-radius: 12rpx;
+	padding: 24rpx 0;
+	
+	.action-item {
+		flex: 1;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 12rpx;
+		
+		.action-icon {
+			font-size: 48rpx;
+		}
+		
+		.action-text {
+			font-size: 24rpx;
+			color: #666;
+		}
 	}
 }
 
