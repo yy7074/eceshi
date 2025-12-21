@@ -122,11 +122,17 @@ export default {
 					page_size: this.pageSize
 				})
 				
-				if (res.data && res.data.items) {
-					const newRecords = res.data.items.map(item => ({
+				console.log('钱包-充值记录响应:', res)
+				
+				// 处理响应数据
+				const items = res.data?.items || res.items || []
+				const total = res.data?.total || res.total || 0
+				
+				if (items && items.length > 0) {
+					const newRecords = items.map(item => ({
 						type: this.getRecordType(item),
 						time: this.formatTime(item.created_at),
-						amount: parseFloat(item.actual_amount || item.amount),
+						amount: parseFloat(item.actual_amount || item.amount || 0),
 						income: true, // 充值都是收入
 						status: item.status,
 						raw: item
@@ -138,14 +144,31 @@ export default {
 						this.records.push(...newRecords)
 					}
 					
-					this.hasMore = this.records.length < res.data.total
+					this.hasMore = this.records.length < total
+				} else {
+					// 如果没有数据，清空记录
+					if (this.page === 1) {
+						this.records = []
+					}
+					this.hasMore = false
 				}
+				
+				console.log('钱包-记录加载完成:', {
+					records: this.records.length,
+					total: total,
+					hasMore: this.hasMore
+				})
 				
 				// 根据当前tab过滤记录
 				this.filterRecords()
 				
 			} catch (error) {
 				console.error('加载账单失败', error)
+				// 如果出错，至少保证页面不崩溃
+				if (this.page === 1) {
+					this.records = []
+				}
+				this.hasMore = false
 			}
 		},
 		

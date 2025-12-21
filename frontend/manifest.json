@@ -1,5 +1,5 @@
 {
-    "name" : "科研检测服务平台",
+    "name" : "ceshi",
     "appid" : "",
     "description" : "一站式科研检测服务平台",
     "versionName" : "1.0.0",
@@ -44,7 +44,7 @@
         "usingComponents" : true
     },
     "h5" : {
-        "title" : "科研检测服务平台 - E测试",
+        "title" : "ceshi",
         "template" : "",
         "router" : {
             "mode" : "hash",

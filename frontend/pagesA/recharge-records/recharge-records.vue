@@ -106,14 +106,25 @@ export default {
 					page_size: this.pageSize
 				})
 				
+				console.log('充值记录响应:', res)
+				
+				// 处理响应数据
+				const items = res.data?.items || res.items || []
+				const total = res.data?.total || res.total || 0
+				
 				if (this.page === 1) {
-					this.records = res.data.items
+					this.records = items
 				} else {
-					this.records.push(...res.data.items)
+					this.records.push(...items)
 				}
 				
-				this.total = res.data.total
+				this.total = total
 				this.loading = false
+				
+				console.log('充值记录加载完成:', {
+					records: this.records.length,
+					total: this.total
+				})
 				
 			} catch (error) {
 				console.error('加载充值记录失败', error)

@@ -596,9 +596,8 @@ async def get_orders_admin(
             "user_phone": o.user.phone if o.user else None,
             "user_nickname": o.user.nickname if o.user else None,
             "project_id": o.project_id,
-            "project_name": o.project.name if o.project else None,
-            "sample_name": o.sample_name,
-            "quantity": o.quantity,
+            "project_name": o.project.name if o.project else o.project_name,
+            "sample_count": o.sample_count,
             "total_amount": float(o.total_fee or 0),
             "status": o.status,
             "created_at": o.created_at.isoformat() if o.created_at else None,
@@ -625,8 +624,7 @@ async def get_order_detail_admin(
     
     order = db.query(Order).options(
         joinedload(Order.user),
-        joinedload(Order.project),
-        joinedload(Order.address)
+        joinedload(Order.project)
     ).filter(Order.id == order_id).first()
     
     if not order:
@@ -644,21 +642,23 @@ async def get_order_detail_admin(
             "nickname": order.user.nickname if order.user else None
         },
         "project": {
-            "id": order.project.id if order.project else None,
-            "name": order.project.name if order.project else None,
+            "id": order.project.id if order.project else order.project_id,
+            "name": order.project.name if order.project else order.project_name,
             "cover_image": order.project.cover_image if order.project else None
         },
-        "sample_name": order.sample_name,
-        "sample_state": order.sample_state,
-        "quantity": order.quantity,
-        "unit_price": float(order.unit_price) if order.unit_price else 0,
-        "total_amount": float(order.total_amount) if order.total_amount else 0,
+        "sample_count": order.sample_count,
+        "project_fee": float(order.project_fee or 0),
+        "urgent_fee": float(order.urgent_fee or 0),
+        "shipping_fee": float(order.shipping_fee or 0),
+        "discount_amount": float(order.discount_amount or 0),
+        "total_amount": float(order.total_fee or 0),
+        "paid_fee": float(order.paid_fee or 0),
         "status": order.status,
         "address": {
-            "receiver": order.address.receiver if order.address else None,
-            "phone": order.address.phone if order.address else None,
-            "address": order.address.full_address() if order.address and hasattr(order.address, 'full_address') else None
-        } if order.address else None,
+            "receiver": order.receiver_name,
+            "phone": order.receiver_phone,
+            "address": order.receiver_address
+        } if order.receiver_name else None,
         "created_at": order.created_at.isoformat() if order.created_at else None,
         "paid_at": order.paid_at.isoformat() if order.paid_at else None,
         "confirmed_at": order.confirmed_at.isoformat() if order.confirmed_at else None,
@@ -1429,4 +1429,422 @@ async def review_withdraw_admin(
     db.commit()
     
     return Response.success(message="审核完成")
+
+
+# ==================== 数据分析 ====================
+
+@router.get("/analytics", summary="获取数据分析数据（管理员）")
+async def get_analytics(
+    start_date: Optional[str] = Query(None, description="开始日期"),
+    end_date: Optional[str] = Query(None, description="结束日期"),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """获取数据分析数据"""
+    try:
+        # 解析日期
+        if start_date:
+            start_dt = datetime.strptime(start_date, "%Y-%m-%d")
+        else:
+            start_dt = datetime.now() - timedelta(days=30)
+        
+        if end_date:
+            end_dt = datetime.strptime(end_date, "%Y-%m-%d")
+        else:
+            end_dt = datetime.now()
+        
+        # 订单趋势（最近7天）
+        order_trends = []
+        for i in range(6, -1, -1):
+            target_date = (datetime.now() - timedelta(days=i)).date()
+            date = target_date.strftime("%m-%d")
+            count = db.query(Order).filter(
+                func.date(Order.created_at) == target_date
+            ).count()
+            order_trends.append({"date": date, "count": count})
+        
+        # 分类分布（按项目分类统计订单数）
+        category_dist = db.query(
+            ProjectCategory.name,
+            func.count(Order.id).label('count')
+        ).join(
+            Project, Project.category_id == ProjectCategory.id
+        ).join(
+            Order, Order.project_id == Project.id
+        ).group_by(ProjectCategory.name).limit(5).all()
+        
+        category_distribution = []
+        colors = ['#409eff', '#67c23a', '#e6a23c', '#f56c6c', '#909399']
+        total_orders = sum([c.count for c in category_dist]) or 1
+        for idx, (name, count) in enumerate(category_dist):
+            category_distribution.append({
+                "category": name,
+                "percentage": round((count / total_orders) * 100, 1),
+                "color": colors[idx % len(colors)]
+            })
+        
+        # 用户增长（本月和上月）
+        this_month_start = datetime.now().replace(day=1, hour=0, minute=0, second=0)
+        last_month_start = (this_month_start - timedelta(days=1)).replace(day=1)
+        last_month_end = this_month_start - timedelta(seconds=1)
+        
+        this_month_users = db.query(User).filter(
+            User.created_at >= this_month_start
+        ).count()
+        
+        last_month_users = db.query(User).filter(
+            User.created_at >= last_month_start,
+            User.created_at <= last_month_end
+        ).count()
+        
+        growth_rate = 0
+        if last_month_users > 0:
+            growth_rate = round(((this_month_users - last_month_users) / last_month_users) * 100, 1)
+        
+        # 活跃用户（最近30天有登录）
+        active_users = db.query(User).filter(
+            User.last_login_at >= datetime.now() - timedelta(days=30)
+        ).count()
+        
+        # 收入分析
+        this_month_revenue = db.query(func.sum(Order.total_fee)).filter(
+            Order.created_at >= this_month_start,
+            Order.status.in_(["confirmed", "processing", "completed"])
+        ).scalar() or Decimal("0")
+        
+        last_month_revenue = db.query(func.sum(Order.total_fee)).filter(
+            Order.created_at >= last_month_start,
+            Order.created_at <= last_month_end,
+            Order.status.in_(["confirmed", "processing", "completed"])
+        ).scalar() or Decimal("0")
+        
+        revenue_growth_rate = 0
+        if last_month_revenue > 0:
+            revenue_growth_rate = round(((float(this_month_revenue) - float(last_month_revenue)) / float(last_month_revenue)) * 100, 1)
+        
+        # 平均客单价
+        this_month_orders = db.query(Order).filter(
+            Order.created_at >= this_month_start,
+            Order.status.in_(["confirmed", "processing", "completed"])
+        ).count()
+        
+        avg_order_value = 0
+        if this_month_orders > 0:
+            avg_order_value = round(float(this_month_revenue) / this_month_orders, 2)
+        
+        return Response.success(data={
+            "orderTrends": order_trends,
+            "categoryDistribution": category_distribution,
+            "userGrowth": {
+                "thisMonth": this_month_users,
+                "lastMonth": last_month_users,
+                "growthRate": growth_rate,
+                "activeUsers": active_users
+            },
+            "revenueAnalysis": {
+                "thisMonth": float(this_month_revenue),
+                "lastMonth": float(last_month_revenue),
+                "growthRate": revenue_growth_rate,
+                "avgOrderValue": avg_order_value
+            }
+        })
+    except Exception as e:
+        print(f"获取数据分析失败: {str(e)}")
+        # 返回默认数据
+        return Response.success(data={
+            "orderTrends": [],
+            "categoryDistribution": [],
+            "userGrowth": {"thisMonth": 0, "lastMonth": 0, "growthRate": 0, "activeUsers": 0},
+            "revenueAnalysis": {"thisMonth": 0, "lastMonth": 0, "growthRate": 0, "avgOrderValue": 0}
+        })
+
+
+@router.get("/analytics/export", summary="导出数据分析报表（管理员）")
+async def export_analytics(
+    start_date: Optional[str] = Query(None),
+    end_date: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """导出数据分析报表（暂时返回空文件）"""
+    from fastapi.responses import Response as FastAPIResponse
+    # TODO: 实现Excel导出功能
+    return FastAPIResponse(content="", media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+
+# ==================== 角色管理 ====================
+
+@router.get("/roles", summary="获取角色列表（管理员）")
+async def get_roles(
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """获取角色列表（暂时返回默认角色）"""
+    # TODO: 实现真实的角色管理功能
+    roles = [
+        {"id": 1, "name": "销售", "code": "sales", "description": "销售人员", "user_count": 0, "is_active": True, "is_system": False},
+        {"id": 2, "name": "技术老师", "code": "teacher", "description": "技术指导老师", "user_count": 0, "is_active": True, "is_system": False},
+        {"id": 3, "name": "实验室", "code": "lab", "description": "实验室人员", "user_count": 0, "is_active": True, "is_system": False},
+        {"id": 4, "name": "财务", "code": "finance", "description": "财务人员", "user_count": 0, "is_active": True, "is_system": False},
+        {"id": 5, "name": "客服", "code": "service", "description": "客服人员", "user_count": 0, "is_active": True, "is_system": False},
+        {"id": 6, "name": "超级管理员", "code": "admin", "description": "系统管理员", "user_count": 1, "is_active": True, "is_system": True}
+    ]
+    return Response.success(data={"items": roles})
+
+
+@router.post("/roles", summary="创建角色（管理员）")
+async def create_role(
+    data: dict = Body(...),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """创建角色（暂时返回成功）"""
+    # TODO: 实现真实的角色创建功能
+    return Response.success(message="角色创建成功", data={"id": 999, **data})
+
+
+@router.put("/roles/{role_id}", summary="更新角色（管理员）")
+async def update_role(
+    role_id: int,
+    data: dict = Body(...),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """更新角色（暂时返回成功）"""
+    # TODO: 实现真实的角色更新功能
+    return Response.success(message="角色更新成功")
+
+
+@router.delete("/roles/{role_id}", summary="删除角色（管理员）")
+async def delete_role(
+    role_id: int,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """删除角色（暂时返回成功）"""
+    # TODO: 实现真实的角色删除功能
+    return Response.success(message="角色删除成功")
+
+
+@router.put("/roles/{role_id}/permissions", summary="更新角色权限（管理员）")
+async def update_role_permissions(
+    role_id: int,
+    data: dict = Body(...),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """更新角色权限（暂时返回成功）"""
+    # TODO: 实现真实的权限管理功能
+    return Response.success(message="权限更新成功")
+
+
+# ==================== 折扣管理 ====================
+
+@router.get("/discounts", summary="获取折扣列表（管理员）")
+async def get_discounts(
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """获取折扣列表（暂时返回空列表）"""
+    # TODO: 实现真实的折扣管理功能
+    return Response.success(data={"items": []})
+
+
+@router.post("/discounts", summary="创建折扣（管理员）")
+async def create_discount(
+    data: dict = Body(...),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """创建折扣（暂时返回成功）"""
+    # TODO: 实现真实的折扣创建功能
+    return Response.success(message="折扣创建成功", data={"id": 999, **data})
+
+
+@router.put("/discounts/{discount_id}", summary="更新折扣（管理员）")
+async def update_discount(
+    discount_id: int,
+    data: dict = Body(...),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """更新折扣（暂时返回成功）"""
+    # TODO: 实现真实的折扣更新功能
+    return Response.success(message="折扣更新成功")
+
+
+@router.put("/discounts/{discount_id}/status", summary="更新折扣状态（管理员）")
+async def update_discount_status(
+    discount_id: int,
+    data: dict = Body(...),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """更新折扣状态（暂时返回成功）"""
+    # TODO: 实现真实的折扣状态更新功能
+    return Response.success(message="状态更新成功")
+
+
+@router.delete("/discounts/{discount_id}", summary="删除折扣（管理员）")
+async def delete_discount(
+    discount_id: int,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """删除折扣（暂时返回成功）"""
+    # TODO: 实现真实的折扣删除功能
+    return Response.success(message="折扣删除成功")
+
+
+# ==================== 抽奖管理 ====================
+
+@router.get("/lotteries", summary="获取抽奖活动列表（管理员）")
+async def get_lotteries(
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """获取抽奖活动列表（暂时返回空列表）"""
+    # TODO: 实现真实的抽奖管理功能
+    return Response.success(data={"items": []})
+
+
+@router.get("/lotteries/{lottery_id}/prizes", summary="获取抽奖奖品列表（管理员）")
+async def get_lottery_prizes(
+    lottery_id: int,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """获取抽奖奖品列表（暂时返回空列表）"""
+    # TODO: 实现真实的奖品查询功能
+    return Response.success(data=[])
+
+
+@router.get("/lotteries/{lottery_id}/records", summary="获取抽奖中奖记录（管理员）")
+async def get_lottery_records(
+    lottery_id: int,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """获取抽奖中奖记录（暂时返回空列表）"""
+    # TODO: 实现真实的中奖记录查询功能
+    return Response.success(data=[])
+
+
+# ==================== 销售统计 ====================
+
+@router.get("/sales/stats", summary="获取销售统计（管理员）")
+async def get_sales_stats(
+    start_date: Optional[str] = Query(None),
+    end_date: Optional[str] = Query(None),
+    staff_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """获取销售统计数据"""
+    try:
+        # 解析日期
+        if start_date:
+            start_dt = datetime.strptime(start_date, "%Y-%m-%d")
+        else:
+            start_dt = datetime.now() - timedelta(days=30)
+        
+        if end_date:
+            end_dt = datetime.strptime(end_date, "%Y-%m-%d")
+        else:
+            end_dt = datetime.now()
+        
+        # 构建查询
+        query = db.query(Order).filter(
+            Order.created_at >= start_dt,
+            Order.created_at <= end_dt,
+            Order.status.in_(["confirmed", "processing", "completed"])
+        )
+        
+        # 销售统计汇总
+        total_orders = query.count()
+        total_revenue = query.with_entities(func.sum(Order.total_fee)).scalar() or Decimal("0")
+        avg_order_value = float(total_revenue / total_orders) if total_orders > 0 else 0
+        
+        # 销售排名（暂时返回空）
+        ranking = []
+        
+        return Response.success(data={
+            "summary": {
+                "total_orders": total_orders,
+                "total_revenue": float(total_revenue),
+                "avg_order_value": avg_order_value,
+                "period": f"{start_dt.strftime('%Y-%m-%d')} 至 {end_dt.strftime('%Y-%m-%d')}"
+            },
+            "ranking": ranking
+        })
+    except Exception as e:
+        print(f"获取销售统计失败: {str(e)}")
+        return Response.success(data={
+            "summary": {
+                "total_orders": 0,
+                "total_revenue": 0,
+                "avg_order_value": 0,
+                "period": ""
+            },
+            "ranking": []
+        })
+
+
+@router.get("/sales/export", summary="导出销售数据（管理员）")
+async def export_sales_data(
+    start_date: Optional[str] = Query(None),
+    end_date: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """导出销售数据（暂时返回空文件）"""
+    from fastapi.responses import Response as FastAPIResponse
+    # TODO: 实现Excel导出功能
+    return FastAPIResponse(content="", media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+
+# ==================== 二维码推广 ====================
+
+@router.get("/qrcodes", summary="获取二维码列表（管理员）")
+async def get_qrcodes(
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """获取二维码列表（暂时返回空列表）"""
+    # TODO: 实现真实的二维码管理功能
+    return Response.success(data={"items": []})
+
+
+@router.post("/qrcodes", summary="创建二维码（管理员）")
+async def create_qrcode(
+    data: dict = Body(...),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """创建二维码（暂时返回成功）"""
+    # TODO: 实现真实的二维码生成功能
+    return Response.success(message="二维码创建成功", data={"id": 999, "qrcode_url": "https://via.placeholder.com/100?text=QR", **data})
+
+
+@router.get("/qrcodes/{qrcode_id}/download", summary="下载二维码（管理员）")
+async def download_qrcode(
+    qrcode_id: int,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """下载二维码（暂时返回空文件）"""
+    from fastapi.responses import Response as FastAPIResponse
+    # TODO: 实现二维码下载功能
+    return FastAPIResponse(content="", media_type="image/png")
+
+
+@router.delete("/qrcodes/{qrcode_id}", summary="删除二维码（管理员）")
+async def delete_qrcode(
+    qrcode_id: int,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """删除二维码（暂时返回成功）"""
+    # TODO: 实现真实的二维码删除功能
+    return Response.success(message="二维码删除成功")
 

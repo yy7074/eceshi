@@ -155,7 +155,12 @@ async def get_recharge_records(
         
         # 状态筛选
         if status:
-            query = query.filter(RechargeRecord.status == status)
+            try:
+                status_enum = RechargeStatus(status)
+                query = query.filter(RechargeRecord.status == status_enum)
+            except ValueError:
+                # 如果状态值无效，忽略筛选
+                pass
         
         # 总数
         total = query.count()
@@ -164,6 +169,8 @@ async def get_recharge_records(
         records = query.order_by(
             RechargeRecord.created_at.desc()
         ).offset((page - 1) * page_size).limit(page_size).all()
+        
+        print(f"[充值记录] 用户 {current_user.id} 查询充值记录: 总数={total}, 当前页={len(records)}条")
         
         return Response.success(data={
             "total": total,
@@ -174,10 +181,10 @@ async def get_recharge_records(
                     "id": r.id,
                     "recharge_no": r.recharge_no,
                     "amount": float(r.amount),
-                    "bonus_amount": float(r.bonus_amount),
-                    "actual_amount": float(r.actual_amount),
-                    "payment_method": r.payment_method.value,
-                    "status": r.status.value,
+                    "bonus_amount": float(r.bonus_amount or 0),
+                    "actual_amount": float(r.actual_amount or r.amount),
+                    "payment_method": r.payment_method.value if r.payment_method else None,
+                    "status": r.status.value if r.status else "pending",
                     "created_at": r.created_at.isoformat() if r.created_at else None,
                     "paid_at": r.paid_at.isoformat() if r.paid_at else None,
                     "completed_at": r.completed_at.isoformat() if r.completed_at else None
@@ -187,6 +194,9 @@ async def get_recharge_records(
         })
         
     except Exception as e:
+        print(f"[充值记录] 查询失败: {str(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"获取充值记录失败: {str(e)}")
 
 

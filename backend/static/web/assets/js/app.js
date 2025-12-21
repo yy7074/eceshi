@@ -3,7 +3,7 @@ const { createApp } = Vue
 const { ElMessage, ElMessageBox } = ElementPlus
 
 // API基础URL
-const API_BASE_URL = 'http://8.148.188.85:3000'
+const API_BASE_URL = 'https://3000.dachaonet.com'
 
 // Axios配置
 axios.defaults.baseURL = API_BASE_URL
@@ -965,7 +965,7 @@ const AboutView = {
 
             <div class="about-section">
                 <h2>关注我们</h2>
-                <p><strong>微信公众号：</strong>E测试</p>
+                <p><strong>微信公众号：</strong>ceshi</p>
                 <p><strong>微信小程序：</strong>科研检测服务平台</p>
             </div>
         </div>
@@ -1843,17 +1843,17 @@ const ContractsView = {
         },
         viewContract(contract) {
             ElMessageBox.alert(
-                \`<div style="line-height: 2">
-                    <p><strong>合同编号：</strong>\${contract.contract_no}</p>
-                    <p><strong>合同名称：</strong>\${contract.title}</p>
-                    <p><strong>关联订单：</strong>\${contract.order_no}</p>
-                    <p><strong>签订日期：</strong>\${contract.signed_at}</p>
-                    <p><strong>有效期至：</strong>\${contract.expired_at}</p>
+                `<div style="line-height: 2">
+                    <p><strong>合同编号：</strong>${contract.contract_no}</p>
+                    <p><strong>合同名称：</strong>${contract.title}</p>
+                    <p><strong>关联订单：</strong>${contract.order_no}</p>
+                    <p><strong>签订日期：</strong>${contract.signed_at}</p>
+                    <p><strong>有效期至：</strong>${contract.expired_at}</p>
                     <hr style="margin: 16px 0; border-color: #f0f0f0">
                     <p style="color: #8c8c8c">甲方：科研检测服务平台</p>
                     <p style="color: #8c8c8c">乙方：用户</p>
                     <p style="margin-top: 12px">根据《中华人民共和国合同法》及相关法律法规，甲乙双方本着平等互利的原则，就检测服务事宜达成如下协议...</p>
-                </div>\`,
+                </div>`,
                 '合同详情',
                 { confirmButtonText: '关闭', dangerouslyUseHTMLString: true, customStyle: { width: '600px' } }
             )

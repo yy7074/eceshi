@@ -141,7 +141,16 @@ class SMSService:
             sms_code = query.first()
             
             if not sms_code:
-                logger.warning(f"验证码验证失败：手机号 {phone}, 验证码 {code}")
+                # 详细日志，帮助调试
+                all_codes = db.query(SMSCode).filter(
+                    SMSCode.phone == phone
+                ).all()
+                
+                logger.warning(f"验证码验证失败：手机号 {phone}, 验证码 {code}, 场景 {scene}")
+                if all_codes:
+                    logger.warning(f"该手机号的验证码记录: {[(c.code, c.is_used, c.expires_at, c.scene) for c in all_codes]}")
+                else:
+                    logger.warning(f"该手机号没有验证码记录")
                 return False
             
             # 标记为已使用

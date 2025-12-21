@@ -1,7 +1,8 @@
 """
 订单相关模型
 """
-from sqlalchemy import Column, BigInteger, String, Integer, DateTime, Boolean, Text, JSON, Numeric
+from sqlalchemy import Column, BigInteger, String, Integer, DateTime, Boolean, Text, JSON, Numeric, ForeignKey
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.core.database import Base
 
@@ -59,6 +60,10 @@ class Order(Base):
     
     # 预计完成时间
     estimated_completion_time = Column(DateTime, comment="预计完成时间")
+    
+    # 关系
+    user = relationship("User", foreign_keys=[user_id], primaryjoin="Order.user_id == User.id")
+    project = relationship("Project", foreign_keys=[project_id], primaryjoin="Order.project_id == Project.id")
 
 
 class OrderSample(Base):

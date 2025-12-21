@@ -25,7 +25,7 @@ class WeChatPayService:
         self.app_id = getattr(settings, 'WECHAT_APPID', 'wx2ef4744e64c7bc45')
         self.mch_id = getattr(settings, 'WECHAT_MCH_ID', '')  # 商户号
         self.api_key = getattr(settings, 'WECHAT_PAY_KEY', '')  # API密钥
-        self.notify_url = getattr(settings, 'WECHAT_PAY_NOTIFY_URL', 'https://catdog.dachaonet.com/api/v1/payments/wechat/notify')
+        self.notify_url = getattr(settings, 'WECHAT_PAY_NOTIFY_URL', 'https://3000.dachaonet.com/api/v1/payments/wechat/notify')
     
     def generate_nonce_str(self, length: int = 32) -> str:
         """生成随机字符串"""
@@ -501,7 +501,9 @@ class WeChatPayService:
                 return False
             
             # 增加余额（充值金额+赠送金额）
-            user.prepaid_balance = (user.prepaid_balance or Decimal("0")) + recharge.actual_amount
+            old_balance = user.prepaid_balance or Decimal("0")
+            user.prepaid_balance = old_balance + recharge.actual_amount
+            new_balance = user.prepaid_balance
             
             # 更新充值记录状态
             recharge.status = RechargeStatus.SUCCESS
@@ -512,6 +514,7 @@ class WeChatPayService:
             db.commit()
             
             print(f'充值成功: 用户{user.id}, 充值{float(recharge.amount)}元, 实际到账{float(recharge.actual_amount)}元')
+            print(f'余额变化: {float(old_balance)}元 → {float(new_balance)}元')
             
             return True
             

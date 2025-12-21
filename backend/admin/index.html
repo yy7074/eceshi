@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>科研检测服务平台 - 后台管理</title>
+    <title>ceshi - 后台管理</title>
     <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/element-plus"></script>
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
@@ -151,7 +151,10 @@
         <!-- 登录页面 -->
         <div v-if="!token" class="login-container">
             <div class="login-box">
-                <h2 style="text-align: center; margin-bottom: 30px;">🔬 后台管理登录</h2>
+                <div style="text-align: center; margin-bottom: 30px;">
+                    <img src="./logo.jpg" alt="ceshi" style="height: 60px; margin-bottom: 10px;">
+                    <h2>ceshi - 后台管理登录</h2>
+                </div>
                 
                 <el-tabs v-model="loginType">
                     <!-- 管理员登录 -->
@@ -208,7 +211,10 @@
             <!-- 顶部 -->
             <el-header class="admin-header" height="60px">
                 <div>
-                    <h2>🔬 科研检测服务平台 - 后台管理</h2>
+                    <div style="display: flex; align-items: center;">
+                        <img src="./logo.jpg" alt="ceshi" style="height: 40px; margin-right: 10px;">
+                        <h2>ceshi - 后台管理</h2>
+                    </div>
                 </div>
                 <div>
                     <el-dropdown>
@@ -1488,7 +1494,7 @@
                         </div>
                         <div class="content-card">
                             <el-descriptions title="系统信息" :column="2" border>
-                                <el-descriptions-item label="系统名称">科研检测服务平台</el-descriptions-item>
+                                <el-descriptions-item label="系统名称">ceshi</el-descriptions-item>
                                 <el-descriptions-item label="版本">v2.0.0</el-descriptions-item>
                                 <el-descriptions-item label="后端地址">{{ baseUrl }}</el-descriptions-item>
                                 <el-descriptions-item label="当前管理员">{{ userInfo.nickname }}</el-descriptions-item>
@@ -2614,7 +2620,7 @@
         createApp({
             data() {
                 return {
-                    baseUrl: 'http://8.148.188.85:3000',
+                    baseUrl: 'https://3000.dachaonet.com',
                     token: localStorage.getItem('admin_token') || '',
                     userInfo: JSON.parse(localStorage.getItem('admin_user') || '{}'),
                     loginType: 'admin',

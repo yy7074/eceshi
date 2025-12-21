@@ -4,7 +4,7 @@ FastAPI Application
 """
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -98,12 +98,12 @@ async def health_check():
 static_dir = Path("static")
 static_dir.mkdir(exist_ok=True)
 
-# 挂载Web端用户网站（优先级最高）
+# 挂载Web端用户网站（html=True 会自动处理 index.html）
 web_dir = Path("static/web")
 if web_dir.exists():
     app.mount("/web", StaticFiles(directory="static/web", html=True), name="web")
 
-# 挂载后台管理页面
+# 挂载后台管理页面（html=True 会自动处理 index.html）
 admin_dir = Path("admin")
 if admin_dir.exists():
     app.mount("/admin", StaticFiles(directory="admin", html=True), name="admin")
