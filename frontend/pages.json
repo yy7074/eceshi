@@ -236,6 +236,24 @@
 			"style": {
 				"navigationBarTitleText": "合同管理"
 			}
+		},
+		{
+			"path": "franchise/franchise",
+			"style": {
+				"navigationBarTitleText": "加盟申请"
+			}
+		},
+		{
+			"path": "data-stats/data-stats",
+			"style": {
+				"navigationBarTitleText": "数据统计"
+			}
+		},
+		{
+			"path": "upload-data/upload-data",
+			"style": {
+				"navigationBarTitleText": "上传数据"
+			}
 		}
 	]
 }

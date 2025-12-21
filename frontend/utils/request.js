@@ -3,10 +3,12 @@
  */
 
 // 开发环境API地址
-const DEV_BASE_URL = 'http://8.148.188.85:3000'
-// 生产环境API地址
-const PROD_BASE_URL = 'http://8.148.188.85:3000'
+// const DEV_BASE_URL = 'http://8.148.188.85:3000'
+const DEV_BASE_URL = 'http://catdog.dachaonet.com'
 
+// 生产环境API地址
+// const PROD_BASE_URL = 'http://8.148.188.85:3000'
+const PROD_BASE_URL = 'http://catdog.dachaonet.com'
 // 根据环境选择API地址
 const BASE_URL = process.env.NODE_ENV === 'development' ? DEV_BASE_URL : PROD_BASE_URL
 

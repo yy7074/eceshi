@@ -126,18 +126,46 @@ const api = {
     downloadReport: (orderId) => axios.get(`/api/v1/reports/${orderId}/download`, { responseType: 'blob' }),
     
     // 样品追踪
-    getSampleStatus: (orderId) => axios.get(`/api/v1/samples/${orderId}/status`),
+    getSampleStatus: (orderId) => axios.get(`/api/v1/samples/order/${orderId}/status`),
+    getSampleTimeline: (orderId) => axios.get(`/api/v1/samples/order/${orderId}/timeline`),
+    submitLogistics: (orderId, data) => axios.post(`/api/v1/samples/order/${orderId}/logistics`, data),
     
     // 抽奖
     getLotteryInfo: () => axios.get('/api/v1/lottery/info'),
     doLottery: () => axios.post('/api/v1/lottery/draw'),
-    getLotteryRecords: (params) => axios.get('/api/v1/lottery/records', { params })
+    getLotteryRecords: (params) => axios.get('/api/v1/lottery/records', { params }),
+    
+    // 合同管理
+    getContracts: (params) => axios.get('/api/v1/contracts/list', { params }),
+    getContractDetail: (id) => axios.get(`/api/v1/contracts/${id}`),
+    downloadContract: (id) => axios.post(`/api/v1/contracts/${id}/download`),
+    
+    // 加盟申请
+    submitFranchise: (data) => axios.post('/api/v1/franchise/apply', data),
+    getFranchiseModes: () => axios.get('/api/v1/franchise/modes'),
+    checkFranchiseStatus: (phone) => axios.get('/api/v1/franchise/check', { params: { phone } }),
+    
+    // 数据统计
+    getStatsOverview: (timeRange) => axios.get('/api/v1/statistics/overview', { params: { time_range: timeRange } }),
+    getOrderStats: (timeRange) => axios.get('/api/v1/statistics/order-stats', { params: { time_range: timeRange } }),
+    getProjectStats: (timeRange, limit) => axios.get('/api/v1/statistics/project-stats', { params: { time_range: timeRange, limit } }),
+    getConsumptionTrend: (timeRange) => axios.get('/api/v1/statistics/trend', { params: { time_range: timeRange } }),
+    
+    // 用户通知
+    getNotifications: (params) => axios.get('/api/v1/announcements/notifications/list', { params }),
+    markNotificationRead: (id) => axios.post(`/api/v1/announcements/notifications/${id}/read`),
+    markAllNotificationsRead: () => axios.post('/api/v1/announcements/notifications/read-all'),
+    
+    // 快捷回复
+    getQuickReplies: () => axios.get('/api/v1/chat/quick-replies'),
+    getChatSession: () => axios.get('/api/v1/chat/session')
 }
 
 // ==================== Vue组件 ====================
 
 // 首页组件
 const HomeView = {
+    emits: ['go-projects', 'go-detail', 'go-help', 'go-chat', 'go-lottery', 'go-reports', 'go-announcements', 'go-franchise'],
     template: `
         <div class="home-view">
             <!-- 轮播图Banner -->
@@ -196,6 +224,10 @@ const HomeView = {
                 <div class="quick-item" @click="$emit('go-reports')">
                     <div class="quick-icon" style="background: #f6ffed; color: #52c41a;">📊</div>
                     <span>报告下载</span>
+                </div>
+                <div class="quick-item" @click="$emit('go-franchise')">
+                    <div class="quick-icon" style="background: #f9f0ff; color: #722ed1;">🤝</div>
+                    <span>加盟合作</span>
                 </div>
             </div>
 
@@ -762,7 +794,7 @@ const OrdersView = {
 
 // 个人中心组件
 const ProfileView = {
-    emits: ['go-orders', 'go-favorites', 'go-coupons', 'go-address', 'go-wallet', 'go-points', 'go-invoice', 'go-team', 'go-reports', 'go-help', 'go-chat', 'go-announcements', 'go-contracts', 'go-lottery', 'edit-profile'],
+    emits: ['go-orders', 'go-favorites', 'go-coupons', 'go-address', 'go-wallet', 'go-points', 'go-invoice', 'go-team', 'go-reports', 'go-help', 'go-chat', 'go-announcements', 'go-contracts', 'go-lottery', 'go-franchise', 'edit-profile'],
     template: `
         <div class="profile-view">
             <div class="profile-header">
@@ -817,6 +849,11 @@ const ProfileView = {
                     <div class="menu-item" @click="$emit('go-invoice')">
                         <el-icon :size="24"><document-copy /></el-icon>
                         <span>发票管理</span>
+                    </div>
+                    <div class="menu-item highlight" @click="$emit('go-franchise')">
+                        <el-icon :size="24"><promotion /></el-icon>
+                        <span>加盟合作</span>
+                        <div class="menu-badge hot">HOT</div>
                     </div>
                 </div>
             </div>
@@ -1831,6 +1868,197 @@ const ContractsView = {
     }
 }
 
+// 加盟合作组件
+const FranchiseView = {
+    emits: ['go-back'],
+    template: `
+        <div class="franchise-view">
+            <div class="page-header">
+                <el-button @click="$emit('go-back')"><el-icon><arrow-left /></el-icon> 返回</el-button>
+                <h2>加盟合作</h2>
+            </div>
+            
+            <!-- 加盟Banner -->
+            <div class="franchise-banner">
+                <div class="banner-content">
+                    <h1>🤝 成为合作伙伴</h1>
+                    <p>携手共赢，共创科研检测服务新未来</p>
+                </div>
+            </div>
+            
+            <!-- 加盟优势 -->
+            <div class="franchise-section">
+                <h3 class="section-title">加盟优势</h3>
+                <div class="advantages-grid">
+                    <div class="advantage-item">
+                        <div class="adv-icon">💰</div>
+                        <div class="adv-title">高额返佣</div>
+                        <div class="adv-desc">订单返佣最高可达20%</div>
+                    </div>
+                    <div class="advantage-item">
+                        <div class="adv-icon">🎯</div>
+                        <div class="adv-title">专属支持</div>
+                        <div class="adv-desc">一对一运营指导服务</div>
+                    </div>
+                    <div class="advantage-item">
+                        <div class="adv-icon">📊</div>
+                        <div class="adv-title">资源共享</div>
+                        <div class="adv-desc">共享平台客户资源</div>
+                    </div>
+                    <div class="advantage-item">
+                        <div class="adv-icon">🚀</div>
+                        <div class="adv-title">快速结算</div>
+                        <div class="adv-desc">T+7工作日结算佣金</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 合作模式 -->
+            <div class="franchise-section">
+                <h3 class="section-title">合作模式</h3>
+                <el-radio-group v-model="selectedMode" class="mode-group">
+                    <el-radio-button value="agent">
+                        <div class="mode-content">
+                            <span class="mode-icon">🏢</span>
+                            <span class="mode-name">区域代理</span>
+                        </div>
+                    </el-radio-button>
+                    <el-radio-button value="partner">
+                        <div class="mode-content">
+                            <span class="mode-icon">🤝</span>
+                            <span class="mode-name">项目合作</span>
+                        </div>
+                    </el-radio-button>
+                    <el-radio-button value="lab">
+                        <div class="mode-content">
+                            <span class="mode-icon">🔬</span>
+                            <span class="mode-name">实验室入驻</span>
+                        </div>
+                    </el-radio-button>
+                </el-radio-group>
+                <div class="mode-desc-card">
+                    <p v-if="selectedMode === 'agent'">获得指定区域独家代理权，享受区域内所有订单的返佣，适合有渠道资源的合作伙伴。</p>
+                    <p v-if="selectedMode === 'partner'">针对特定项目进行深度合作，按项目结算佣金，灵活高效。</p>
+                    <p v-if="selectedMode === 'lab'">实验室直接入驻平台，承接检测订单获取收益，共享平台流量。</p>
+                </div>
+            </div>
+            
+            <!-- 申请表单 -->
+            <div class="franchise-section">
+                <h3 class="section-title">提交申请</h3>
+                <el-form :model="form" :rules="rules" ref="formRef" label-position="top" class="franchise-form">
+                    <el-row :gutter="24">
+                        <el-col :span="12">
+                            <el-form-item label="联系人姓名" prop="name">
+                                <el-input v-model="form.name" placeholder="请输入您的姓名" />
+                            </el-form-item>
+                        </el-col>
+                        <el-col :span="12">
+                            <el-form-item label="联系电话" prop="phone">
+                                <el-input v-model="form.phone" placeholder="请输入手机号" maxlength="11" />
+                            </el-form-item>
+                        </el-col>
+                    </el-row>
+                    <el-row :gutter="24">
+                        <el-col :span="12">
+                            <el-form-item label="公司/机构名称" prop="company">
+                                <el-input v-model="form.company" placeholder="请输入公司或机构名称" />
+                            </el-form-item>
+                        </el-col>
+                        <el-col :span="12">
+                            <el-form-item label="所在城市" prop="city">
+                                <el-input v-model="form.city" placeholder="请输入所在城市" />
+                            </el-form-item>
+                        </el-col>
+                    </el-row>
+                    <el-form-item label="合作意向">
+                        <el-input type="textarea" v-model="form.intention" :rows="4" placeholder="请简述您的合作意向和优势资源（可选）" maxlength="500" show-word-limit />
+                    </el-form-item>
+                    <el-form-item>
+                        <el-button type="primary" size="large" @click="submitApplication" :loading="submitting" style="width: 200px">
+                            提交申请
+                        </el-button>
+                        <span style="margin-left: 16px; color: #8c8c8c; font-size: 14px">提交后我们将在3个工作日内与您联系</span>
+                    </el-form-item>
+                </el-form>
+            </div>
+            
+            <!-- 联系方式 -->
+            <div class="franchise-section contact-section">
+                <h3 class="section-title">其他联系方式</h3>
+                <div class="contact-grid">
+                    <div class="contact-item">
+                        <div class="contact-icon">📞</div>
+                        <div class="contact-label">商务热线</div>
+                        <div class="contact-value">400-123-4567</div>
+                    </div>
+                    <div class="contact-item">
+                        <div class="contact-icon">📧</div>
+                        <div class="contact-label">商务邮箱</div>
+                        <div class="contact-value">business@keyanbaice.com</div>
+                    </div>
+                    <div class="contact-item">
+                        <div class="contact-icon">💬</div>
+                        <div class="contact-label">微信客服</div>
+                        <div class="contact-value">keyanbaice_service</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `,
+    data() {
+        return {
+            selectedMode: 'agent',
+            submitting: false,
+            form: {
+                name: '',
+                phone: '',
+                company: '',
+                city: '',
+                intention: ''
+            },
+            rules: {
+                name: [{ required: true, message: '请输入联系人姓名', trigger: 'blur' }],
+                phone: [
+                    { required: true, message: '请输入联系电话', trigger: 'blur' },
+                    { pattern: /^1[3-9]\d{9}$/, message: '请输入正确的手机号', trigger: 'blur' }
+                ],
+                company: [{ required: true, message: '请输入公司/机构名称', trigger: 'blur' }],
+                city: [{ required: true, message: '请输入所在城市', trigger: 'blur' }]
+            }
+        }
+    },
+    methods: {
+        async submitApplication() {
+            try {
+                await this.$refs.formRef.validate()
+                this.submitting = true
+                
+                // 实际API调用
+                // await api.submitFranchise({ ...this.form, mode: this.selectedMode })
+                
+                // 模拟提交
+                await new Promise(resolve => setTimeout(resolve, 1500))
+                
+                ElMessageBox.alert(
+                    '感谢您的申请！我们将在3个工作日内与您联系，请保持电话畅通。',
+                    '提交成功',
+                    { type: 'success', confirmButtonText: '我知道了' }
+                )
+                
+                // 重置表单
+                this.form = { name: '', phone: '', company: '', city: '', intention: '' }
+            } catch (error) {
+                if (error !== false) { // 非表单验证错误
+                    ElMessage.error('提交失败，请稍后重试')
+                }
+            } finally {
+                this.submitting = false
+            }
+        }
+    }
+}
+
 // ==================== 主应用 ====================
 createApp({
     components: {
@@ -1853,7 +2081,8 @@ createApp({
         ReportsView,
         SampleTrackView,
         AnnouncementsView,
-        ContractsView
+        ContractsView,
+        FranchiseView
     },
     data() {
         return {

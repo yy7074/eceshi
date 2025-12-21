@@ -66,3 +66,22 @@ class ErrorResponse(dict):
     def __init__(self, message: str = "操作失败", code: int = 400, data: Any = None):
         super().__init__(code=code, message=message, data=data)
 
+
+# 函数式响应（推荐使用）
+def success_response(data: Any = None, message: str = "操作成功", code: int = 0) -> dict:
+    """成功响应"""
+    return {
+        "code": code,
+        "message": message,
+        "data": data
+    }
+
+
+def error_response(message: str = "操作失败", code: int = -1, data: Any = None) -> dict:
+    """错误响应"""
+    return {
+        "code": code,
+        "message": message,
+        "data": data
+    }
+

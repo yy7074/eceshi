@@ -209,6 +209,27 @@
 					<text class="service-icon">📞</text>
 					<text class="service-text">电话咨询</text>
 				</view>
+				
+				<!-- 第六行 - 更多功能 -->
+				<view class="service-item" @click="goPage('/pagesA/franchise/franchise')">
+					<view class="icon-wrap">
+						<text class="service-icon">🤝</text>
+						<text class="badge hot">HOT</text>
+					</view>
+					<text class="service-text">加盟合作</text>
+				</view>
+				<view class="service-item" @click="goPage('/pagesA/data-stats/data-stats')">
+					<text class="service-icon">📈</text>
+					<text class="service-text">数据统计</text>
+				</view>
+				<view class="service-item" @click="goPage('/pagesA/sample-track/sample-track')">
+					<text class="service-icon">🔍</text>
+					<text class="service-text">样品追踪</text>
+				</view>
+				<view class="service-item" @click="goAbout">
+					<text class="service-icon">ℹ️</text>
+					<text class="service-text">关于我们</text>
+				</view>
 			</view>
 		</view>
 		
@@ -393,6 +414,15 @@ export default {
 						uni.makePhoneCall({ phoneNumber: '400-123-4567' })
 					}
 				}
+			})
+		},
+		
+		// 关于我们
+		goAbout() {
+			uni.showModal({
+				title: '关于我们',
+				content: '科研百测 - 专业检测服务平台\n\n专注于材料检测、分析测试服务\n服务热线：400-123-4567\n官网：www.keyanbaice.com',
+				showCancel: false
 			})
 		}
 	}
@@ -644,6 +674,10 @@ export default {
 					
 					&.coupon {
 						background: #ff9500;
+					}
+					
+					&.hot {
+						background: #f5222d;
 					}
 				}
 			}

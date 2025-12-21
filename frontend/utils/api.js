@@ -442,7 +442,109 @@ export default {
 	
 	// 下载合同
 	downloadContract(id) {
-		return request.get(`/api/v1/contracts/${id}/download`)
+		return request.post(`/api/v1/contracts/${id}/download`)
+	},
+	
+	// ========== 轮播图相关 ==========
+	
+	// 获取轮播图列表
+	getBanners(position = 'home') {
+		return request.get('/api/v1/banners/list', { position })
+	},
+	
+	// 记录轮播图点击
+	recordBannerClick(bannerId) {
+		return request.post(`/api/v1/banners/${bannerId}/click`)
+	},
+	
+	// ========== 用户通知相关 ==========
+	
+	// 获取用户通知列表
+	getNotifications(params) {
+		return request.get('/api/v1/announcements/notifications/list', params)
+	},
+	
+	// 标记通知已读
+	markNotificationRead(id) {
+		return request.post(`/api/v1/announcements/notifications/${id}/read`)
+	},
+	
+	// 标记所有通知已读
+	markAllNotificationsRead() {
+		return request.post('/api/v1/announcements/notifications/read-all')
+	},
+	
+	// ========== 快捷回复相关 ==========
+	
+	// 获取快捷问题
+	getQuickReplies() {
+		return request.get('/api/v1/chat/quick-replies')
+	},
+	
+	// 获取或创建聊天会话
+	getChatSession() {
+		return request.get('/api/v1/chat/session')
+	},
+	
+	// ========== 加盟申请相关 ==========
+	
+	// 提交加盟申请
+	submitFranchise(data) {
+		return request.post('/api/v1/franchise/apply', data)
+	},
+	
+	// 获取我的加盟申请
+	getMyFranchiseApplications() {
+		return request.get('/api/v1/franchise/my-applications')
+	},
+	
+	// 查询申请状态
+	checkFranchiseStatus(phone) {
+		return request.get('/api/v1/franchise/check', { phone })
+	},
+	
+	// 获取合作模式
+	getFranchiseModes() {
+		return request.get('/api/v1/franchise/modes')
+	},
+	
+	// ========== 数据统计相关 ==========
+	
+	// 获取数据概览
+	getStatsOverview(timeRange = 'month') {
+		return request.get('/api/v1/statistics/overview', { time_range: timeRange })
+	},
+	
+	// 获取订单统计
+	getOrderStats(timeRange = 'month') {
+		return request.get('/api/v1/statistics/order-stats', { time_range: timeRange })
+	},
+	
+	// 获取项目统计
+	getProjectStats(timeRange = 'month', limit = 5) {
+		return request.get('/api/v1/statistics/project-stats', { time_range: timeRange, limit })
+	},
+	
+	// 获取消费趋势
+	getConsumptionTrend(timeRange = 'month') {
+		return request.get('/api/v1/statistics/trend', { time_range: timeRange })
+	},
+	
+	// 获取常用项目
+	getFrequentProjects(limit = 5) {
+		return request.get('/api/v1/statistics/frequent-projects', { limit })
+	},
+	
+	// ========== 样品追踪增强 ==========
+	
+	// 获取样品时间线
+	getSampleTimeline(orderId) {
+		return request.get(`/api/v1/samples/order/${orderId}/timeline`)
+	},
+	
+	// 提交物流信息
+	submitLogistics(orderId, data) {
+		return request.post(`/api/v1/samples/order/${orderId}/logistics`, data)
 	}
 }
 

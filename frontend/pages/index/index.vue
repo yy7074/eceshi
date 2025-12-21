@@ -126,8 +126,51 @@
 		},
 		onLoad() {
 			this.loadData()
+			this.loadBanners()
+			this.loadAnnouncements()
 		},
 		methods: {
+			async loadBanners() {
+				try {
+					const res = await api.getBanners('home')
+					if (res.code === 0 && res.data?.items?.length > 0) {
+						const bgColors = [
+							'linear-gradient(135deg, #faad14 0%, #fa8c16 100%)',
+							'linear-gradient(135deg, #1890ff 0%, #096dd9 100%)',
+							'linear-gradient(135deg, #52c41a 0%, #389e0d 100%)',
+							'linear-gradient(135deg, #722ed1 0%, #531dab 100%)'
+						]
+						this.banners = res.data.items.map((b, i) => ({
+							id: b.id,
+							title: b.title,
+							subtitle: b.subtitle,
+							btnText: b.button_text || '了解详情',
+							emoji: '🎉',
+							bgColor: bgColors[i % bgColors.length],
+							link_type: b.link_type,
+							link_value: b.link_value
+						}))
+					}
+				} catch (e) {
+					console.error('加载轮播图失败', e)
+				}
+			},
+			
+			async loadAnnouncements() {
+				try {
+					const res = await api.getAnnouncements({ page: 1, page_size: 5 })
+					if (res.code === 0 && res.data?.items?.length > 0) {
+						this.announcements = res.data.items.map(a => ({
+							id: a.id,
+							title: a.title,
+							content: a.summary || a.content
+						}))
+					}
+				} catch (e) {
+					console.error('加载公告失败', e)
+				}
+			},
+			
 			async loadData() {
 				try {
 					// 加载分类

@@ -1927,6 +1927,168 @@ html, body, #app {
     gap: 12px;
 }
 
+/* ==================== 加盟合作页 ==================== */
+.franchise-view {
+    padding: 24px;
+    max-width: 1000px;
+    margin: 0 auto;
+}
+
+.franchise-banner {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 16px;
+    padding: 60px 40px;
+    text-align: center;
+    margin-bottom: 32px;
+    color: #fff;
+}
+
+.franchise-banner h1 {
+    font-size: 36px;
+    margin-bottom: 12px;
+}
+
+.franchise-banner p {
+    font-size: 18px;
+    opacity: 0.9;
+}
+
+.franchise-section {
+    background: #fff;
+    border-radius: 12px;
+    padding: 32px;
+    margin-bottom: 24px;
+}
+
+.franchise-section .section-title {
+    font-size: 20px;
+    font-weight: 600;
+    color: #262626;
+    margin-bottom: 24px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.advantages-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 24px;
+}
+
+.advantage-item {
+    text-align: center;
+    padding: 24px;
+    background: #fafafa;
+    border-radius: 12px;
+    transition: all 0.3s;
+}
+
+.advantage-item:hover {
+    background: #f0f7ff;
+    transform: translateY(-4px);
+}
+
+.advantage-item .adv-icon {
+    font-size: 48px;
+    margin-bottom: 12px;
+}
+
+.advantage-item .adv-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #262626;
+    margin-bottom: 8px;
+}
+
+.advantage-item .adv-desc {
+    font-size: 13px;
+    color: #8c8c8c;
+}
+
+.mode-group {
+    width: 100%;
+    display: flex !important;
+    margin-bottom: 20px;
+}
+
+.mode-group .el-radio-button {
+    flex: 1;
+}
+
+.mode-group .el-radio-button__inner {
+    width: 100%;
+    padding: 16px;
+}
+
+.mode-content {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.mode-content .mode-icon {
+    font-size: 24px;
+}
+
+.mode-content .mode-name {
+    font-size: 15px;
+}
+
+.mode-desc-card {
+    background: #f6f8fa;
+    border-radius: 8px;
+    padding: 20px;
+}
+
+.mode-desc-card p {
+    margin: 0;
+    color: #595959;
+    line-height: 1.8;
+}
+
+.franchise-form {
+    max-width: 800px;
+}
+
+.contact-section {
+    background: linear-gradient(135deg, #f5f7fa 0%, #e8ecf1 100%);
+}
+
+.contact-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+}
+
+.contact-item {
+    text-align: center;
+    padding: 24px;
+    background: #fff;
+    border-radius: 12px;
+}
+
+.contact-item .contact-icon {
+    font-size: 36px;
+    margin-bottom: 12px;
+}
+
+.contact-item .contact-label {
+    font-size: 14px;
+    color: #8c8c8c;
+    margin-bottom: 8px;
+}
+
+.contact-item .contact-value {
+    font-size: 16px;
+    font-weight: 600;
+    color: #262626;
+}
+
+.menu-badge.hot {
+    background: #f5222d;
+}
+
 /* ==================== 响应式优化 ==================== */
 @media (max-width: 768px) {
     .banner-item {
