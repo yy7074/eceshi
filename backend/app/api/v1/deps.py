@@ -58,6 +58,14 @@ def get_current_user(
     if user is None:
         raise credentials_exception
     
+    # 检查用户状态（如果状态不是active，返回403）
+    if hasattr(user, 'status') and user.status:
+        if hasattr(user.status, 'value') and user.status.value != "active":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="账号已被禁用"
+            )
+    
     return user
 
 

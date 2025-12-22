@@ -191,7 +191,7 @@ async def login(
     )
 
 
-@router.post("/sms-login", response_model=TokenResponse, summary="短信验证码登录")
+@router.post("/sms-login", summary="短信验证码登录")
 async def sms_login(
     request: SMSLoginRequest,
     db: Session = Depends(get_db)
@@ -254,12 +254,15 @@ async def sms_login(
         data={"user_id": user.id, "phone": user.phone}
     )
     
-    return TokenResponse(
-        access_token=access_token,
-        user_id=user.id,
-        phone=user.phone,
-        nickname=user.nickname
-    )
+    print(f"[短信登录] 用户 {user.id} ({user.phone}) 登录成功，生成token")
+    
+    # 返回响应（使用Response.success包装，确保前端能正确解析）
+    return Response.success(data={
+        "access_token": access_token,
+        "user_id": user.id,
+        "phone": user.phone,
+        "nickname": user.nickname
+    })
 
 
 @router.post("/wechat-login", summary="微信小程序登录")

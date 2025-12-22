@@ -2,10 +2,11 @@
 订单相关API
 """
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Body
 from sqlalchemy.orm import Session
 from datetime import datetime
 import time
+import json
 from decimal import Decimal
 
 from app.api.deps import get_db, get_current_user
@@ -93,13 +94,72 @@ async def calculate_order(
 
 @router.post("/create")
 async def create_order(
-    data: OrderCreate,
+    request_data: dict = Body(...),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """
-    创建订单
+    创建订单（兼容前端调用，支持多种数据格式）
     """
+    import json
+    print(f"[订单创建] 接收到的原始数据: {json.dumps(request_data, ensure_ascii=False, default=str)}")
+    
+    # 兼容前端发送的数据格式
+    # 如果前端发送的是简化格式（sample_count, sample_name等），转换为标准格式
+    if "samples" not in request_data and "sample_name" in request_data:
+        # 前端发送的是简化格式，需要转换
+        samples = [{
+            "sample_name": request_data.get("sample_name", ""),
+            "sample_type": request_data.get("sample_type"),
+            "sample_desc": request_data.get("sample_composition") or request_data.get("sample_desc"),
+            "quantity": request_data.get("sample_count", 1),
+            "photos": request_data.get("attachments", []),
+            "test_params": {
+                "sample_state": request_data.get("sample_state"),
+                "danger_type": request_data.get("danger_type"),
+                "storage_requirement": request_data.get("storage_requirement")
+            },
+            "special_requirements": request_data.get("remark")
+        }]
+        request_data["samples"] = samples
+    
+    # 字段映射
+    if "delivery_method" in request_data and "shipping_method" not in request_data:
+        request_data["shipping_method"] = request_data["delivery_method"]
+    
+    # 如果没有 shipping_method，根据 address_id 设置默认值
+    if "shipping_method" not in request_data:
+        if request_data.get("address_id"):
+            # 如果有地址，默认使用快递
+            request_data["shipping_method"] = "express"
+        else:
+            # 如果没有地址，默认使用自提
+            request_data["shipping_method"] = "self"
+        print(f"[订单创建] 自动设置 shipping_method: {request_data['shipping_method']}")
+    
+    # 验证必需字段（shipping_method 已经有默认值，不需要验证）
+    required_fields = ["project_id", "samples"]
+    missing_fields = []
+    for field in required_fields:
+        if field not in request_data:
+            missing_fields.append(field)
+    
+    if missing_fields:
+        print(f"[订单创建] 缺少必需字段: {missing_fields}, 当前数据键: {list(request_data.keys())}")
+        raise HTTPException(status_code=422, detail=f"缺少必需字段: {', '.join(missing_fields)}")
+    
+    # 验证 samples 格式
+    if not isinstance(request_data["samples"], list) or len(request_data["samples"]) == 0:
+        raise HTTPException(status_code=422, detail="samples 必须是非空数组")
+    
+    # 尝试使用 Pydantic 模型验证
+    try:
+        data = OrderCreate(**request_data)
+    except Exception as e:
+        print(f"[订单创建] Pydantic 验证失败: {str(e)}")
+        raise HTTPException(status_code=422, detail=f"数据格式错误: {str(e)}")
+    
+    print(f"[订单创建] 验证通过，开始创建订单")
     # 验证地址（如果需要）
     address = None
     if data.shipping_method in ["express", "platform"] and data.address_id:
@@ -216,10 +276,29 @@ async def create_order(
     db.commit()
     db.refresh(order)
     
+    print(f"[订单创建] 订单创建成功: order_id={order.id}, order_no={order.order_no}, total_fee={order.total_fee}")
+    
+    # 返回完整的订单信息，包括价格和支付所需信息
     return SuccessResponse(data={
         "order_id": order.id,
         "order_no": order.order_no,
-        "total_fee": float(order.total_fee)
+        "status": order.status,
+        "project_id": order.project_id,
+        "project_name": order.project_name,
+        "total_fee": float(order.total_fee),
+        "project_fee": float(order.project_fee),
+        "urgent_fee": float(order.urgent_fee),
+        "shipping_fee": float(order.shipping_fee),
+        "discount_amount": float(order.discount_amount),
+        "paid_fee": float(order.paid_fee),
+        "sample_count": order.sample_count,
+        "shipping_method": order.shipping_method,
+        "receiver_name": order.receiver_name,
+        "receiver_phone": order.receiver_phone,
+        "receiver_address": order.receiver_address,
+        "is_urgent": order.is_urgent,
+        "remark": order.remark,
+        "created_at": order.created_at.isoformat() if order.created_at else None
     }, message="订单创建成功")
 
 

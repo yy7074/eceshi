@@ -2,7 +2,7 @@
 用户相关API
 用户信息、实名认证、会员管理等
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Body
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -53,6 +53,33 @@ async def update_user_info(
     db.refresh(current_user)
     
     return current_user
+
+
+@router.put("/profile", summary="更新用户资料")
+async def update_profile(
+    data: dict = Body(...),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """更新用户资料（兼容前端调用）"""
+    # 更新用户信息
+    if "nickname" in data:
+        current_user.nickname = data["nickname"]
+    if "avatar" in data:
+        current_user.avatar = data["avatar"]
+    if "email" in data:
+        current_user.email = data["email"]
+    
+    db.commit()
+    db.refresh(current_user)
+    
+    return Response.success(data={
+        "id": current_user.id,
+        "phone": current_user.phone,
+        "nickname": current_user.nickname,
+        "avatar": current_user.avatar,
+        "email": current_user.email
+    })
 
 
 @router.post("/certification", response_model=CertificationResponse, summary="提交实名认证")
