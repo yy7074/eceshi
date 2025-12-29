@@ -2144,4 +2144,283 @@ html, body, #app {
     }
 }
 
+/* ==================== 实名认证页面 ==================== */
+.certification-view {
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.cert-status-card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 40px;
+    text-align: center;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+}
+
+.cert-status-card.success {
+    border-top: 4px solid #67c23a;
+}
+
+.cert-status-card.pending {
+    border-top: 4px solid #e6a23c;
+}
+
+.cert-status-card.rejected {
+    border-top: 4px solid #f56c6c;
+}
+
+.cert-status-card h3 {
+    margin: 16px 0 8px;
+    font-size: 20px;
+    color: #303133;
+}
+
+.cert-status-card p {
+    color: #606266;
+}
+
+.cert-form-container {
+    background: #fff;
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+}
+
+/* ==================== 信用额度页面 ==================== */
+.credit-view {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.credit-overview-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 16px;
+    padding: 30px;
+    color: #fff;
+    margin-bottom: 24px;
+}
+
+.credit-main {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+}
+
+.credit-amount .amount-value {
+    font-size: 36px;
+    font-weight: 700;
+    display: block;
+}
+
+.credit-amount .amount-label {
+    font-size: 14px;
+    opacity: 0.8;
+}
+
+.credit-details {
+    display: flex;
+    gap: 40px;
+    padding: 20px 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.2);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    margin-bottom: 20px;
+}
+
+.credit-detail-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.credit-detail-item .label {
+    font-size: 12px;
+    opacity: 0.8;
+}
+
+.credit-detail-item .value {
+    font-size: 20px;
+    font-weight: 600;
+}
+
+.credit-actions {
+    display: flex;
+    gap: 16px;
+}
+
+.credit-actions .el-button {
+    flex: 1;
+}
+
+.credit-section {
+    background: #fff;
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 16px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+}
+
+.credit-section h3 {
+    margin-bottom: 16px;
+    font-size: 16px;
+    color: #303133;
+}
+
+.debt-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.debt-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    background: #fafafa;
+    border-radius: 8px;
+}
+
+.debt-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.debt-order {
+    font-size: 14px;
+    color: #303133;
+}
+
+.debt-amount {
+    font-size: 18px;
+    font-weight: 600;
+    color: #f56c6c;
+}
+
+.debt-due {
+    font-size: 12px;
+    color: #909399;
+}
+
+.record-amount.income {
+    color: #67c23a;
+}
+
+.record-amount.expense {
+    color: #f56c6c;
+}
+
+@media (max-width: 768px) {
+    .credit-main {
+        flex-direction: column;
+        text-align: center;
+        gap: 20px;
+    }
+
+    .credit-details {
+        justify-content: center;
+    }
+
+    .credit-actions {
+        flex-direction: column;
+    }
+}
+
+/* ==================== 预约下单表单增强样式 ==================== */
+.booking-form .el-divider {
+    margin: 20px 0 16px;
+}
+
+.booking-form .el-divider__text {
+    font-weight: 600;
+    color: #303133;
+    font-size: 14px;
+}
+
+.booking-form .el-checkbox-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.booking-form .el-checkbox {
+    margin-right: 0;
+}
+
+.booking-form .el-radio-group .el-tag {
+    margin-left: 8px;
+    vertical-align: middle;
+}
+
+.booking-summary {
+    background: #f5f7fa;
+    border-radius: 8px;
+    padding: 16px;
+    margin-top: 20px;
+}
+
+.summary-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+    font-size: 14px;
+    color: #606266;
+    border-bottom: 1px dashed #e4e7ed;
+}
+
+.summary-row:last-of-type {
+    border-bottom: none;
+}
+
+.booking-summary .booking-total {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid #dcdfe6;
+}
+
+.booking-form .el-form-item {
+    margin-bottom: 16px;
+}
+
+.booking-form .el-form-item__label {
+    font-weight: 500;
+}
+
+/* 样品属性复选框样式 */
+.booking-form .el-checkbox.is-checked .el-checkbox__label {
+    color: #409eff;
+}
+
+/* 测试参数提示 */
+.booking-form .el-form-item .el-select,
+.booking-form .el-form-item .el-input {
+    width: 100%;
+}
+
+/* 加急服务高亮 */
+.booking-form .el-radio:has([value="urgent_48h"]) .el-radio__label,
+.booking-form .el-radio:has([value="urgent_24h"]) .el-radio__label {
+    font-weight: 500;
+}
+
+@media (max-width: 768px) {
+    .booking-form .el-row {
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+    }
+
+    .booking-form .el-col {
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+    }
+
+    .booking-form .el-col-12 {
+        max-width: 100%;
+        flex: 0 0 100%;
+    }
+}
 

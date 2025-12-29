@@ -39,6 +39,17 @@ const api = {
     getUserInfo: () => axios.get('/api/v1/users/me'),
     getBalance: () => axios.get('/api/v1/users/balance'),
     updateProfile: (data) => axios.put('/api/v1/users/profile', data),
+
+    // 实名认证
+    getCertification: () => axios.get('/api/v1/users/certification'),
+    submitCertification: (data) => axios.post('/api/v1/users/certification', data),
+
+    // 信用系统
+    getCreditInfo: () => axios.get('/api/v1/credit/info'),
+    getCreditDebts: (params) => axios.get('/api/v1/credit/debts', { params }),
+    applyCreditLimit: (data) => axios.post('/api/v1/credit/apply-limit', data),
+    repayCredit: (data) => axios.post('/api/v1/credit/repay', data),
+    getCreditRecords: (params) => axios.get('/api/v1/credit/records', { params }),
     
     // 项目
     getCategories: () => axios.get('/api/v1/projects/categories'),
@@ -794,7 +805,7 @@ const OrdersView = {
 
 // 个人中心组件
 const ProfileView = {
-    emits: ['go-orders', 'go-favorites', 'go-coupons', 'go-address', 'go-wallet', 'go-points', 'go-invoice', 'go-team', 'go-reports', 'go-help', 'go-chat', 'go-announcements', 'go-contracts', 'go-lottery', 'go-franchise', 'edit-profile'],
+    emits: ['go-orders', 'go-favorites', 'go-coupons', 'go-address', 'go-wallet', 'go-points', 'go-invoice', 'go-team', 'go-reports', 'go-help', 'go-chat', 'go-announcements', 'go-contracts', 'go-lottery', 'go-franchise', 'go-certification', 'go-credit', 'edit-profile'],
     template: `
         <div class="profile-view">
             <div class="profile-header">
@@ -803,8 +814,8 @@ const ProfileView = {
                     <h2>{{ userInfo.nickname || '用户' }}</h2>
                     <p>{{ userInfo.phone }}</p>
                     <div class="profile-badges">
-                        <el-tag v-if="userInfo.is_certified" type="success" size="small">已实名</el-tag>
-                        <el-tag v-else type="info" size="small">未实名</el-tag>
+                        <el-tag v-if="userInfo.is_certified" type="success" size="small" @click="$emit('go-certification')" style="cursor:pointer">已实名</el-tag>
+                        <el-tag v-else type="warning" size="small" @click="$emit('go-certification')" style="cursor:pointer">去认证</el-tag>
                         <el-tag v-if="userInfo.vip_level" type="warning" size="small">VIP{{ userInfo.vip_level }}</el-tag>
                     </div>
                     <el-button size="small" @click="$emit('edit-profile')">编辑资料</el-button>
@@ -865,6 +876,11 @@ const ProfileView = {
                         <el-icon :size="24"><wallet /></el-icon>
                         <span>我的钱包</span>
                     </div>
+                    <div class="menu-item highlight" @click="$emit('go-credit')">
+                        <el-icon :size="24"><coin /></el-icon>
+                        <span>信用额度</span>
+                        <div class="menu-badge">NEW</div>
+                    </div>
                     <div class="menu-item" @click="$emit('go-coupons')">
                         <el-icon :size="24"><ticket /></el-icon>
                         <span>优惠券</span>
@@ -883,6 +899,11 @@ const ProfileView = {
             <div class="profile-menu">
                 <h3>常用功能</h3>
                 <div class="menu-grid">
+                    <div class="menu-item" :class="{ highlight: !userInfo.is_certified }" @click="$emit('go-certification')">
+                        <el-icon :size="24"><postcard /></el-icon>
+                        <span>实名认证</span>
+                        <div v-if="!userInfo.is_certified" class="menu-badge hot">去认证</div>
+                    </div>
                     <div class="menu-item" @click="$emit('go-favorites')">
                         <el-icon :size="24"><star /></el-icon>
                         <span>我的收藏</span>
@@ -941,6 +962,392 @@ const ProfileView = {
                 this.balance = res.data
             } catch (error) {
                 console.error('加载余额失败', error)
+            }
+        }
+    }
+}
+
+// 实名认证组件
+const CertificationView = {
+    emits: ['go-back'],
+    template: `
+        <div class="certification-view">
+            <div class="page-header">
+                <el-button @click="$emit('go-back')"><el-icon><arrow-left /></el-icon> 返回</el-button>
+                <h2>实名认证</h2>
+            </div>
+
+            <!-- 已认证状态 -->
+            <div v-if="certification && certification.status === 'approved'" class="cert-status-card success">
+                <el-icon :size="48" color="#67c23a"><circle-check-filled /></el-icon>
+                <h3>认证已通过</h3>
+                <p>您已完成实名认证</p>
+                <el-descriptions :column="1" border style="margin-top: 20px">
+                    <el-descriptions-item label="真实姓名">{{ certification.real_name }}</el-descriptions-item>
+                    <el-descriptions-item label="身份类型">{{ getIdentityTypeText(certification.identity_type) }}</el-descriptions-item>
+                    <el-descriptions-item label="学历">{{ getEducationText(certification.education_level) }}</el-descriptions-item>
+                    <el-descriptions-item label="学校/单位">{{ certification.university || certification.company }}</el-descriptions-item>
+                    <el-descriptions-item label="认证时间">{{ certification.certified_at?.slice(0, 10) }}</el-descriptions-item>
+                </el-descriptions>
+            </div>
+
+            <!-- 审核中状态 -->
+            <div v-else-if="certification && certification.status === 'pending'" class="cert-status-card pending">
+                <el-icon :size="48" color="#e6a23c"><clock /></el-icon>
+                <h3>审核中</h3>
+                <p>您的认证信息正在审核，请耐心等待</p>
+                <p style="color: #909399; font-size: 12px; margin-top: 10px;">提交时间：{{ certification.created_at?.slice(0, 16).replace('T', ' ') }}</p>
+            </div>
+
+            <!-- 被拒绝状态 -->
+            <div v-else-if="certification && certification.status === 'rejected'" class="cert-status-card rejected">
+                <el-icon :size="48" color="#f56c6c"><circle-close-filled /></el-icon>
+                <h3>认证未通过</h3>
+                <p>{{ certification.reject_reason || '您的认证信息审核未通过，请重新提交' }}</p>
+                <el-button type="primary" @click="showForm = true" style="margin-top: 16px">重新认证</el-button>
+            </div>
+
+            <!-- 未认证状态 - 显示表单 -->
+            <div v-else class="cert-form-container">
+                <el-alert type="info" :closable="false" style="margin-bottom: 20px">
+                    <template #title>完成实名认证可享受以下权益</template>
+                    <ul style="margin: 10px 0 0 20px; line-height: 2;">
+                        <li>获得更高的信用额度</li>
+                        <li>享受VIP专属优惠</li>
+                        <li>优先处理订单</li>
+                    </ul>
+                </el-alert>
+
+                <el-form :model="form" label-width="100px" :rules="rules" ref="certForm">
+                    <el-form-item label="真实姓名" prop="real_name">
+                        <el-input v-model="form.real_name" placeholder="请输入真实姓名"></el-input>
+                    </el-form-item>
+                    <el-form-item label="身份证号" prop="id_card">
+                        <el-input v-model="form.id_card" placeholder="请输入身份证号"></el-input>
+                    </el-form-item>
+                    <el-form-item label="身份类型" prop="identity_type">
+                        <el-select v-model="form.identity_type" placeholder="请选择身份类型" style="width: 100%">
+                            <el-option label="学生" value="student"></el-option>
+                            <el-option label="老师" value="teacher"></el-option>
+                            <el-option label="企业" value="enterprise"></el-option>
+                            <el-option label="研究所" value="research"></el-option>
+                            <el-option label="医院" value="hospital"></el-option>
+                        </el-select>
+                    </el-form-item>
+                    <el-form-item label="学历" prop="education_level">
+                        <el-select v-model="form.education_level" placeholder="请选择学历" style="width: 100%">
+                            <el-option label="本科" value="bachelor"></el-option>
+                            <el-option label="硕士" value="master"></el-option>
+                            <el-option label="博士" value="doctor"></el-option>
+                            <el-option label="其他" value="other"></el-option>
+                        </el-select>
+                    </el-form-item>
+
+                    <!-- 学生/老师信息 -->
+                    <template v-if="form.identity_type === 'student' || form.identity_type === 'teacher'">
+                        <el-form-item label="学校名称" prop="university">
+                            <el-input v-model="form.university" placeholder="请输入学校名称"></el-input>
+                        </el-form-item>
+                        <el-form-item label="院系">
+                            <el-input v-model="form.department" placeholder="请输入院系名称"></el-input>
+                        </el-form-item>
+                        <el-form-item v-if="form.identity_type === 'student'" label="导师姓名">
+                            <el-input v-model="form.supervisor_name" placeholder="请输入导师姓名"></el-input>
+                        </el-form-item>
+                    </template>
+
+                    <!-- 企业/医院/研究所信息 -->
+                    <template v-else-if="form.identity_type">
+                        <el-form-item label="单位名称" prop="company">
+                            <el-input v-model="form.company" placeholder="请输入单位名称"></el-input>
+                        </el-form-item>
+                        <el-form-item label="职位">
+                            <el-input v-model="form.position" placeholder="请输入职位"></el-input>
+                        </el-form-item>
+                    </template>
+
+                    <el-form-item>
+                        <el-button type="primary" @click="submitForm" :loading="submitting" style="width: 100%">提交认证</el-button>
+                    </el-form-item>
+                </el-form>
+            </div>
+        </div>
+    `,
+    data() {
+        return {
+            certification: null,
+            loading: false,
+            showForm: false,
+            submitting: false,
+            form: {
+                real_name: '',
+                id_card: '',
+                identity_type: 'student',
+                education_level: 'master',
+                university: '',
+                department: '',
+                supervisor_name: '',
+                company: '',
+                position: ''
+            },
+            rules: {
+                real_name: [{ required: true, message: '请输入真实姓名', trigger: 'blur' }],
+                id_card: [{ required: true, message: '请输入身份证号', trigger: 'blur' }, { pattern: /^\d{17}[\dXx]$/, message: '身份证号格式不正确', trigger: 'blur' }],
+                identity_type: [{ required: true, message: '请选择身份类型', trigger: 'change' }],
+                education_level: [{ required: true, message: '请选择学历', trigger: 'change' }]
+            }
+        }
+    },
+    mounted() {
+        this.loadCertification()
+    },
+    methods: {
+        async loadCertification() {
+            this.loading = true
+            try {
+                const res = await api.getCertification()
+                this.certification = res.data
+            } catch (error) {
+                // 未认证时可能返回404，这是正常的
+            } finally {
+                this.loading = false
+            }
+        },
+        async submitForm() {
+            try {
+                await this.$refs.certForm.validate()
+            } catch { return }
+
+            this.submitting = true
+            try {
+                await api.submitCertification(this.form)
+                ElMessage.success('认证信息已提交，请等待审核')
+                this.loadCertification()
+            } catch (error) {
+                ElMessage.error(error.response?.data?.detail || '提交失败')
+            } finally {
+                this.submitting = false
+            }
+        },
+        getIdentityTypeText(type) {
+            const map = { student: '学生', teacher: '老师', enterprise: '企业', research: '研究所', hospital: '医院' }
+            return map[type] || type
+        },
+        getEducationText(level) {
+            const map = { bachelor: '本科', master: '硕士', doctor: '博士', other: '其他' }
+            return map[level] || level
+        }
+    }
+}
+
+// 信用额度组件
+const CreditView = {
+    emits: ['go-back'],
+    template: `
+        <div class="credit-view">
+            <div class="page-header">
+                <el-button @click="$emit('go-back')"><el-icon><arrow-left /></el-icon> 返回</el-button>
+                <h2>信用额度</h2>
+            </div>
+
+            <!-- 信用概览卡片 -->
+            <div class="credit-overview-card">
+                <div class="credit-main">
+                    <div class="credit-amount">
+                        <span class="amount-value">¥{{ creditInfo.credit_limit || 0 }}</span>
+                        <span class="amount-label">总额度</span>
+                    </div>
+                    <el-progress type="circle" :percentage="usagePercent" :width="100" :stroke-width="8" :color="usagePercent > 80 ? '#f56c6c' : '#409eff'">
+                        <template #default><span style="font-size: 14px">{{ usagePercent }}%</span></template>
+                    </el-progress>
+                </div>
+                <div class="credit-details">
+                    <div class="credit-detail-item">
+                        <span class="label">已用额度</span>
+                        <span class="value" style="color: #f56c6c">¥{{ creditInfo.used_credit || 0 }}</span>
+                    </div>
+                    <div class="credit-detail-item">
+                        <span class="label">可用额度</span>
+                        <span class="value" style="color: #67c23a">¥{{ availableCredit }}</span>
+                    </div>
+                </div>
+                <div class="credit-actions">
+                    <el-button type="primary" @click="showApplyDialog = true" :disabled="!canApply">申请提额</el-button>
+                    <el-button type="warning" @click="showRepayDialog = true" :disabled="(creditInfo.used_credit || 0) <= 0">立即还款</el-button>
+                </div>
+            </div>
+
+            <!-- 待还款账单 -->
+            <div class="credit-section" v-if="debts.length > 0">
+                <h3>待还款账单</h3>
+                <div class="debt-list">
+                    <div class="debt-item" v-for="debt in debts" :key="debt.id">
+                        <div class="debt-info">
+                            <div class="debt-order">订单: {{ debt.order_no }}</div>
+                            <div class="debt-amount">¥{{ debt.amount }}</div>
+                            <div class="debt-due">到期: {{ debt.due_date?.slice(0, 10) }}</div>
+                        </div>
+                        <el-tag :type="isOverdue(debt.due_date) ? 'danger' : 'warning'" size="small">
+                            {{ isOverdue(debt.due_date) ? '已逾期' : '待还款' }}
+                        </el-tag>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 使用记录 -->
+            <div class="credit-section">
+                <h3>使用记录</h3>
+                <div v-if="records.length === 0" class="empty-state" style="padding: 40px">
+                    <div class="empty-icon">📋</div>
+                    <div class="empty-text">暂无使用记录</div>
+                </div>
+                <div v-else class="records-list">
+                    <div class="record-item" v-for="record in records" :key="record.id">
+                        <div class="record-info">
+                            <div class="record-type">{{ getRecordTypeText(record.transaction_type) }}</div>
+                            <div class="record-time">{{ record.created_at?.slice(0, 16).replace('T', ' ') }}</div>
+                        </div>
+                        <div class="record-amount" :class="record.transaction_type === 'repay' ? 'income' : 'expense'">
+                            {{ record.transaction_type === 'repay' ? '+' : '-' }}¥{{ record.amount }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 申请提额对话框 -->
+            <el-dialog v-model="showApplyDialog" title="申请提额" width="400px">
+                <el-form :model="applyForm" label-width="100px">
+                    <el-form-item label="申请额度">
+                        <el-input-number v-model="applyForm.amount" :min="1000" :max="100000" :step="1000" style="width: 100%"></el-input-number>
+                    </el-form-item>
+                    <el-form-item label="申请理由">
+                        <el-input v-model="applyForm.reason" type="textarea" :rows="3" placeholder="请说明申请提额的原因"></el-input>
+                    </el-form-item>
+                </el-form>
+                <template #footer>
+                    <el-button @click="showApplyDialog = false">取消</el-button>
+                    <el-button type="primary" @click="submitApply" :loading="applying">提交申请</el-button>
+                </template>
+            </el-dialog>
+
+            <!-- 还款对话框 -->
+            <el-dialog v-model="showRepayDialog" title="信用还款" width="400px">
+                <div class="repay-info">
+                    <p>当前待还款金额: <strong style="color: #f56c6c">¥{{ creditInfo.used_credit || 0 }}</strong></p>
+                </div>
+                <el-form :model="repayForm" label-width="100px" style="margin-top: 20px">
+                    <el-form-item label="还款金额">
+                        <el-input-number v-model="repayForm.amount" :min="1" :max="creditInfo.used_credit || 0" :precision="2" style="width: 100%"></el-input-number>
+                    </el-form-item>
+                    <el-form-item label="还款方式">
+                        <el-radio-group v-model="repayForm.method">
+                            <el-radio value="balance">余额还款</el-radio>
+                            <el-radio value="alipay">支付宝</el-radio>
+                            <el-radio value="wechat">微信支付</el-radio>
+                        </el-radio-group>
+                    </el-form-item>
+                </el-form>
+                <template #footer>
+                    <el-button @click="showRepayDialog = false">取消</el-button>
+                    <el-button type="primary" @click="submitRepay" :loading="repaying">确认还款</el-button>
+                </template>
+            </el-dialog>
+        </div>
+    `,
+    data() {
+        return {
+            creditInfo: {},
+            debts: [],
+            records: [],
+            loading: false,
+            showApplyDialog: false,
+            showRepayDialog: false,
+            applying: false,
+            repaying: false,
+            applyForm: { amount: 5000, reason: '' },
+            repayForm: { amount: 0, method: 'balance' }
+        }
+    },
+    computed: {
+        usagePercent() {
+            if (!this.creditInfo.credit_limit) return 0
+            return Math.round((this.creditInfo.used_credit || 0) / this.creditInfo.credit_limit * 100)
+        },
+        availableCredit() {
+            return (this.creditInfo.credit_limit || 0) - (this.creditInfo.used_credit || 0)
+        },
+        canApply() {
+            // 简单判断是否可以申请
+            return true
+        }
+    },
+    mounted() {
+        this.loadCreditInfo()
+        this.loadDebts()
+        this.loadRecords()
+    },
+    methods: {
+        async loadCreditInfo() {
+            try {
+                const res = await api.getCreditInfo()
+                this.creditInfo = res.data || {}
+            } catch (error) {
+                console.error('加载信用信息失败', error)
+            }
+        },
+        async loadDebts() {
+            try {
+                const res = await api.getCreditDebts({ status: 'pending' })
+                this.debts = res.data?.items || []
+            } catch (error) {}
+        },
+        async loadRecords() {
+            try {
+                const res = await api.getCreditRecords({ page: 1, page_size: 20 })
+                this.records = res.data?.items || []
+            } catch (error) {}
+        },
+        isOverdue(dueDate) {
+            if (!dueDate) return false
+            return new Date(dueDate) < new Date()
+        },
+        getRecordTypeText(type) {
+            const map = { use: '消费', repay: '还款', adjust: '额度调整' }
+            return map[type] || type
+        },
+        async submitApply() {
+            if (!this.applyForm.amount) {
+                ElMessage.error('请输入申请额度')
+                return
+            }
+            this.applying = true
+            try {
+                await api.applyCreditLimit(this.applyForm)
+                ElMessage.success('申请已提交，请等待审核')
+                this.showApplyDialog = false
+            } catch (error) {
+                ElMessage.error(error.response?.data?.detail || '申请失败')
+            } finally {
+                this.applying = false
+            }
+        },
+        async submitRepay() {
+            if (!this.repayForm.amount || this.repayForm.amount <= 0) {
+                ElMessage.error('请输入还款金额')
+                return
+            }
+            this.repaying = true
+            try {
+                await api.repayCredit(this.repayForm)
+                ElMessage.success('还款成功')
+                this.showRepayDialog = false
+                this.loadCreditInfo()
+                this.loadDebts()
+                this.loadRecords()
+            } catch (error) {
+                ElMessage.error(error.response?.data?.detail || '还款失败')
+            } finally {
+                this.repaying = false
             }
         }
     }
@@ -2082,7 +2489,9 @@ createApp({
         SampleTrackView,
         AnnouncementsView,
         ContractsView,
-        FranchiseView
+        FranchiseView,
+        CertificationView,
+        CreditView
     },
     data() {
         return {
@@ -2100,7 +2509,23 @@ createApp({
             // 预约下单
             showBooking: false,
             bookingProject: null,
-            bookingForm: { sample_name: '', quantity: 1, remark: '', address_id: null, coupon_id: null },
+            bookingForm: {
+                sample_name: '',
+                quantity: 1,
+                sample_type: 'powder',
+                sample_state: 'dry',
+                sample_properties: [],
+                test_temperature: 'room',
+                test_atmosphere: 'air',
+                scan_range: '',
+                magnification: 'auto',
+                special_treatment: [],
+                urgency: 'normal',
+                report_options: ['raw_data'],
+                address_id: null,
+                coupon_id: null,
+                remark: ''
+            },
             addresses: [],
             availableCoupons: [],
             bookingLoading: false,
@@ -2129,7 +2554,19 @@ createApp({
     computed: {
         orderTotalAmount() {
             if (!this.bookingProject) return 0
-            let total = this.bookingProject.current_price * this.bookingForm.quantity
+            let basePrice = this.bookingProject.current_price * this.bookingForm.quantity
+            let total = basePrice
+            // 加急费用
+            if (this.bookingForm.urgency === 'urgent_48h') {
+                total += basePrice * 0.5
+            } else if (this.bookingForm.urgency === 'urgent_24h') {
+                total += basePrice * 1
+            }
+            // 纸质报告
+            if (this.bookingForm.report_options?.includes('paper_report')) {
+                total += 30
+            }
+            // 优惠券
             if (this.bookingForm.coupon_id) {
                 const coupon = this.availableCoupons.find(c => c.id === this.bookingForm.coupon_id)
                 if (coupon) total -= coupon.discount_value
@@ -2159,7 +2596,23 @@ createApp({
         // 预约下单
         async openBooking(project) {
             this.bookingProject = project
-            this.bookingForm = { sample_name: '', quantity: 1, remark: '', address_id: null, coupon_id: null }
+            this.bookingForm = {
+                sample_name: '',
+                quantity: 1,
+                sample_type: 'powder',
+                sample_state: 'dry',
+                sample_properties: [],
+                test_temperature: 'room',
+                test_atmosphere: 'air',
+                scan_range: '',
+                magnification: 'auto',
+                special_treatment: [],
+                urgency: 'normal',
+                report_options: ['raw_data'],
+                address_id: null,
+                coupon_id: null,
+                remark: ''
+            }
             try {
                 const [addrRes, couponRes] = await Promise.all([api.getAddresses(), api.getAvailableCoupons(project.id)])
                 this.addresses = addrRes.data || []
@@ -2170,6 +2623,7 @@ createApp({
         },
         async submitBooking() {
             if (!this.bookingForm.sample_name) { ElMessage.error('请输入样品名称'); return }
+            if (!this.bookingForm.sample_type) { ElMessage.error('请选择样品类型'); return }
             if (!this.bookingForm.address_id) { ElMessage.error('请选择收货地址'); return }
             this.bookingLoading = true
             try {

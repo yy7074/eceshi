@@ -256,6 +256,10 @@
                             <el-icon><document /></el-icon>
                             <span>订单管理</span>
                         </el-menu-item>
+                        <el-menu-item index="order_assign">
+                            <el-icon><set-up /></el-icon>
+                            <span>订单分配</span>
+                        </el-menu-item>
                         <el-menu-item index="projects">
                             <el-icon><picture /></el-icon>
                             <span>项目管理</span>
@@ -1710,6 +1714,159 @@
                         </div>
                     </div>
 
+                    <!-- 订单分配 -->
+                    <div v-show="activeMenu === 'order_assign'">
+                        <div class="page-header" style="display: flex; justify-content: space-between; align-items: center;">
+                            <h3>📋 订单分配</h3>
+                            <div style="display: flex; gap: 10px;">
+                                <el-button type="primary" @click="batchAssignOrders" :disabled="assignSelectedOrders.length === 0">
+                                    <el-icon><set-up /></el-icon> 批量分配 ({{ assignSelectedOrders.length }})
+                                </el-button>
+                                <el-button @click="loadPendingAssignOrders">
+                                    <el-icon><refresh /></el-icon> 刷新
+                                </el-button>
+                            </div>
+                        </div>
+
+                        <!-- 统计卡片 -->
+                        <el-row :gutter="16" style="margin-bottom: 16px;">
+                            <el-col :span="6">
+                                <div class="stat-card" style="background: linear-gradient(135deg, #ff9a56 0%, #ff6b6b 100%);">
+                                    <div class="stat-icon">📋</div>
+                                    <div class="stat-info">
+                                        <div class="stat-value">{{ assignStats.pending_assign || 0 }}</div>
+                                        <div class="stat-label">待分配订单</div>
+                                    </div>
+                                </div>
+                            </el-col>
+                            <el-col :span="6">
+                                <div class="stat-card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                                    <div class="stat-icon">🔬</div>
+                                    <div class="stat-info">
+                                        <div class="stat-value">{{ assignStats.in_testing || 0 }}</div>
+                                        <div class="stat-label">检测中订单</div>
+                                    </div>
+                                </div>
+                            </el-col>
+                            <el-col :span="6">
+                                <div class="stat-card" style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);">
+                                    <div class="stat-icon">✅</div>
+                                    <div class="stat-info">
+                                        <div class="stat-value">{{ assignStats.today_assigned || 0 }}</div>
+                                        <div class="stat-label">今日已分配</div>
+                                    </div>
+                                </div>
+                            </el-col>
+                            <el-col :span="6">
+                                <div class="stat-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                                    <div class="stat-icon">🏢</div>
+                                    <div class="stat-info">
+                                        <div class="stat-value">{{ assignStats.available_labs || 0 }}</div>
+                                        <div class="stat-label">可用实验室</div>
+                                    </div>
+                                </div>
+                            </el-col>
+                        </el-row>
+
+                        <div class="content-card">
+                            <div style="margin-bottom: 16px;">
+                                <el-input v-model="assignSearch" placeholder="搜索订单号/项目名" style="width: 250px; margin-right: 10px;" clearable @change="loadPendingAssignOrders"></el-input>
+                                <el-select v-model="assignProjectFilter" placeholder="项目筛选" style="width: 150px;" clearable @change="loadPendingAssignOrders">
+                                    <el-option v-for="cat in projectCategories" :key="cat.id" :label="cat.name" :value="cat.id"></el-option>
+                                </el-select>
+                            </div>
+                            <el-table :data="pendingAssignOrders" v-loading="assignLoading" @selection-change="handleAssignSelectionChange">
+                                <el-table-column type="selection" width="55"></el-table-column>
+                                <el-table-column prop="order_no" label="订单号" width="180"></el-table-column>
+                                <el-table-column prop="project_name" label="项目名称" width="200"></el-table-column>
+                                <el-table-column prop="user_name" label="客户" width="100"></el-table-column>
+                                <el-table-column label="金额" width="100">
+                                    <template #default="scope"><span style="color: #ff4d4f;">¥{{ scope.row.total_amount }}</span></template>
+                                </el-table-column>
+                                <el-table-column prop="sample_count" label="样品数" width="80"></el-table-column>
+                                <el-table-column label="下单时间" width="160">
+                                    <template #default="scope">{{ formatDateTime(scope.row.created_at) }}</template>
+                                </el-table-column>
+                                <el-table-column label="操作" width="200">
+                                    <template #default="scope">
+                                        <el-button link type="primary" size="small" @click="showAssignDialog(scope.row)">分配</el-button>
+                                        <el-button link type="info" size="small" @click="showOrderDetail(scope.row.id)">详情</el-button>
+                                    </template>
+                                </el-table-column>
+                            </el-table>
+                            <el-pagination v-if="assignTotal > 0" style="margin-top: 16px; justify-content: flex-end;"
+                                v-model:current-page="assignPage" v-model:page-size="assignPageSize" :total="assignTotal"
+                                :page-sizes="[10, 20, 50]" layout="total, sizes, prev, pager, next" @change="loadPendingAssignOrders">
+                            </el-pagination>
+                        </div>
+
+                        <!-- 分配对话框 -->
+                        <el-dialog v-model="assignDialogVisible" title="分配订单到实验室" width="600px">
+                            <div v-if="assigningOrder" style="margin-bottom: 20px;">
+                                <el-descriptions :column="2" border>
+                                    <el-descriptions-item label="订单号">{{ assigningOrder.order_no }}</el-descriptions-item>
+                                    <el-descriptions-item label="项目">{{ assigningOrder.project_name }}</el-descriptions-item>
+                                    <el-descriptions-item label="客户">{{ assigningOrder.user_name }}</el-descriptions-item>
+                                    <el-descriptions-item label="金额">¥{{ assigningOrder.total_amount }}</el-descriptions-item>
+                                </el-descriptions>
+                            </div>
+                            <div style="margin-bottom: 16px;">
+                                <h4>推荐实验室</h4>
+                                <p style="color: #909399; font-size: 12px;">根据项目类型和实验室能力推荐</p>
+                            </div>
+                            <el-table :data="suitableLabs" v-loading="labRecommendLoading" @row-click="selectLab" highlight-current-row>
+                                <el-table-column prop="name" label="实验室" width="180"></el-table-column>
+                                <el-table-column prop="director" label="负责人" width="100"></el-table-column>
+                                <el-table-column label="当前任务" width="100">
+                                    <template #default="scope"><el-tag type="warning" size="small">{{ scope.row.current_tasks || 0 }}个</el-tag></template>
+                                </el-table-column>
+                                <el-table-column label="匹配度" width="120">
+                                    <template #default="scope">
+                                        <el-progress :percentage="scope.row.match_score || 80" :color="scope.row.match_score >= 90 ? '#67c23a' : '#409eff'" :stroke-width="10"></el-progress>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column label="状态" width="80">
+                                    <template #default="scope">
+                                        <el-tag :type="scope.row.status === 'active' ? 'success' : 'warning'" size="small">
+                                            {{ scope.row.status === 'active' ? '空闲' : '忙碌' }}
+                                        </el-tag>
+                                    </template>
+                                </el-table-column>
+                            </el-table>
+                            <div style="margin-top: 16px;">
+                                <el-form-item label="备注">
+                                    <el-input v-model="assignRemark" type="textarea" placeholder="分配备注（可选）" :rows="2"></el-input>
+                                </el-form-item>
+                            </div>
+                            <template #footer>
+                                <el-button @click="assignDialogVisible = false">取消</el-button>
+                                <el-button type="primary" @click="confirmAssignOrder" :loading="loading" :disabled="!selectedLabId">确认分配</el-button>
+                            </template>
+                        </el-dialog>
+
+                        <!-- 批量分配对话框 -->
+                        <el-dialog v-model="batchAssignDialogVisible" title="批量分配订单" width="500px">
+                            <p style="margin-bottom: 16px;">已选择 <strong>{{ assignSelectedOrders.length }}</strong> 个订单</p>
+                            <el-form label-width="100px">
+                                <el-form-item label="目标实验室" required>
+                                    <el-select v-model="batchLabId" placeholder="选择实验室" style="width: 100%;">
+                                        <el-option v-for="lab in labList" :key="lab.id" :label="lab.name" :value="lab.id">
+                                            <span>{{ lab.name }}</span>
+                                            <span style="float: right; color: #909399; font-size: 12px;">任务: {{ lab.current_tasks || 0 }}个</span>
+                                        </el-option>
+                                    </el-select>
+                                </el-form-item>
+                                <el-form-item label="备注">
+                                    <el-input v-model="batchAssignRemark" type="textarea" placeholder="分配备注（可选）" :rows="2"></el-input>
+                                </el-form-item>
+                            </el-form>
+                            <template #footer>
+                                <el-button @click="batchAssignDialogVisible = false">取消</el-button>
+                                <el-button type="primary" @click="confirmBatchAssign" :loading="loading" :disabled="!batchLabId">确认分配</el-button>
+                            </template>
+                        </el-dialog>
+                    </div>
+
                     <!-- 实验室管理 -->
                     <div v-show="activeMenu === 'laboratory'">
                         <div class="page-header" style="display: flex; justify-content: space-between; align-items: center;">
@@ -2672,6 +2829,25 @@
                         { id: 3, name: '王工', department: '环境检测实验室' },
                         { id: 4, name: '赵工', department: '数据分析组' }
                     ],
+                    // 订单分配管理
+                    pendingAssignOrders: [],
+                    assignLoading: false,
+                    assignSearch: '',
+                    assignProjectFilter: null,
+                    assignPage: 1,
+                    assignPageSize: 20,
+                    assignTotal: 0,
+                    assignSelectedOrders: [],
+                    assignStats: { pending_assign: 0, in_testing: 0, today_assigned: 0, available_labs: 0 },
+                    assigningOrder: null,
+                    suitableLabs: [],
+                    labRecommendLoading: false,
+                    selectedLabId: null,
+                    assignRemark: '',
+                    batchAssignDialogVisible: false,
+                    batchLabId: null,
+                    batchAssignRemark: '',
+                    projectCategories: [],
                     // 分类管理
                     categoryList: [],
                     categoryLoading: false,
@@ -2973,6 +3149,7 @@
                     else if (index === 'users' && this.users.length === 0) this.loadUsers()
                     else if (index === 'projects') this.loadProjects()
                     else if (index === 'orders') this.loadOrders()
+                    else if (index === 'order_assign') { this.loadPendingAssignOrders(); this.loadAssignStats(); this.loadProjectCategories() }
                     else if (index === 'categories') this.loadCategories()
                     else if (index === 'coupons') this.loadCoupons()
                     else if (index === 'recharges') this.loadRecharges()
@@ -3188,12 +3365,6 @@
                     } finally {
                         this.usersLoading = false
                     }
-                },
-                exportUsers() {
-                    ElMessage.success('正在导出用户数据...')
-                    setTimeout(() => {
-                        ElMessage.success('用户数据已导出为Excel文件')
-                    }, 1000)
                 },
                 async viewUser(user) {
                     try {
@@ -3825,12 +3996,6 @@
                     ElMessage.success(`已成功指派给 ${staff?.name}`)
                     this.selectedOrders = []
                 },
-                exportOrders() {
-                    ElMessage.success('正在导出订单数据...')
-                    setTimeout(() => {
-                        ElMessage.success('订单数据已导出为Excel文件')
-                    }, 1000)
-                },
                 printOrders() {
                     ElMessage.success('正在准备打印...')
                     setTimeout(() => {
@@ -4049,6 +4214,123 @@
                         ElMessage.success('导出成功')
                     } catch (error) {
                         ElMessage.error('导出失败，请稍后重试')
+                    }
+                },
+                // ==================== 订单分配方法 ====================
+                async loadPendingAssignOrders() {
+                    this.assignLoading = true
+                    try {
+                        const params = {
+                            page: this.assignPage,
+                            page_size: this.assignPageSize,
+                            search: this.assignSearch || undefined,
+                            category_id: this.assignProjectFilter || undefined
+                        }
+                        const res = await axios.get(`${this.baseUrl}/api/v1/admin/orders/pending-assign`, { headers: this.uploadHeaders, params })
+                        this.pendingAssignOrders = res.data.data?.items || res.data.data || []
+                        this.assignTotal = res.data.data?.total || 0
+                    } catch (error) {
+                        console.error('加载待分配订单失败', error)
+                    } finally {
+                        this.assignLoading = false
+                    }
+                },
+                async loadAssignStats() {
+                    try {
+                        const res = await axios.get(`${this.baseUrl}/api/v1/admin/orders/assignment-stats`, { headers: this.uploadHeaders })
+                        this.assignStats = res.data.data || this.assignStats
+                    } catch (error) {
+                        console.error('加载分配统计失败', error)
+                    }
+                },
+                async loadProjectCategories() {
+                    if (this.projectCategories.length > 0) return
+                    try {
+                        const res = await axios.get(`${this.baseUrl}/api/v1/categories`, { headers: this.uploadHeaders })
+                        this.projectCategories = res.data.data?.items || res.data.data || []
+                    } catch (error) {
+                        console.error('加载项目分类失败', error)
+                    }
+                },
+                handleAssignSelectionChange(selection) {
+                    this.assignSelectedOrders = selection
+                },
+                async showAssignDialog(order) {
+                    this.assigningOrder = order
+                    this.selectedLabId = null
+                    this.assignRemark = ''
+                    this.assignDialogVisible = true
+                    this.labRecommendLoading = true
+                    try {
+                        const res = await axios.get(`${this.baseUrl}/api/v1/admin/orders/${order.id}/suitable-labs`, { headers: this.uploadHeaders })
+                        this.suitableLabs = res.data.data || []
+                    } catch (error) {
+                        console.error('加载推荐实验室失败', error)
+                        // 如果API失败，使用全部实验室
+                        this.suitableLabs = this.labList
+                    } finally {
+                        this.labRecommendLoading = false
+                    }
+                },
+                selectLab(row) {
+                    this.selectedLabId = row.id
+                },
+                async confirmAssignOrder() {
+                    if (!this.selectedLabId) {
+                        ElMessage.error('请选择实验室')
+                        return
+                    }
+                    this.loading = true
+                    try {
+                        await axios.post(`${this.baseUrl}/api/v1/admin/orders/${this.assigningOrder.id}/assign`, {
+                            laboratory_id: this.selectedLabId,
+                            remark: this.assignRemark
+                        }, { headers: this.uploadHeaders })
+                        ElMessage.success('分配成功')
+                        this.assignDialogVisible = false
+                        this.loadPendingAssignOrders()
+                        this.loadAssignStats()
+                    } catch (error) {
+                        ElMessage.error(error.response?.data?.detail || '分配失败')
+                    } finally {
+                        this.loading = false
+                    }
+                },
+                batchAssignOrders() {
+                    if (this.assignSelectedOrders.length === 0) {
+                        ElMessage.warning('请选择要分配的订单')
+                        return
+                    }
+                    this.batchLabId = null
+                    this.batchAssignRemark = ''
+                    this.batchAssignDialogVisible = true
+                    // 确保实验室列表已加载
+                    if (this.labList.length === 0) {
+                        this.loadLabs()
+                    }
+                },
+                async confirmBatchAssign() {
+                    if (!this.batchLabId) {
+                        ElMessage.error('请选择目标实验室')
+                        return
+                    }
+                    this.loading = true
+                    try {
+                        const orderIds = this.assignSelectedOrders.map(o => o.id)
+                        await axios.post(`${this.baseUrl}/api/v1/admin/orders/batch-assign`, {
+                            order_ids: orderIds,
+                            laboratory_id: this.batchLabId,
+                            remark: this.batchAssignRemark
+                        }, { headers: this.uploadHeaders })
+                        ElMessage.success(`成功分配 ${orderIds.length} 个订单`)
+                        this.batchAssignDialogVisible = false
+                        this.assignSelectedOrders = []
+                        this.loadPendingAssignOrders()
+                        this.loadAssignStats()
+                    } catch (error) {
+                        ElMessage.error(error.response?.data?.detail || '批量分配失败')
+                    } finally {
+                        this.loading = false
                     }
                 },
                 // ==================== 实验室管理方法 ====================
@@ -4715,9 +4997,49 @@
                             params.start_date = this.analyticsDateRange[0]
                             params.end_date = this.analyticsDateRange[1]
                         }
-                        const res = await axios.get(`${this.baseUrl}/api/v1/admin/analytics`, { headers: this.uploadHeaders, params })
-                        if (res.data.data) {
-                            this.analyticsData = { ...this.analyticsData, ...res.data.data }
+                        // 并行加载多个报表数据
+                        const [overviewRes, trendRes, projectRes, financeRes] = await Promise.all([
+                            axios.get(`${this.baseUrl}/api/v1/admin/reports/overview`, { headers: this.uploadHeaders, params }).catch(() => ({ data: {} })),
+                            axios.get(`${this.baseUrl}/api/v1/admin/reports/order-trend`, { headers: this.uploadHeaders, params: { ...params, days: 7 } }).catch(() => ({ data: {} })),
+                            axios.get(`${this.baseUrl}/api/v1/admin/reports/project-ranking`, { headers: this.uploadHeaders, params: { ...params, limit: 5 } }).catch(() => ({ data: {} })),
+                            axios.get(`${this.baseUrl}/api/v1/admin/reports/finance-summary`, { headers: this.uploadHeaders, params }).catch(() => ({ data: {} }))
+                        ])
+
+                        // 整合数据
+                        const overview = overviewRes.data?.data || {}
+                        const trends = trendRes.data?.data || []
+                        const projects = projectRes.data?.data || []
+                        const finance = financeRes.data?.data || {}
+
+                        // 转换趋势数据格式
+                        const orderTrends = trends.map(t => ({
+                            date: t.date ? t.date.slice(5) : '',
+                            count: t.order_count || 0
+                        }))
+
+                        // 转换项目分布数据
+                        const totalProjectOrders = projects.reduce((sum, p) => sum + (p.order_count || 0), 0) || 1
+                        const categoryDistribution = projects.map((p, i) => ({
+                            category: p.project_name || '未知',
+                            percentage: Math.round((p.order_count || 0) / totalProjectOrders * 100),
+                            color: ['#409eff', '#67c23a', '#e6a23c', '#f56c6c', '#909399'][i % 5]
+                        }))
+
+                        this.analyticsData = {
+                            orderTrends,
+                            categoryDistribution,
+                            userGrowth: {
+                                thisMonth: overview.new_users_this_month || 0,
+                                lastMonth: overview.new_users_last_month || 0,
+                                growthRate: overview.user_growth_rate || 0,
+                                activeUsers: overview.total_users || 0
+                            },
+                            revenueAnalysis: {
+                                thisMonth: finance.total_income || 0,
+                                lastMonth: finance.last_month_income || 0,
+                                growthRate: finance.income_growth_rate || 0,
+                                avgOrderValue: overview.avg_order_amount || 0
+                            }
                         }
                     } catch (error) {
                         console.error('加载分析数据失败', error)
@@ -4725,18 +5047,23 @@
                 },
                 async exportAnalyticsData() {
                     try {
-                        const res = await axios.get(`${this.baseUrl}/api/v1/admin/analytics/export`, {
-                            headers: this.uploadHeaders,
-                            responseType: 'blob',
-                            params: this.analyticsDateRange ? { start_date: this.analyticsDateRange[0], end_date: this.analyticsDateRange[1] } : {}
-                        })
-                        const url = window.URL.createObjectURL(new Blob([res.data]))
+                        // 导出为JSON格式
+                        const params = { format: 'json' }
+                        if (this.analyticsDateRange && this.analyticsDateRange.length === 2) {
+                            params.start_date = this.analyticsDateRange[0]
+                            params.end_date = this.analyticsDateRange[1]
+                        }
+                        const res = await axios.get(`${this.baseUrl}/api/v1/admin/reports/overview`, { headers: this.uploadHeaders, params })
+                        const data = JSON.stringify(res.data.data || {}, null, 2)
+                        const blob = new Blob([data], { type: 'application/json' })
+                        const url = window.URL.createObjectURL(blob)
                         const link = document.createElement('a')
                         link.href = url
-                        link.setAttribute('download', `数据分析报表_${new Date().toISOString().slice(0,10)}.xlsx`)
+                        link.setAttribute('download', `数据分析报表_${new Date().toISOString().slice(0,10)}.json`)
                         document.body.appendChild(link)
                         link.click()
                         link.remove()
+                        window.URL.revokeObjectURL(url)
                         ElMessage.success('导出成功')
                     } catch (error) {
                         ElMessage.error('导出失败，请稍后重试')
@@ -4964,17 +5291,20 @@
                 // ==================== 导出方法 ====================
                 async exportUsers() {
                     try {
-                        const res = await axios.get(`${this.baseUrl}/api/v1/admin/users/export`, {
+                        const res = await axios.get(`${this.baseUrl}/api/v1/admin/export/users`, {
                             headers: this.uploadHeaders,
-                            responseType: 'blob'
+                            params: { format: 'csv' }
                         })
-                        const url = window.URL.createObjectURL(new Blob([res.data]))
+                        // 下载CSV文件
+                        const blob = new Blob([res.data], { type: 'text/csv;charset=utf-8;' })
+                        const url = window.URL.createObjectURL(blob)
                         const link = document.createElement('a')
                         link.href = url
-                        link.setAttribute('download', `用户数据_${new Date().toISOString().slice(0,10)}.xlsx`)
+                        link.setAttribute('download', `用户数据_${new Date().toISOString().slice(0,10)}.csv`)
                         document.body.appendChild(link)
                         link.click()
                         link.remove()
+                        window.URL.revokeObjectURL(url)
                         ElMessage.success('导出成功')
                     } catch (error) {
                         ElMessage.error('导出失败，请稍后重试')
@@ -4982,18 +5312,24 @@
                 },
                 async exportOrders() {
                     try {
-                        const res = await axios.get(`${this.baseUrl}/api/v1/admin/orders/export`, {
+                        const params = {
+                            format: 'csv',
+                            status: this.orderStatusFilter || undefined
+                        }
+                        const res = await axios.get(`${this.baseUrl}/api/v1/admin/export/orders`, {
                             headers: this.uploadHeaders,
-                            responseType: 'blob',
-                            params: { search: this.orderSearch || undefined, status: this.orderStatusFilter || undefined }
+                            params
                         })
-                        const url = window.URL.createObjectURL(new Blob([res.data]))
+                        // 下载CSV文件
+                        const blob = new Blob([res.data], { type: 'text/csv;charset=utf-8;' })
+                        const url = window.URL.createObjectURL(blob)
                         const link = document.createElement('a')
                         link.href = url
-                        link.setAttribute('download', `订单数据_${new Date().toISOString().slice(0,10)}.xlsx`)
+                        link.setAttribute('download', `订单数据_${new Date().toISOString().slice(0,10)}.csv`)
                         document.body.appendChild(link)
                         link.click()
                         link.remove()
+                        window.URL.revokeObjectURL(url)
                         ElMessage.success('导出成功')
                     } catch (error) {
                         ElMessage.error('导出失败，请稍后重试')
