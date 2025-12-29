@@ -116,6 +116,13 @@
 			}
 		},
 		{
+			"path": "debt/debt",
+			"style": {
+				"navigationBarTitleText": "我的欠款",
+				"enablePullDownRefresh": true
+			}
+		},
+		{
 			"path": "wallet/wallet",
 			"style": {
 				"navigationBarTitleText": "我的钱包",

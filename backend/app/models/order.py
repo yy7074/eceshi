@@ -21,7 +21,21 @@ class Order(Base):
     
     # 订单状态
     status = Column(String(20), nullable=False, index=True, default="pending_payment", comment="订单状态")
-    
+    is_draft = Column(Boolean, default=False, index=True, comment="是否为草稿")
+
+    # 开票状态
+    invoice_status = Column(String(20), default="none", index=True, comment="开票状态: none/requested/processing/issued/rejected")
+    invoice_id = Column(BigInteger, comment="关联发票ID")
+
+    # 支付状态（独立于订单状态）
+    payment_status = Column(String(20), default="unpaid", index=True, comment="支付状态: unpaid/partial/paid")
+    credit_amount = Column(Numeric(10, 2), default=0, comment="信用支付金额")
+
+    # 指派信息
+    assigned_lab_id = Column(BigInteger, comment="指派实验室ID")
+    assigned_user_id = Column(BigInteger, comment="指派操作员ID")
+    assigned_at = Column(DateTime, comment="指派时间")
+
     # 费用信息
     project_fee = Column(Numeric(10, 2), nullable=False, comment="项目费用")
     urgent_fee = Column(Numeric(10, 2), default=0, comment="加急费用")

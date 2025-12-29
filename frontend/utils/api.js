@@ -101,7 +101,34 @@ export default {
 	cancelOrder(id, data) {
 		return request.post(`/api/v1/orders/${id}/cancel`, data)
 	},
-	
+
+	// ========== 草稿订单相关 ==========
+
+	// 获取草稿订单列表
+	getDraftOrders(params) {
+		return request.get('/api/v1/orders/drafts', params)
+	},
+
+	// 保存草稿订单
+	saveDraftOrder(data) {
+		return request.post('/api/v1/orders/draft', data)
+	},
+
+	// 更新草稿订单
+	updateDraftOrder(id, data) {
+		return request.put(`/api/v1/orders/draft/${id}`, data)
+	},
+
+	// 提交草稿订单
+	submitDraftOrder(id) {
+		return request.post(`/api/v1/orders/draft/${id}/submit`)
+	},
+
+	// 删除草稿订单
+	deleteDraftOrder(id) {
+		return request.delete(`/api/v1/orders/draft/${id}`)
+	},
+
 	// ========== 地址相关 ==========
 	
 	// 获取地址列表
@@ -545,6 +572,268 @@ export default {
 	// 提交物流信息
 	submitLogistics(orderId, data) {
 		return request.post(`/api/v1/samples/order/${orderId}/logistics`, data)
+	},
+
+	// ========== 信用系统相关 ==========
+
+	// 获取信用额度信息
+	getCreditInfo() {
+		return request.get('/api/v1/credit/info')
+	},
+
+	// 获取欠款列表
+	getDebtList(params) {
+		return request.get('/api/v1/credit/debts', params)
+	},
+
+	// 信用支付
+	creditPay(data) {
+		return request.post('/api/v1/credit/pay', data)
+	},
+
+	// 还款
+	repayDebt(data) {
+		return request.post('/api/v1/credit/repay', data)
+	},
+
+	// 获取信用交易记录
+	getCreditRecords(params) {
+		return request.get('/api/v1/credit/records', params)
+	},
+
+	// 获取还款记录
+	getRepaymentRecords(params) {
+		return request.get('/api/v1/credit/repayments', params)
+	},
+
+	// 申请提升额度
+	applyLimitIncrease(data) {
+		return request.post('/api/v1/credit/limit/apply', data)
+	},
+
+	// 获取额度申请记录
+	getLimitApplications() {
+		return request.get('/api/v1/credit/limit/applications')
+	},
+
+	// ========== 实验室相关 ==========
+
+	// 获取实验室列表
+	getLaboratories(params) {
+		return request.get('/api/v1/laboratories/list', params)
+	},
+
+	// 获取实验室详情
+	getLaboratoryDetail(id) {
+		return request.get(`/api/v1/laboratories/${id}`)
+	},
+
+	// 提交实验室入驻申请
+	submitLabApplication(data) {
+		return request.post('/api/v1/laboratories/apply', data)
+	},
+
+	// 获取我的入驻申请状态
+	getMyLabApplicationStatus() {
+		return request.get('/api/v1/laboratories/apply/status')
+	},
+
+	// 获取我的实验室信息
+	getMyLaboratory() {
+		return request.get('/api/v1/laboratories/my/info')
+	},
+
+	// 获取我的实验室设备列表
+	getMyLabEquipments(params) {
+		return request.get('/api/v1/laboratories/my/equipments', params)
+	},
+
+	// 添加设备
+	addLabEquipment(data) {
+		return request.post('/api/v1/laboratories/my/equipments', data)
+	},
+
+	// 更新设备信息
+	updateLabEquipment(id, data) {
+		return request.put(`/api/v1/laboratories/my/equipments/${id}`, data)
+	},
+
+	// 删除设备
+	deleteLabEquipment(id) {
+		return request.delete(`/api/v1/laboratories/my/equipments/${id}`)
+	},
+
+	// 获取我的实验室技术人员
+	getMyLabStaff() {
+		return request.get('/api/v1/laboratories/my/staff')
+	},
+
+	// 添加技术人员
+	addLabStaff(data) {
+		return request.post('/api/v1/laboratories/my/staff', data)
+	},
+
+	// ========== 实验室订单管理 ==========
+
+	// 获取实验室订单列表
+	getLabOrders(params) {
+		return request.get('/api/v1/laboratories/my/orders', params)
+	},
+
+	// 获取实验室订单详情
+	getLabOrderDetail(orderId) {
+		return request.get(`/api/v1/laboratories/my/orders/${orderId}`)
+	},
+
+	// 接受订单
+	acceptLabOrder(orderId, data = {}) {
+		return request.post(`/api/v1/laboratories/my/orders/${orderId}/accept`, data)
+	},
+
+	// 拒绝订单
+	rejectLabOrder(orderId, data) {
+		return request.post(`/api/v1/laboratories/my/orders/${orderId}/reject`, data)
+	},
+
+	// 开始检测
+	startLabTesting(orderId, data = {}) {
+		return request.post(`/api/v1/laboratories/my/orders/${orderId}/start`, data)
+	},
+
+	// 上传检测报告
+	uploadLabReport(orderId, data) {
+		return request.post(`/api/v1/laboratories/my/orders/${orderId}/upload-report`, data)
+	},
+
+	// 完成检测
+	completeLabTesting(orderId, data = {}) {
+		return request.post(`/api/v1/laboratories/my/orders/${orderId}/complete`, data)
+	},
+
+	// 获取实验室统计数据
+	getLabStatistics() {
+		return request.get('/api/v1/laboratories/my/statistics')
+	},
+
+	// ========== 管理端：订单指派 ==========
+
+	// 获取待指派订单列表
+	getPendingAssignOrders(params) {
+		return request.get('/api/v1/admin/orders/pending-assign', params)
+	},
+
+	// 获取适合的实验室列表
+	getSuitableLabsForOrder(orderId) {
+		return request.get(`/api/v1/admin/orders/${orderId}/suitable-labs`)
+	},
+
+	// 指派订单到实验室
+	assignOrderToLab(orderId, data) {
+		return request.post(`/api/v1/admin/orders/${orderId}/assign`, data)
+	},
+
+	// 批量指派订单
+	batchAssignOrders(data) {
+		return request.post('/api/v1/admin/orders/batch-assign', data)
+	},
+
+	// 重新指派订单
+	reassignOrder(orderId, data) {
+		return request.post(`/api/v1/admin/orders/${orderId}/reassign`, data)
+	},
+
+	// 获取订单指派统计
+	getAssignmentStats() {
+		return request.get('/api/v1/admin/orders/assignment-stats')
+	},
+
+	// ========== 管理端：角色权限管理 ==========
+
+	// 获取角色列表
+	getRoles(params) {
+		return request.get('/api/v1/admin/roles', params)
+	},
+
+	// 获取角色详情
+	getRoleDetail(roleId) {
+		return request.get(`/api/v1/admin/roles/${roleId}`)
+	},
+
+	// 创建角色
+	createRole(data) {
+		return request.post('/api/v1/admin/roles', data)
+	},
+
+	// 更新角色
+	updateRole(roleId, data) {
+		return request.put(`/api/v1/admin/roles/${roleId}`, data)
+	},
+
+	// 删除角色
+	deleteRole(roleId) {
+		return request.delete(`/api/v1/admin/roles/${roleId}`)
+	},
+
+	// 获取所有权限
+	getPermissions(params) {
+		return request.get('/api/v1/admin/permissions', params)
+	},
+
+	// 分配用户角色
+	assignUserRoles(userId, roleIds) {
+		return request.post(`/api/v1/admin/users/${userId}/roles`, { role_ids: roleIds })
+	},
+
+	// 获取用户角色
+	getUserRoles(userId) {
+		return request.get(`/api/v1/admin/users/${userId}/roles`)
+	},
+
+	// 获取用户权限
+	getUserPermissions(userId) {
+		return request.get(`/api/v1/admin/users/${userId}/permissions`)
+	},
+
+	// 初始化角色和权限
+	initRolesAndPermissions() {
+		return request.post('/api/v1/admin/roles/init')
+	},
+
+	// ========== 管理端：数据导出与报表 ==========
+
+	// 导出订单数据
+	exportOrders(params) {
+		return request.get('/api/v1/admin/export/orders', params)
+	},
+
+	// 导出用户数据
+	exportUsers(params) {
+		return request.get('/api/v1/admin/export/users', params)
+	},
+
+	// 获取报表概览
+	getReportsOverview(timeRange = 'month') {
+		return request.get('/api/v1/admin/reports/overview', { time_range: timeRange })
+	},
+
+	// 获取订单趋势
+	getOrderTrend(timeRange = 'month') {
+		return request.get('/api/v1/admin/reports/order-trend', { time_range: timeRange })
+	},
+
+	// 获取项目排行
+	getProjectRanking(params) {
+		return request.get('/api/v1/admin/reports/project-ranking', params)
+	},
+
+	// 获取实验室业绩
+	getLabPerformance(timeRange = 'month') {
+		return request.get('/api/v1/admin/reports/lab-performance', { time_range: timeRange })
+	},
+
+	// 获取财务汇总
+	getFinanceSummary(year, month) {
+		return request.get('/api/v1/admin/reports/finance-summary', { year, month })
 	}
 }
 

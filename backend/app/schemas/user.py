@@ -108,15 +108,17 @@ class CertificationRequest(BaseModel):
     """实名认证请求"""
     real_name: str = Field(..., max_length=50, description="真实姓名")
     id_card: str = Field(..., min_length=18, max_length=18, description="身份证号")
+    identity_type: str = Field(..., description="身份类型: student/teacher/enterprise/research/hospital")
+    education_level: Optional[str] = Field(None, description="学历: bachelor/master/doctor/other")
     enrollment_year: Optional[str] = Field(None, description="入学年份")
-    graduation_year: Optional[str] = Field(None, description="毕业年份")
+    graduation_year: Optional[str] = Field(None, description="预计毕业年份")
     province: str = Field(..., description="省份")
     city: str = Field(..., description="城市")
-    university: str = Field(..., description="高校")
-    department: str = Field(..., description="院系")
+    university: str = Field(..., description="高校/单位名称")
+    department: str = Field(..., description="院系/部门")
     supervisor_name: Optional[str] = Field(None, description="导师姓名")
     supervisor_title: Optional[str] = Field(None, description="导师职称")
-    student_card_photo: Optional[str] = Field(None, description="学生证照片URL")
+    student_card_photo: Optional[str] = Field(None, description="学生证/工作证照片URL")
     id_card_front: Optional[str] = Field(None, description="身份证正面URL")
     id_card_back: Optional[str] = Field(None, description="身份证反面URL")
 
@@ -127,11 +129,18 @@ class CertificationResponse(BaseModel):
     user_id: int
     status: str
     real_name: str
+    identity_type: Optional[str] = None
+    education_level: Optional[str] = None
+    enrollment_year: Optional[str] = None
+    graduation_year: Optional[str] = None
+    province: Optional[str] = None
+    city: Optional[str] = None
     university: str
     department: str
+    supervisor_name: Optional[str] = None
     created_at: datetime
     certified_at: Optional[datetime] = None
-    
+
     class Config:
         from_attributes = True
 

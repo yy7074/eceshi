@@ -1,7 +1,7 @@
 """
 数据库模型
 """
-from app.models.user import User, UserCertification, UserStatus, MembershipLevel
+from app.models.user import User, UserCertification, UserStatus, MembershipLevel, IdentityType, EducationLevel
 from app.models.sms_code import SMSCode
 from app.models.order import Order, OrderSample, OrderFee, OrderStatusHistory, Payment, UserAddress
 from app.models.project import ProjectCategory, Project, ProjectReview
@@ -21,6 +21,18 @@ from app.models.contract import Contract
 from app.models.report import Report
 from app.models.sample import SampleTracking, SampleLogistics
 from app.models.franchise import FranchiseApplication
+from app.models.credit import (
+    CreditRecord, CreditDebt, Repayment, CreditLimitApplication,
+    CreditTransactionType, CreditTransactionStatus, RepaymentStatus
+)
+from app.models.laboratory import (
+    Laboratory, LabApplication, LabEquipment, LabStaff,
+    LabStatus, LabType
+)
+from app.models.role import (
+    Role, Permission, role_permissions, user_roles,
+    RoleCode, PermissionCode, DEFAULT_ROLE_PERMISSIONS
+)
 
 __all__ = [
     "User",
@@ -78,6 +90,29 @@ __all__ = [
     "Report",
     "SampleTracking",
     "SampleLogistics",
-    "FranchiseApplication"
+    "FranchiseApplication",
+    # 信用系统
+    "CreditRecord",
+    "CreditDebt",
+    "Repayment",
+    "CreditLimitApplication",
+    "CreditTransactionType",
+    "CreditTransactionStatus",
+    "RepaymentStatus",
+    # 实验室系统
+    "Laboratory",
+    "LabApplication",
+    "LabEquipment",
+    "LabStaff",
+    "LabStatus",
+    "LabType",
+    # 角色权限系统
+    "Role",
+    "Permission",
+    "role_permissions",
+    "user_roles",
+    "RoleCode",
+    "PermissionCode",
+    "DEFAULT_ROLE_PERMISSIONS"
 ]
 

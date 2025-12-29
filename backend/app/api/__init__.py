@@ -6,7 +6,7 @@ from fastapi import APIRouter
 from app.api.v1 import (
     auth, users, projects, orders, addresses, payments, upload, admin,
     favorites, reviews, points, coupons, invites, groups, recharge,
-    invoices, lottery, prepay,
+    invoices, lottery, prepay, credit, laboratory,
     # 新增模块
     banners, announcements, help, chat, reports, samples, contracts, franchise, statistics
 )
@@ -33,6 +33,8 @@ router.include_router(recharge.router, prefix="/recharge", tags=["钱包充值"]
 router.include_router(invoices.router, prefix="/invoices", tags=["发票管理"])
 router.include_router(lottery.router, prefix="/lottery", tags=["抽奖系统"])
 router.include_router(prepay.router, prefix="/prepay", tags=["预付记录"])
+router.include_router(credit.router, prefix="/credit", tags=["信用系统"])
+router.include_router(laboratory.router, prefix="/laboratories", tags=["实验室"])
 router.include_router(admin.router, prefix="/admin", tags=["后台管理"])
 # 新增路由
 router.include_router(banners.router, prefix="/banners", tags=["轮播图"])

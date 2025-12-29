@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.response import Response
-from app.models.user import User, UserCertification
+from app.models.user import User, UserCertification, IdentityType, EducationLevel
 from app.schemas.user import UserInfo, UserUpdate, CertificationRequest, CertificationResponse
 from app.api.deps import get_current_user
 
@@ -114,9 +114,27 @@ async def submit_certification(
             detail="您有待审核的认证申请"
         )
     
+    # 解析身份类型
+    identity_type_enum = None
+    if request.identity_type:
+        try:
+            identity_type_enum = IdentityType(request.identity_type)
+        except ValueError:
+            identity_type_enum = IdentityType.STUDENT
+
+    # 解析学历
+    education_level_enum = None
+    if request.education_level:
+        try:
+            education_level_enum = EducationLevel(request.education_level)
+        except ValueError:
+            education_level_enum = None
+
     # 创建认证记录
     certification = UserCertification(
         user_id=current_user.id,
+        identity_type=identity_type_enum,
+        education_level=education_level_enum,
         enrollment_year=request.enrollment_year,
         graduation_year=request.graduation_year,
         province=request.province,
@@ -161,6 +179,8 @@ async def get_certification(
     
     return Response.success(data={
         "user_id": certification.user_id,
+        "identity_type": certification.identity_type.value if certification.identity_type else None,
+        "education_level": certification.education_level.value if certification.education_level else None,
         "enrollment_year": certification.enrollment_year,
         "graduation_year": certification.graduation_year,
         "province": certification.province,

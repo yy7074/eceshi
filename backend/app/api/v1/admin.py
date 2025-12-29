@@ -13,14 +13,16 @@ from pydantic import BaseModel
 from app.core.database import get_db
 from app.core.response import Response
 from app.api.v1.deps import get_current_admin_user
-from app.models.user import User, UserStatus
+from app.models.user import User, UserStatus, UserCertification
+from app.models.credit import CreditRecord, CreditTransactionType, CreditTransactionStatus
 from app.models.project import Project, ProjectCategory, ProjectReview
-from app.models.order import Order, Payment
+from app.models.order import Order, Payment, OrderStatusHistory
 from app.models.coupon import Coupon, UserCoupon, CouponType, CouponStatus
 from app.models.recharge import RechargeRecord, RechargeStatus
 from app.models.points import PointsGoods, PointsRecord, PointsExchangeRecord
 from app.models.group import UserGroup, GroupMember
 from app.models.invite import InviteRecord, WithdrawRecord
+from app.models.laboratory import Laboratory, LabApplication, LabStatus
 from app.schemas.project import ProjectCreate, ProjectUpdate
 
 
@@ -552,6 +554,9 @@ async def get_orders_admin(
     page_size: int = Query(20, ge=1, le=100, description="每页数量"),
     search: Optional[str] = Query(None, description="搜索关键字（订单号/用户手机号）"),
     status: Optional[str] = Query(None, description="订单状态筛选"),
+    is_draft: Optional[bool] = Query(None, description="是否草稿订单"),
+    invoice_status: Optional[str] = Query(None, description="开票状态: none/requested/processing/issued/rejected"),
+    payment_status: Optional[str] = Query(None, description="支付状态: unpaid/partial/paid"),
     db: Session = Depends(get_db),
     current_admin: User = Depends(get_current_admin_user)
 ):
@@ -559,13 +564,13 @@ async def get_orders_admin(
     from app.models.order import Order
     from sqlalchemy import or_
     from sqlalchemy.orm import joinedload
-    
+
     # 构建查询
     query = db.query(Order).options(
         joinedload(Order.user),
         joinedload(Order.project)
     )
-    
+
     # 搜索过滤
     if search:
         query = query.join(Order.user).filter(
@@ -575,10 +580,22 @@ async def get_orders_admin(
                 User.nickname.like(f"%{search}%")
             )
         )
-    
+
+    # 草稿筛选
+    if is_draft is not None:
+        query = query.filter(Order.is_draft == is_draft)
+
     # 状态过滤
     if status:
         query = query.filter(Order.status == status)
+
+    # 开票状态筛选
+    if invoice_status:
+        query = query.filter(Order.invoice_status == invoice_status)
+
+    # 支付状态筛选
+    if payment_status:
+        query = query.filter(Order.payment_status == payment_status)
     
     # 总数
     total = query.count()
@@ -700,6 +717,329 @@ async def update_order_status_admin(
     db.commit()
     
     return Response.success(message=f"订单状态已从 {old_status} 更新为 {new_status}")
+
+
+# ==================== 订单指派 ====================
+
+class OrderAssignRequest(BaseModel):
+    """订单指派请求"""
+    laboratory_id: int
+    remark: Optional[str] = None
+
+
+class BatchAssignRequest(BaseModel):
+    """批量指派请求"""
+    order_ids: List[int]
+    laboratory_id: int
+    remark: Optional[str] = None
+
+
+@router.get("/orders/pending-assign", summary="获取待指派订单列表")
+async def get_pending_assign_orders(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    search: Optional[str] = Query(None, description="搜索订单号"),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """获取待指派的订单列表（已支付但未指派的订单）"""
+    query = db.query(Order).filter(
+        Order.is_draft == False,
+        Order.status.in_(["paid", "pending_assign"]),
+        Order.assigned_lab_id.is_(None)
+    )
+
+    if search:
+        query = query.filter(Order.order_no.like(f"%{search}%"))
+
+    total = query.count()
+    orders = query.order_by(desc(Order.created_at)).offset((page - 1) * page_size).limit(page_size).all()
+
+    return Response.success(data={
+        "items": [
+            {
+                "id": o.id,
+                "order_no": o.order_no,
+                "project_name": o.project_name,
+                "sample_count": o.sample_count,
+                "total_fee": float(o.total_fee or 0),
+                "is_urgent": o.is_urgent,
+                "status": o.status,
+                "created_at": o.created_at.isoformat() if o.created_at else None,
+                "paid_at": o.paid_at.isoformat() if o.paid_at else None
+            }
+            for o in orders
+        ],
+        "total": total,
+        "page": page,
+        "page_size": page_size
+    })
+
+
+@router.get("/orders/{order_id}/suitable-labs", summary="获取适合的实验室列表")
+async def get_suitable_labs_for_order(
+    order_id: int,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """获取适合处理该订单的实验室列表"""
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="订单不存在")
+
+    # 获取所有活跃的实验室
+    labs = db.query(Laboratory).filter(
+        Laboratory.status == LabStatus.ACTIVE
+    ).all()
+
+    lab_list = []
+    for lab in labs:
+        # 计算匹配度（可基于实验室能力、位置等因素）
+        match_score = 100  # 默认满分
+
+        # 检查是否有相关检测能力（简化处理）
+        if lab.specialties:
+            # 实际应用中可以根据项目类型匹配实验室专长
+            pass
+
+        lab_list.append({
+            "id": lab.id,
+            "name": lab.name,
+            "code": lab.code,
+            "institution": lab.institution,
+            "province": lab.province,
+            "city": lab.city,
+            "rating": float(lab.rating) if lab.rating else 5.0,
+            "completed_orders": lab.completed_orders or 0,
+            "commission_rate": float(lab.commission_rate) if lab.commission_rate else 20.0,
+            "match_score": match_score
+        })
+
+    # 按匹配度和评分排序
+    lab_list.sort(key=lambda x: (-x["match_score"], -x["rating"]))
+
+    return Response.success(data={
+        "order": {
+            "id": order.id,
+            "order_no": order.order_no,
+            "project_name": order.project_name
+        },
+        "laboratories": lab_list
+    })
+
+
+@router.post("/orders/{order_id}/assign", summary="指派订单到实验室")
+async def assign_order_to_lab(
+    order_id: int,
+    data: OrderAssignRequest,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """将订单指派给指定实验室"""
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="订单不存在")
+
+    if order.status not in ["paid", "pending_assign"]:
+        raise HTTPException(status_code=400, detail="订单状态不允许指派")
+
+    lab = db.query(Laboratory).filter(
+        Laboratory.id == data.laboratory_id,
+        Laboratory.status == LabStatus.ACTIVE
+    ).first()
+    if not lab:
+        raise HTTPException(status_code=404, detail="实验室不存在或未激活")
+
+    # 记录状态变更
+    history = OrderStatusHistory(
+        order_id=order_id,
+        from_status=order.status,
+        to_status="assigned",
+        operator_id=current_admin.id,
+        operator_type="admin",
+        remark=data.remark or f"指派给实验室: {lab.name}"
+    )
+    db.add(history)
+
+    # 更新订单
+    order.status = "assigned"
+    order.assigned_lab_id = lab.id
+    order.assigned_user_id = current_admin.id
+    order.assigned_at = datetime.utcnow()
+
+    # 更新实验室订单统计
+    lab.total_orders = (lab.total_orders or 0) + 1
+
+    db.commit()
+
+    return Response.success(message=f"订单已指派给 {lab.name}")
+
+
+@router.post("/orders/batch-assign", summary="批量指派订单")
+async def batch_assign_orders(
+    data: BatchAssignRequest,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """批量将订单指派给指定实验室"""
+    lab = db.query(Laboratory).filter(
+        Laboratory.id == data.laboratory_id,
+        Laboratory.status == LabStatus.ACTIVE
+    ).first()
+    if not lab:
+        raise HTTPException(status_code=404, detail="实验室不存在或未激活")
+
+    success_count = 0
+    fail_count = 0
+
+    for order_id in data.order_ids:
+        order = db.query(Order).filter(Order.id == order_id).first()
+        if not order or order.status not in ["paid", "pending_assign"]:
+            fail_count += 1
+            continue
+
+        # 记录状态变更
+        history = OrderStatusHistory(
+            order_id=order_id,
+            from_status=order.status,
+            to_status="assigned",
+            operator_id=current_admin.id,
+            operator_type="admin",
+            remark=data.remark or f"批量指派给实验室: {lab.name}"
+        )
+        db.add(history)
+
+        # 更新订单
+        order.status = "assigned"
+        order.assigned_lab_id = lab.id
+        order.assigned_user_id = current_admin.id
+        order.assigned_at = datetime.utcnow()
+
+        success_count += 1
+
+    # 更新实验室订单统计
+    lab.total_orders = (lab.total_orders or 0) + success_count
+
+    db.commit()
+
+    return Response.success(
+        message=f"批量指派完成，成功 {success_count} 个，失败 {fail_count} 个",
+        data={"success_count": success_count, "fail_count": fail_count}
+    )
+
+
+@router.post("/orders/{order_id}/reassign", summary="重新指派订单")
+async def reassign_order(
+    order_id: int,
+    data: OrderAssignRequest,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """重新指派订单到其他实验室"""
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="订单不存在")
+
+    # 允许重新指派的状态
+    if order.status not in ["assigned", "pending_assign", "rejected_by_lab"]:
+        raise HTTPException(status_code=400, detail="订单状态不允许重新指派")
+
+    new_lab = db.query(Laboratory).filter(
+        Laboratory.id == data.laboratory_id,
+        Laboratory.status == LabStatus.ACTIVE
+    ).first()
+    if not new_lab:
+        raise HTTPException(status_code=404, detail="实验室不存在或未激活")
+
+    old_lab_name = None
+    if order.assigned_lab_id:
+        old_lab = db.query(Laboratory).filter(Laboratory.id == order.assigned_lab_id).first()
+        if old_lab:
+            old_lab_name = old_lab.name
+            # 减少原实验室订单统计
+            old_lab.total_orders = max((old_lab.total_orders or 0) - 1, 0)
+
+    # 记录状态变更
+    history = OrderStatusHistory(
+        order_id=order_id,
+        from_status=order.status,
+        to_status="assigned",
+        operator_id=current_admin.id,
+        operator_type="admin",
+        remark=data.remark or f"重新指派: {old_lab_name or '无'} -> {new_lab.name}"
+    )
+    db.add(history)
+
+    # 更新订单
+    order.status = "assigned"
+    order.assigned_lab_id = new_lab.id
+    order.assigned_user_id = current_admin.id
+    order.assigned_at = datetime.utcnow()
+
+    # 更新新实验室订单统计
+    new_lab.total_orders = (new_lab.total_orders or 0) + 1
+
+    db.commit()
+
+    return Response.success(message=f"订单已重新指派给 {new_lab.name}")
+
+
+@router.get("/orders/assignment-stats", summary="获取订单指派统计")
+async def get_assignment_stats(
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """获取订单指派统计数据"""
+    # 待指派订单数
+    pending_count = db.query(Order).filter(
+        Order.is_draft == False,
+        Order.status.in_(["paid", "pending_assign"]),
+        Order.assigned_lab_id.is_(None)
+    ).count()
+
+    # 已指派待接单
+    assigned_count = db.query(Order).filter(
+        Order.status == "assigned"
+    ).count()
+
+    # 被拒绝待重新指派
+    rejected_count = db.query(Order).filter(
+        Order.status == "rejected_by_lab"
+    ).count()
+
+    # 检测中订单数
+    testing_count = db.query(Order).filter(
+        Order.status.in_(["accepted", "sample_received", "testing", "data_uploaded"])
+    ).count()
+
+    # 今日指派数
+    from datetime import date
+    today = date.today()
+    today_assigned = db.query(Order).filter(
+        Order.assigned_at >= today
+    ).count()
+
+    # 各实验室订单分布
+    lab_distribution = db.query(
+        Laboratory.name,
+        func.count(Order.id).label("order_count")
+    ).join(
+        Order, Order.assigned_lab_id == Laboratory.id
+    ).filter(
+        Order.status.notin_(["cancelled", "refunded"])
+    ).group_by(Laboratory.id).all()
+
+    return Response.success(data={
+        "pending_count": pending_count,
+        "assigned_count": assigned_count,
+        "rejected_count": rejected_count,
+        "testing_count": testing_count,
+        "today_assigned": today_assigned,
+        "lab_distribution": [
+            {"lab_name": name, "order_count": count}
+            for name, count in lab_distribution
+        ]
+    })
 
 
 # ==================== 分类管理 ====================
@@ -1847,4 +2187,1650 @@ async def delete_qrcode(
     """删除二维码（暂时返回成功）"""
     # TODO: 实现真实的二维码删除功能
     return Response.success(message="二维码删除成功")
+
+
+# ==================== 实名认证管理 ====================
+
+@router.get("/certifications", summary="获取认证申请列表（管理员）")
+async def get_certifications_admin(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    status: Optional[str] = Query(None, description="状态: pending/approved/rejected"),
+    search: Optional[str] = Query(None, description="搜索关键字（姓名/手机号）"),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """管理员获取实名认证申请列表"""
+    query = db.query(UserCertification).options(joinedload(UserCertification.user))
+
+    # 状态筛选
+    if status:
+        query = query.filter(UserCertification.status == status)
+
+    # 搜索
+    if search:
+        query = query.join(User).filter(
+            or_(
+                UserCertification.real_name.like(f"%{search}%"),
+                User.phone.like(f"%{search}%")
+            )
+        )
+
+    total = query.count()
+    certifications = query.order_by(desc(UserCertification.created_at)).offset((page - 1) * page_size).limit(page_size).all()
+
+    return Response.success(data={
+        "items": [
+            {
+                "id": c.id,
+                "user_id": c.user_id,
+                "user_phone": c.user.phone if c.user else None,
+                "user_nickname": c.user.nickname if c.user else None,
+                "real_name": c.real_name,
+                "id_card": c.id_card,
+                "identity_type": c.identity_type.value if c.identity_type else None,
+                "education_level": c.education_level.value if c.education_level else None,
+                "university": c.university,
+                "department": c.department,
+                "supervisor": c.supervisor,
+                "enrollment_year": c.enrollment_year,
+                "graduation_year": c.graduation_year,
+                "company": c.company,
+                "position": c.position,
+                "province": c.province,
+                "status": c.status,
+                "reject_reason": c.reject_reason,
+                "id_card_front": c.id_card_front,
+                "id_card_back": c.id_card_back,
+                "student_card": c.student_card,
+                "created_at": c.created_at.isoformat() if c.created_at else None,
+                "reviewed_at": c.reviewed_at.isoformat() if c.reviewed_at else None
+            }
+            for c in certifications
+        ],
+        "total": total,
+        "page": page,
+        "page_size": page_size
+    })
+
+
+@router.get("/certifications/{cert_id}", summary="获取认证详情（管理员）")
+async def get_certification_detail_admin(
+    cert_id: int,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """管理员获取实名认证详情"""
+    cert = db.query(UserCertification).options(
+        joinedload(UserCertification.user)
+    ).filter(UserCertification.id == cert_id).first()
+
+    if not cert:
+        raise HTTPException(status_code=404, detail="认证记录不存在")
+
+    return Response.success(data={
+        "id": cert.id,
+        "user_id": cert.user_id,
+        "user_phone": cert.user.phone if cert.user else None,
+        "user_nickname": cert.user.nickname if cert.user else None,
+        "real_name": cert.real_name,
+        "id_card": cert.id_card,
+        "identity_type": cert.identity_type.value if cert.identity_type else None,
+        "education_level": cert.education_level.value if cert.education_level else None,
+        "university": cert.university,
+        "department": cert.department,
+        "supervisor": cert.supervisor,
+        "enrollment_year": cert.enrollment_year,
+        "graduation_year": cert.graduation_year,
+        "company": cert.company,
+        "position": cert.position,
+        "province": cert.province,
+        "status": cert.status,
+        "reject_reason": cert.reject_reason,
+        "id_card_front": cert.id_card_front,
+        "id_card_back": cert.id_card_back,
+        "student_card": cert.student_card,
+        "created_at": cert.created_at.isoformat() if cert.created_at else None,
+        "reviewed_at": cert.reviewed_at.isoformat() if cert.reviewed_at else None
+    })
+
+
+class CertificationReviewRequest(BaseModel):
+    action: str  # approve / reject
+    reject_reason: Optional[str] = None
+    credit_limit: Optional[float] = 3000.0  # 默认授予3000元信用额度
+
+
+@router.put("/certifications/{cert_id}/review", summary="审核实名认证（管理员）")
+async def review_certification_admin(
+    cert_id: int,
+    data: CertificationReviewRequest,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """
+    管理员审核实名认证
+    - approve: 通过认证，自动授予信用额度
+    - reject: 拒绝认证，需提供拒绝原因
+    """
+    cert = db.query(UserCertification).filter(UserCertification.id == cert_id).first()
+
+    if not cert:
+        raise HTTPException(status_code=404, detail="认证记录不存在")
+
+    if cert.status != "pending":
+        raise HTTPException(status_code=400, detail="该认证申请已处理")
+
+    user = db.query(User).filter(User.id == cert.user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="用户不存在")
+
+    if data.action == "approve":
+        # 更新认证状态
+        cert.status = "approved"
+        cert.reviewed_at = datetime.utcnow()
+        cert.reviewer_id = current_admin.id
+
+        # 更新用户认证状态
+        user.is_certified = True
+        user.real_name = cert.real_name
+        user.id_card = cert.id_card
+
+        # 授予信用额度
+        credit_amount = Decimal(str(data.credit_limit or 3000))
+        user.credit_limit = credit_amount
+
+        # 创建信用额度授予记录
+        credit_record = CreditRecord(
+            user_id=user.id,
+            transaction_type=CreditTransactionType.GRANT,
+            amount=credit_amount,
+            balance_after=credit_amount,
+            description="实名认证通过，系统自动授予信用额度",
+            reference_type="certification",
+            reference_id=cert.id,
+            status=CreditTransactionStatus.SUCCESS
+        )
+        db.add(credit_record)
+
+        db.commit()
+        return Response.success(message=f"认证通过，已授予用户 {credit_amount} 元信用额度")
+
+    elif data.action == "reject":
+        if not data.reject_reason:
+            raise HTTPException(status_code=400, detail="请提供拒绝原因")
+
+        cert.status = "rejected"
+        cert.reject_reason = data.reject_reason
+        cert.reviewed_at = datetime.utcnow()
+        cert.reviewer_id = current_admin.id
+
+        db.commit()
+        return Response.success(message="认证已拒绝")
+
+    else:
+        raise HTTPException(status_code=400, detail="无效的操作类型")
+
+
+# ==================== 信用额度管理 ====================
+
+@router.get("/credit/debts", summary="获取欠款列表（管理员）")
+async def get_all_debts_admin(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    status: Optional[str] = Query(None, description="状态: pending/partial/paid/overdue"),
+    search: Optional[str] = Query(None, description="搜索关键字（手机号/姓名）"),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """管理员获取所有用户欠款列表"""
+    from app.models.credit import CreditDebt
+
+    query = db.query(CreditDebt).options(joinedload(CreditDebt.user))
+
+    if status:
+        query = query.filter(CreditDebt.status == status)
+
+    if search:
+        query = query.join(User).filter(
+            or_(
+                User.phone.like(f"%{search}%"),
+                User.real_name.like(f"%{search}%"),
+                User.nickname.like(f"%{search}%")
+            )
+        )
+
+    total = query.count()
+    debts = query.order_by(desc(CreditDebt.created_at)).offset((page - 1) * page_size).limit(page_size).all()
+
+    return Response.success(data={
+        "items": [
+            {
+                "id": d.id,
+                "user_id": d.user_id,
+                "user_phone": d.user.phone if d.user else None,
+                "user_nickname": d.user.nickname if d.user else None,
+                "user_real_name": d.user.real_name if d.user else None,
+                "order_id": d.order_id,
+                "order_no": d.order_no,
+                "original_amount": float(d.original_amount),
+                "remaining_amount": float(d.remaining_amount),
+                "status": d.status.value if d.status else None,
+                "due_date": d.due_date.isoformat() if d.due_date else None,
+                "is_overdue": d.due_date and d.due_date < datetime.utcnow() and d.status.value != "paid" if d.due_date and d.status else False,
+                "created_at": d.created_at.isoformat() if d.created_at else None
+            }
+            for d in debts
+        ],
+        "total": total,
+        "page": page,
+        "page_size": page_size
+    })
+
+
+@router.get("/credit/limit-applications", summary="获取额度申请列表（管理员）")
+async def get_limit_applications_admin(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    status: Optional[str] = Query(None, description="状态: pending/approved/rejected"),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """管理员获取信用额度申请列表"""
+    from app.models.credit import CreditLimitApplication
+
+    query = db.query(CreditLimitApplication).options(joinedload(CreditLimitApplication.user))
+
+    if status:
+        query = query.filter(CreditLimitApplication.status == status)
+
+    total = query.count()
+    applications = query.order_by(desc(CreditLimitApplication.created_at)).offset((page - 1) * page_size).limit(page_size).all()
+
+    return Response.success(data={
+        "items": [
+            {
+                "id": a.id,
+                "user_id": a.user_id,
+                "user_phone": a.user.phone if a.user else None,
+                "user_nickname": a.user.nickname if a.user else None,
+                "current_limit": float(a.current_limit),
+                "requested_limit": float(a.requested_limit),
+                "reason": a.reason,
+                "status": a.status,
+                "reject_reason": a.reject_reason,
+                "created_at": a.created_at.isoformat() if a.created_at else None,
+                "reviewed_at": a.reviewed_at.isoformat() if a.reviewed_at else None
+            }
+            for a in applications
+        ],
+        "total": total,
+        "page": page,
+        "page_size": page_size
+    })
+
+
+class LimitApplicationReviewRequest(BaseModel):
+    action: str  # approve / reject
+    approved_limit: Optional[float] = None  # 批准的额度（可能与申请额度不同）
+    reject_reason: Optional[str] = None
+
+
+@router.put("/credit/limit-applications/{app_id}/review", summary="审核额度申请（管理员）")
+async def review_limit_application_admin(
+    app_id: int,
+    data: LimitApplicationReviewRequest,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """
+    管理员审核信用额度提升申请
+    - approve: 通过申请，可指定批准额度
+    - reject: 拒绝申请，需提供拒绝原因
+    """
+    from app.models.credit import CreditLimitApplication
+
+    application = db.query(CreditLimitApplication).filter(CreditLimitApplication.id == app_id).first()
+
+    if not application:
+        raise HTTPException(status_code=404, detail="申请记录不存在")
+
+    if application.status != "pending":
+        raise HTTPException(status_code=400, detail="该申请已处理")
+
+    user = db.query(User).filter(User.id == application.user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="用户不存在")
+
+    if data.action == "approve":
+        # 确定批准额度
+        approved_limit = Decimal(str(data.approved_limit)) if data.approved_limit else application.requested_limit
+        old_limit = user.credit_limit or Decimal("0")
+        increase_amount = approved_limit - old_limit
+
+        # 更新申请状态
+        application.status = "approved"
+        application.approved_limit = approved_limit
+        application.reviewed_at = datetime.utcnow()
+        application.reviewer_id = current_admin.id
+
+        # 更新用户信用额度
+        user.credit_limit = approved_limit
+
+        # 创建额度提升记录
+        if increase_amount > 0:
+            credit_record = CreditRecord(
+                user_id=user.id,
+                transaction_type=CreditTransactionType.GRANT,
+                amount=increase_amount,
+                balance_after=approved_limit,
+                description=f"信用额度提升申请通过，从 {old_limit} 元提升至 {approved_limit} 元",
+                reference_type="limit_application",
+                reference_id=application.id,
+                status=CreditTransactionStatus.SUCCESS
+            )
+            db.add(credit_record)
+
+        db.commit()
+        return Response.success(message=f"申请通过，用户信用额度已提升至 {approved_limit} 元")
+
+    elif data.action == "reject":
+        if not data.reject_reason:
+            raise HTTPException(status_code=400, detail="请提供拒绝原因")
+
+        application.status = "rejected"
+        application.reject_reason = data.reject_reason
+        application.reviewed_at = datetime.utcnow()
+        application.reviewer_id = current_admin.id
+
+        db.commit()
+        return Response.success(message="申请已拒绝")
+
+    else:
+        raise HTTPException(status_code=400, detail="无效的操作类型")
+
+
+@router.put("/credit/users/{user_id}/limit", summary="调整用户信用额度（管理员）")
+async def adjust_user_credit_limit(
+    user_id: int,
+    new_limit: float = Query(..., description="新的信用额度"),
+    reason: str = Query(..., description="调整原因"),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """管理员直接调整用户信用额度"""
+    user = db.query(User).filter(User.id == user_id).first()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="用户不存在")
+
+    old_limit = user.credit_limit or Decimal("0")
+    new_limit_decimal = Decimal(str(new_limit))
+
+    # 检查新额度是否小于已使用额度
+    if new_limit_decimal < (user.used_credit or Decimal("0")):
+        raise HTTPException(
+            status_code=400,
+            detail=f"新额度不能小于已使用额度（{user.used_credit} 元）"
+        )
+
+    # 更新用户信用额度
+    user.credit_limit = new_limit_decimal
+
+    # 记录调整
+    transaction_type = CreditTransactionType.GRANT if new_limit_decimal > old_limit else CreditTransactionType.ADJUST
+    amount = abs(new_limit_decimal - old_limit)
+
+    credit_record = CreditRecord(
+        user_id=user.id,
+        transaction_type=transaction_type,
+        amount=amount,
+        balance_after=new_limit_decimal,
+        description=f"管理员调整信用额度：{reason}（从 {old_limit} 元调整为 {new_limit_decimal} 元）",
+        reference_type="admin_adjustment",
+        operator_id=current_admin.id,
+        status=CreditTransactionStatus.SUCCESS
+    )
+    db.add(credit_record)
+
+    db.commit()
+    return Response.success(message=f"用户信用额度已调整为 {new_limit_decimal} 元")
+
+
+# ==================== 实验室管理 ====================
+
+@router.get("/laboratories", summary="获取实验室列表（管理员）")
+async def get_laboratories_admin(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    search: Optional[str] = Query(None, description="搜索关键字"),
+    status: Optional[str] = Query(None, description="状态筛选"),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """管理员获取实验室列表"""
+    from app.models.laboratory import Laboratory, LabStatus
+
+    query = db.query(Laboratory)
+
+    if search:
+        query = query.filter(
+            or_(
+                Laboratory.name.like(f"%{search}%"),
+                Laboratory.institution.like(f"%{search}%"),
+                Laboratory.code.like(f"%{search}%")
+            )
+        )
+
+    if status:
+        try:
+            status_enum = LabStatus(status)
+            query = query.filter(Laboratory.status == status_enum)
+        except ValueError:
+            pass
+
+    total = query.count()
+    labs = query.order_by(desc(Laboratory.created_at)).offset((page - 1) * page_size).limit(page_size).all()
+
+    return Response.success(data={
+        "items": [
+            {
+                "id": lab.id,
+                "name": lab.name,
+                "code": lab.code,
+                "logo": lab.logo,
+                "lab_type": lab.lab_type.value if lab.lab_type else None,
+                "status": lab.status.value if lab.status else None,
+                "institution": lab.institution,
+                "province": lab.province,
+                "city": lab.city,
+                "contact_name": lab.contact_name,
+                "contact_phone": lab.contact_phone,
+                "rating": float(lab.rating) if lab.rating else 5.0,
+                "total_orders": lab.total_orders or 0,
+                "commission_rate": float(lab.commission_rate) if lab.commission_rate else 20.0,
+                "created_at": lab.created_at.isoformat() if lab.created_at else None
+            }
+            for lab in labs
+        ],
+        "total": total,
+        "page": page,
+        "page_size": page_size
+    })
+
+
+@router.get("/laboratories/{lab_id}", summary="获取实验室详情（管理员）")
+async def get_laboratory_detail_admin(
+    lab_id: int,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """管理员获取实验室详情"""
+    from app.models.laboratory import Laboratory
+
+    lab = db.query(Laboratory).filter(Laboratory.id == lab_id).first()
+
+    if not lab:
+        raise HTTPException(status_code=404, detail="实验室不存在")
+
+    return Response.success(data={
+        "id": lab.id,
+        "name": lab.name,
+        "code": lab.code,
+        "logo": lab.logo,
+        "cover_image": lab.cover_image,
+        "lab_type": lab.lab_type.value if lab.lab_type else None,
+        "status": lab.status.value if lab.status else None,
+        "institution": lab.institution,
+        "department": lab.department,
+        "province": lab.province,
+        "city": lab.city,
+        "address": lab.address,
+        "contact_name": lab.contact_name,
+        "contact_phone": lab.contact_phone,
+        "contact_email": lab.contact_email,
+        "qualification": lab.qualification,
+        "certification": lab.certification,
+        "business_license": lab.business_license,
+        "description": lab.description,
+        "specialties": lab.specialties,
+        "rating": float(lab.rating) if lab.rating else 5.0,
+        "total_orders": lab.total_orders or 0,
+        "completed_orders": lab.completed_orders or 0,
+        "commission_rate": float(lab.commission_rate) if lab.commission_rate else 20.0,
+        "admin_user_id": lab.admin_user_id,
+        "created_at": lab.created_at.isoformat() if lab.created_at else None,
+        "approved_at": lab.approved_at.isoformat() if lab.approved_at else None
+    })
+
+
+@router.put("/laboratories/{lab_id}/status", summary="修改实验室状态（管理员）")
+async def update_laboratory_status_admin(
+    lab_id: int,
+    status: str = Query(..., description="状态: pending/approved/active/suspended/closed"),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """管理员修改实验室状态"""
+    from app.models.laboratory import Laboratory, LabStatus
+
+    lab = db.query(Laboratory).filter(Laboratory.id == lab_id).first()
+
+    if not lab:
+        raise HTTPException(status_code=404, detail="实验室不存在")
+
+    try:
+        new_status = LabStatus(status)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="无效的状态值")
+
+    lab.status = new_status
+
+    if new_status == LabStatus.ACTIVE and not lab.approved_at:
+        lab.approved_at = datetime.utcnow()
+
+    db.commit()
+    return Response.success(message="实验室状态更新成功")
+
+
+@router.put("/laboratories/{lab_id}/commission", summary="调整实验室佣金比例（管理员）")
+async def update_laboratory_commission(
+    lab_id: int,
+    commission_rate: float = Query(..., ge=0, le=100, description="佣金比例(%)"),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """管理员调整实验室佣金比例"""
+    from app.models.laboratory import Laboratory
+
+    lab = db.query(Laboratory).filter(Laboratory.id == lab_id).first()
+
+    if not lab:
+        raise HTTPException(status_code=404, detail="实验室不存在")
+
+    lab.commission_rate = Decimal(str(commission_rate))
+    db.commit()
+
+    return Response.success(message=f"佣金比例已调整为 {commission_rate}%")
+
+
+# ==================== 实验室入驻申请管理 ====================
+
+@router.get("/lab-applications", summary="获取入驻申请列表（管理员）")
+async def get_lab_applications_admin(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    status: Optional[str] = Query(None, description="状态: pending/reviewing/approved/rejected"),
+    search: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """管理员获取实验室入驻申请列表"""
+    from app.models.laboratory import LabApplication
+
+    query = db.query(LabApplication).options(joinedload(LabApplication.applicant))
+
+    if status:
+        query = query.filter(LabApplication.status == status)
+
+    if search:
+        query = query.filter(
+            or_(
+                LabApplication.lab_name.like(f"%{search}%"),
+                LabApplication.applicant_name.like(f"%{search}%"),
+                LabApplication.applicant_phone.like(f"%{search}%")
+            )
+        )
+
+    total = query.count()
+    applications = query.order_by(desc(LabApplication.created_at)).offset((page - 1) * page_size).limit(page_size).all()
+
+    return Response.success(data={
+        "items": [
+            {
+                "id": app.id,
+                "lab_name": app.lab_name,
+                "lab_type": app.lab_type.value if app.lab_type else None,
+                "institution": app.institution,
+                "province": app.province,
+                "city": app.city,
+                "applicant_name": app.applicant_name,
+                "applicant_phone": app.applicant_phone,
+                "applicant_user_id": app.applicant_user_id,
+                "status": app.status,
+                "reject_reason": app.reject_reason,
+                "laboratory_id": app.laboratory_id,
+                "created_at": app.created_at.isoformat() if app.created_at else None,
+                "reviewed_at": app.reviewed_at.isoformat() if app.reviewed_at else None
+            }
+            for app in applications
+        ],
+        "total": total,
+        "page": page,
+        "page_size": page_size
+    })
+
+
+@router.get("/lab-applications/{app_id}", summary="获取入驻申请详情（管理员）")
+async def get_lab_application_detail_admin(
+    app_id: int,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """管理员获取入驻申请详情"""
+    from app.models.laboratory import LabApplication
+
+    application = db.query(LabApplication).options(
+        joinedload(LabApplication.applicant)
+    ).filter(LabApplication.id == app_id).first()
+
+    if not application:
+        raise HTTPException(status_code=404, detail="申请不存在")
+
+    return Response.success(data={
+        "id": application.id,
+        "applicant_user_id": application.applicant_user_id,
+        "applicant_name": application.applicant_name,
+        "applicant_phone": application.applicant_phone,
+        "applicant_email": application.applicant_email,
+        "applicant_position": application.applicant_position,
+        "lab_name": application.lab_name,
+        "lab_type": application.lab_type.value if application.lab_type else None,
+        "institution": application.institution,
+        "department": application.department,
+        "province": application.province,
+        "city": application.city,
+        "address": application.address,
+        "qualification": application.qualification,
+        "certification_files": application.certification_files,
+        "business_license": application.business_license,
+        "description": application.description,
+        "specialties": application.specialties,
+        "equipments_desc": application.equipments_desc,
+        "intended_services": application.intended_services,
+        "expected_monthly_orders": application.expected_monthly_orders,
+        "status": application.status,
+        "review_remark": application.review_remark,
+        "reject_reason": application.reject_reason,
+        "laboratory_id": application.laboratory_id,
+        "created_at": application.created_at.isoformat() if application.created_at else None,
+        "reviewed_at": application.reviewed_at.isoformat() if application.reviewed_at else None
+    })
+
+
+class LabApplicationReviewRequest(BaseModel):
+    action: str  # approve / reject
+    reject_reason: Optional[str] = None
+    commission_rate: Optional[float] = 20.0  # 佣金比例
+
+
+@router.put("/lab-applications/{app_id}/review", summary="审核入驻申请（管理员）")
+async def review_lab_application_admin(
+    app_id: int,
+    data: LabApplicationReviewRequest,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """
+    管理员审核实验室入驻申请
+    - approve: 通过申请，创建实验室
+    - reject: 拒绝申请
+    """
+    from app.models.laboratory import LabApplication, Laboratory, LabStatus, LabType
+    import time
+
+    application = db.query(LabApplication).filter(LabApplication.id == app_id).first()
+
+    if not application:
+        raise HTTPException(status_code=404, detail="申请不存在")
+
+    if application.status not in ["pending", "reviewing"]:
+        raise HTTPException(status_code=400, detail="该申请已处理")
+
+    if data.action == "approve":
+        # 生成实验室编号
+        lab_code = f"LAB{int(time.time())}"
+
+        # 创建实验室
+        laboratory = Laboratory(
+            name=application.lab_name,
+            code=lab_code,
+            lab_type=application.lab_type,
+            status=LabStatus.ACTIVE,
+            institution=application.institution,
+            department=application.department,
+            province=application.province,
+            city=application.city,
+            address=application.address,
+            contact_name=application.applicant_name,
+            contact_phone=application.applicant_phone,
+            contact_email=application.applicant_email,
+            qualification=application.qualification,
+            certification=application.certification_files,
+            business_license=application.business_license,
+            description=application.description,
+            specialties=application.specialties,
+            equipments_summary=application.equipments_desc,
+            commission_rate=Decimal(str(data.commission_rate or 20)),
+            admin_user_id=application.applicant_user_id,
+            approved_at=datetime.utcnow()
+        )
+
+        db.add(laboratory)
+        db.flush()
+
+        # 更新申请状态
+        application.status = "approved"
+        application.laboratory_id = laboratory.id
+        application.reviewer_id = current_admin.id
+        application.reviewed_at = datetime.utcnow()
+
+        db.commit()
+        return Response.success(
+            data={"laboratory_id": laboratory.id},
+            message="申请已通过，实验室创建成功"
+        )
+
+    elif data.action == "reject":
+        if not data.reject_reason:
+            raise HTTPException(status_code=400, detail="请提供拒绝原因")
+
+        application.status = "rejected"
+        application.reject_reason = data.reject_reason
+        application.reviewer_id = current_admin.id
+        application.reviewed_at = datetime.utcnow()
+
+        db.commit()
+        return Response.success(message="申请已拒绝")
+
+    else:
+        raise HTTPException(status_code=400, detail="无效的操作类型")
+
+
+# ==================== 角色权限管理 ====================
+
+class RoleCreate(BaseModel):
+    """创建角色请求"""
+    name: str
+    code: str
+    description: Optional[str] = None
+    permission_ids: Optional[List[int]] = []
+
+
+class RoleUpdate(BaseModel):
+    """更新角色请求"""
+    name: Optional[str] = None
+    description: Optional[str] = None
+    is_active: Optional[bool] = None
+    permission_ids: Optional[List[int]] = None
+
+
+class UserRoleAssign(BaseModel):
+    """分配用户角色"""
+    user_id: int
+    role_ids: List[int]
+
+
+@router.get("/roles", summary="获取角色列表")
+async def get_roles(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    search: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """获取所有角色"""
+    from app.models.role import Role
+
+    query = db.query(Role)
+
+    if search:
+        query = query.filter(
+            or_(
+                Role.name.like(f"%{search}%"),
+                Role.code.like(f"%{search}%")
+            )
+        )
+
+    total = query.count()
+    roles = query.order_by(Role.sort_order, Role.id).offset((page - 1) * page_size).limit(page_size).all()
+
+    return Response.success(data={
+        "items": [
+            {
+                "id": r.id,
+                "name": r.name,
+                "code": r.code,
+                "description": r.description,
+                "is_system": r.is_system,
+                "is_active": r.is_active,
+                "user_count": len(r.users),
+                "permission_count": len(r.permissions),
+                "created_at": r.created_at.isoformat() if r.created_at else None
+            }
+            for r in roles
+        ],
+        "total": total,
+        "page": page,
+        "page_size": page_size
+    })
+
+
+@router.get("/roles/{role_id}", summary="获取角色详情")
+async def get_role_detail(
+    role_id: int,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """获取角色详情及其权限"""
+    from app.models.role import Role
+
+    role = db.query(Role).options(
+        joinedload(Role.permissions)
+    ).filter(Role.id == role_id).first()
+
+    if not role:
+        raise HTTPException(status_code=404, detail="角色不存在")
+
+    return Response.success(data={
+        "id": role.id,
+        "name": role.name,
+        "code": role.code,
+        "description": role.description,
+        "is_system": role.is_system,
+        "is_active": role.is_active,
+        "permissions": [
+            {
+                "id": p.id,
+                "name": p.name,
+                "code": p.code,
+                "module": p.module
+            }
+            for p in role.permissions
+        ]
+    })
+
+
+@router.post("/roles", summary="创建角色")
+async def create_role(
+    data: RoleCreate,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """创建新角色"""
+    from app.models.role import Role, Permission
+
+    # 检查编码是否存在
+    existing = db.query(Role).filter(Role.code == data.code).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="角色编码已存在")
+
+    role = Role(
+        name=data.name,
+        code=data.code,
+        description=data.description,
+        is_system=False,
+        is_active=True
+    )
+
+    # 添加权限
+    if data.permission_ids:
+        permissions = db.query(Permission).filter(Permission.id.in_(data.permission_ids)).all()
+        role.permissions = permissions
+
+    db.add(role)
+    db.commit()
+    db.refresh(role)
+
+    return Response.success(data={"id": role.id}, message="角色创建成功")
+
+
+@router.put("/roles/{role_id}", summary="更新角色")
+async def update_role(
+    role_id: int,
+    data: RoleUpdate,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """更新角色信息"""
+    from app.models.role import Role, Permission
+
+    role = db.query(Role).filter(Role.id == role_id).first()
+    if not role:
+        raise HTTPException(status_code=404, detail="角色不存在")
+
+    if role.is_system:
+        raise HTTPException(status_code=400, detail="系统角色不可修改")
+
+    if data.name is not None:
+        role.name = data.name
+    if data.description is not None:
+        role.description = data.description
+    if data.is_active is not None:
+        role.is_active = data.is_active
+
+    # 更新权限
+    if data.permission_ids is not None:
+        permissions = db.query(Permission).filter(Permission.id.in_(data.permission_ids)).all()
+        role.permissions = permissions
+
+    db.commit()
+    return Response.success(message="角色更新成功")
+
+
+@router.delete("/roles/{role_id}", summary="删除角色")
+async def delete_role(
+    role_id: int,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """删除角色"""
+    from app.models.role import Role
+
+    role = db.query(Role).filter(Role.id == role_id).first()
+    if not role:
+        raise HTTPException(status_code=404, detail="角色不存在")
+
+    if role.is_system:
+        raise HTTPException(status_code=400, detail="系统角色不可删除")
+
+    if len(role.users) > 0:
+        raise HTTPException(status_code=400, detail="该角色下还有用户，无法删除")
+
+    db.delete(role)
+    db.commit()
+
+    return Response.success(message="角色已删除")
+
+
+@router.get("/permissions", summary="获取所有权限")
+async def get_permissions(
+    module: Optional[str] = Query(None, description="按模块筛选"),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """获取所有权限列表"""
+    from app.models.role import Permission
+
+    query = db.query(Permission)
+
+    if module:
+        query = query.filter(Permission.module == module)
+
+    permissions = query.order_by(Permission.module, Permission.sort_order).all()
+
+    # 按模块分组
+    grouped = {}
+    for p in permissions:
+        mod = p.module or "other"
+        if mod not in grouped:
+            grouped[mod] = []
+        grouped[mod].append({
+            "id": p.id,
+            "name": p.name,
+            "code": p.code,
+            "description": p.description
+        })
+
+    return Response.success(data={
+        "items": [
+            {
+                "id": p.id,
+                "name": p.name,
+                "code": p.code,
+                "module": p.module,
+                "description": p.description
+            }
+            for p in permissions
+        ],
+        "grouped": grouped
+    })
+
+
+@router.post("/users/{user_id}/roles", summary="分配用户角色")
+async def assign_user_roles(
+    user_id: int,
+    role_ids: List[int] = Body(..., embed=True),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """为用户分配角色"""
+    from app.models.role import Role
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="用户不存在")
+
+    roles = db.query(Role).filter(Role.id.in_(role_ids), Role.is_active == True).all()
+    user.roles = roles
+
+    # 如果分配了管理角色，设置is_admin标志
+    admin_role_codes = ["super_admin", "admin", "operator", "finance", "cs"]
+    has_admin_role = any(r.code in admin_role_codes for r in roles)
+    user.is_admin = has_admin_role
+
+    db.commit()
+
+    return Response.success(message="角色分配成功")
+
+
+@router.get("/users/{user_id}/roles", summary="获取用户角色")
+async def get_user_roles(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """获取用户的角色列表"""
+    user = db.query(User).options(
+        joinedload(User.roles)
+    ).filter(User.id == user_id).first()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="用户不存在")
+
+    return Response.success(data={
+        "user_id": user.id,
+        "user_name": user.nickname or user.phone,
+        "roles": [
+            {
+                "id": r.id,
+                "name": r.name,
+                "code": r.code
+            }
+            for r in user.roles
+        ]
+    })
+
+
+@router.get("/users/{user_id}/permissions", summary="获取用户权限")
+async def get_user_permissions(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """获取用户的所有权限"""
+    from app.models.role import Role
+
+    user = db.query(User).options(
+        joinedload(User.roles).joinedload(Role.permissions)
+    ).filter(User.id == user_id).first()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="用户不存在")
+
+    # 汇总所有权限
+    permissions = set()
+    for role in user.roles:
+        for p in role.permissions:
+            permissions.add((p.id, p.name, p.code, p.module))
+
+    return Response.success(data={
+        "user_id": user.id,
+        "is_admin": user.is_admin,
+        "permissions": [
+            {"id": p[0], "name": p[1], "code": p[2], "module": p[3]}
+            for p in permissions
+        ]
+    })
+
+
+@router.post("/roles/init", summary="初始化默认角色和权限")
+async def init_roles_and_permissions(
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """初始化系统默认角色和权限（仅首次使用）"""
+    from app.models.role import Role, Permission, RoleCode, PermissionCode, DEFAULT_ROLE_PERMISSIONS
+
+    # 检查是否已初始化
+    existing_roles = db.query(Role).count()
+    if existing_roles > 0:
+        raise HTTPException(status_code=400, detail="角色已初始化，无需重复操作")
+
+    # 定义权限
+    permission_definitions = [
+        # 用户管理
+        ("user:view", "查看用户", "user"),
+        ("user:edit", "编辑用户", "user"),
+        ("user:delete", "删除用户", "user"),
+        ("user:certification", "认证审核", "user"),
+        # 订单管理
+        ("order:view", "查看订单", "order"),
+        ("order:edit", "编辑订单", "order"),
+        ("order:delete", "删除订单", "order"),
+        ("order:assign", "订单指派", "order"),
+        ("order:export", "导出订单", "order"),
+        # 项目管理
+        ("project:view", "查看项目", "project"),
+        ("project:create", "创建项目", "project"),
+        ("project:edit", "编辑项目", "project"),
+        ("project:delete", "删除项目", "project"),
+        # 实验室管理
+        ("lab:view", "查看实验室", "lab"),
+        ("lab:create", "创建实验室", "lab"),
+        ("lab:edit", "编辑实验室", "lab"),
+        ("lab:delete", "删除实验室", "lab"),
+        ("lab:approve", "审核实验室", "lab"),
+        # 财务管理
+        ("finance:view", "查看财务", "finance"),
+        ("finance:recharge", "充值管理", "finance"),
+        ("finance:refund", "退款管理", "finance"),
+        ("finance:withdraw", "提现管理", "finance"),
+        ("finance:report", "财务报表", "finance"),
+        # 优惠券管理
+        ("coupon:view", "查看优惠券", "coupon"),
+        ("coupon:create", "创建优惠券", "coupon"),
+        ("coupon:edit", "编辑优惠券", "coupon"),
+        ("coupon:delete", "删除优惠券", "coupon"),
+        # 内容管理
+        ("content:banner", "轮播图管理", "content"),
+        ("content:announcement", "公告管理", "content"),
+        ("content:help", "帮助中心", "content"),
+        # 报表统计
+        ("report:view", "查看报表", "report"),
+        ("report:export", "导出报表", "report"),
+        # 系统设置
+        ("system:config", "系统配置", "system"),
+        ("system:role", "角色管理", "system"),
+        ("system:log", "日志管理", "system"),
+    ]
+
+    # 创建权限
+    permissions = {}
+    for code, name, module in permission_definitions:
+        perm = Permission(name=name, code=code, module=module)
+        db.add(perm)
+        permissions[code] = perm
+
+    db.flush()
+
+    # 定义角色
+    role_definitions = [
+        (RoleCode.SUPER_ADMIN, "超级管理员", "拥有所有权限", True),
+        (RoleCode.ADMIN, "管理员", "普通管理员", True),
+        (RoleCode.OPERATOR, "运营人员", "负责日常运营", True),
+        (RoleCode.FINANCE, "财务人员", "负责财务管理", True),
+        (RoleCode.CUSTOMER_SERVICE, "客服人员", "负责客户服务", True),
+        (RoleCode.LAB_ADMIN, "实验室管理员", "实验室负责人", True),
+        (RoleCode.LAB_TECHNICIAN, "实验室技术员", "实验室技术人员", True),
+        (RoleCode.USER, "普通用户", "普通注册用户", True),
+    ]
+
+    # 创建角色并分配权限
+    for code, name, desc, is_system in role_definitions:
+        role = Role(
+            name=name,
+            code=code,
+            description=desc,
+            is_system=is_system,
+            is_active=True
+        )
+
+        # 分配默认权限
+        if code in DEFAULT_ROLE_PERMISSIONS:
+            role_perms = []
+            for perm_code in DEFAULT_ROLE_PERMISSIONS[code]:
+                if perm_code in permissions:
+                    role_perms.append(permissions[perm_code])
+            role.permissions = role_perms
+
+        db.add(role)
+
+    db.commit()
+
+    return Response.success(message="角色和权限初始化成功")
+
+
+# ==================== 数据导出与报表 ====================
+
+@router.get("/export/orders", summary="导出订单数据")
+async def export_orders(
+    start_date: Optional[str] = Query(None, description="开始日期 YYYY-MM-DD"),
+    end_date: Optional[str] = Query(None, description="结束日期 YYYY-MM-DD"),
+    status: Optional[str] = Query(None, description="订单状态"),
+    format: str = Query("json", description="导出格式: json/csv"),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """导出订单数据"""
+    from datetime import datetime as dt
+
+    query = db.query(Order).filter(Order.is_draft == False)
+
+    if start_date:
+        try:
+            start = dt.strptime(start_date, "%Y-%m-%d")
+            query = query.filter(Order.created_at >= start)
+        except ValueError:
+            pass
+
+    if end_date:
+        try:
+            end = dt.strptime(end_date, "%Y-%m-%d")
+            query = query.filter(Order.created_at <= end)
+        except ValueError:
+            pass
+
+    if status:
+        query = query.filter(Order.status == status)
+
+    orders = query.order_by(desc(Order.created_at)).limit(10000).all()
+
+    data = []
+    for o in orders:
+        data.append({
+            "订单号": o.order_no,
+            "用户ID": o.user_id,
+            "项目名称": o.project_name,
+            "样品数量": o.sample_count,
+            "项目费用": float(o.project_fee or 0),
+            "加急费用": float(o.urgent_fee or 0),
+            "运费": float(o.shipping_fee or 0),
+            "优惠金额": float(o.discount_amount or 0),
+            "总金额": float(o.total_fee or 0),
+            "已支付": float(o.paid_fee or 0),
+            "订单状态": o.status,
+            "支付状态": o.payment_status,
+            "开票状态": o.invoice_status,
+            "是否加急": "是" if o.is_urgent else "否",
+            "创建时间": o.created_at.strftime("%Y-%m-%d %H:%M:%S") if o.created_at else "",
+            "支付时间": o.paid_at.strftime("%Y-%m-%d %H:%M:%S") if o.paid_at else "",
+            "完成时间": o.completed_at.strftime("%Y-%m-%d %H:%M:%S") if o.completed_at else ""
+        })
+
+    if format == "csv":
+        import csv
+        import io
+        output = io.StringIO()
+        if data:
+            writer = csv.DictWriter(output, fieldnames=data[0].keys())
+            writer.writeheader()
+            writer.writerows(data)
+        csv_content = output.getvalue()
+        return Response.success(data={
+            "format": "csv",
+            "content": csv_content,
+            "filename": f"orders_{start_date or 'all'}_{end_date or 'all'}.csv"
+        })
+
+    return Response.success(data={
+        "format": "json",
+        "items": data,
+        "total": len(data)
+    })
+
+
+@router.get("/export/users", summary="导出用户数据")
+async def export_users(
+    start_date: Optional[str] = Query(None, description="注册开始日期"),
+    end_date: Optional[str] = Query(None, description="注册结束日期"),
+    is_certified: Optional[bool] = Query(None, description="是否已认证"),
+    format: str = Query("json", description="导出格式"),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """导出用户数据"""
+    from datetime import datetime as dt
+
+    query = db.query(User)
+
+    if start_date:
+        try:
+            start = dt.strptime(start_date, "%Y-%m-%d")
+            query = query.filter(User.created_at >= start)
+        except ValueError:
+            pass
+
+    if end_date:
+        try:
+            end = dt.strptime(end_date, "%Y-%m-%d")
+            query = query.filter(User.created_at <= end)
+        except ValueError:
+            pass
+
+    if is_certified is not None:
+        query = query.filter(User.is_certified == is_certified)
+
+    users = query.order_by(desc(User.created_at)).limit(10000).all()
+
+    data = []
+    for u in users:
+        data.append({
+            "用户ID": u.id,
+            "手机号": u.phone,
+            "昵称": u.nickname,
+            "是否认证": "是" if u.is_certified else "否",
+            "会员等级": u.membership_level.name if u.membership_level else "NORMAL",
+            "信用额度": float(u.credit_limit or 0),
+            "已用额度": float(u.used_credit or 0),
+            "预付余额": float(u.prepaid_balance or 0),
+            "积分余额": u.points_balance or 0,
+            "累计消费": float(u.total_spent or 0),
+            "订单数": u.total_orders or 0,
+            "状态": u.status.value if u.status else "active",
+            "注册时间": u.created_at.strftime("%Y-%m-%d %H:%M:%S") if u.created_at else ""
+        })
+
+    if format == "csv":
+        import csv
+        import io
+        output = io.StringIO()
+        if data:
+            writer = csv.DictWriter(output, fieldnames=data[0].keys())
+            writer.writeheader()
+            writer.writerows(data)
+        csv_content = output.getvalue()
+        return Response.success(data={
+            "format": "csv",
+            "content": csv_content,
+            "filename": f"users_{start_date or 'all'}_{end_date or 'all'}.csv"
+        })
+
+    return Response.success(data={
+        "format": "json",
+        "items": data,
+        "total": len(data)
+    })
+
+
+@router.get("/reports/overview", summary="获取报表概览")
+async def get_reports_overview(
+    time_range: str = Query("month", description="时间范围: today/week/month/year"),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """获取报表概览数据"""
+    from datetime import date, timedelta
+
+    today = date.today()
+
+    if time_range == "today":
+        start_date = today
+    elif time_range == "week":
+        start_date = today - timedelta(days=7)
+    elif time_range == "year":
+        start_date = today.replace(month=1, day=1)
+    else:  # month
+        start_date = today.replace(day=1)
+
+    # 订单统计
+    total_orders = db.query(Order).filter(
+        Order.is_draft == False,
+        Order.created_at >= start_date
+    ).count()
+
+    completed_orders = db.query(Order).filter(
+        Order.status == "completed",
+        Order.completed_at >= start_date
+    ).count()
+
+    # 收入统计
+    total_revenue = db.query(func.sum(Order.total_fee)).filter(
+        Order.status == "completed",
+        Order.completed_at >= start_date
+    ).scalar() or 0
+
+    paid_amount = db.query(func.sum(Order.paid_fee)).filter(
+        Order.paid_at >= start_date
+    ).scalar() or 0
+
+    # 用户统计
+    new_users = db.query(User).filter(
+        User.created_at >= start_date
+    ).count()
+
+    certified_users = db.query(User).filter(
+        User.is_certified == True,
+        User.created_at >= start_date
+    ).count()
+
+    # 实验室统计
+    active_labs = db.query(Laboratory).filter(
+        Laboratory.status == LabStatus.ACTIVE
+    ).count()
+
+    # 待处理事项
+    pending_certifications = db.query(UserCertification).filter(
+        UserCertification.status == "pending"
+    ).count()
+
+    pending_orders = db.query(Order).filter(
+        Order.status.in_(["paid", "pending_assign"])
+    ).count()
+
+    pending_lab_apps = db.query(LabApplication).filter(
+        LabApplication.status == "pending"
+    ).count()
+
+    return Response.success(data={
+        "time_range": time_range,
+        "orders": {
+            "total": total_orders,
+            "completed": completed_orders,
+            "completion_rate": round(completed_orders / total_orders * 100, 2) if total_orders > 0 else 0
+        },
+        "revenue": {
+            "total": float(total_revenue),
+            "paid": float(paid_amount)
+        },
+        "users": {
+            "new": new_users,
+            "certified": certified_users
+        },
+        "labs": {
+            "active": active_labs
+        },
+        "pending": {
+            "certifications": pending_certifications,
+            "orders": pending_orders,
+            "lab_applications": pending_lab_apps
+        }
+    })
+
+
+@router.get("/reports/order-trend", summary="获取订单趋势")
+async def get_order_trend(
+    time_range: str = Query("month", description="时间范围"),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """获取订单趋势数据"""
+    from datetime import date, timedelta
+    from sqlalchemy import extract
+
+    today = date.today()
+
+    if time_range == "week":
+        days = 7
+        start_date = today - timedelta(days=days)
+        group_format = "%Y-%m-%d"
+    elif time_range == "year":
+        days = 365
+        start_date = today.replace(month=1, day=1)
+        group_format = "%Y-%m"
+    else:  # month
+        days = 30
+        start_date = today - timedelta(days=days)
+        group_format = "%Y-%m-%d"
+
+    # 按日期分组统计订单
+    orders = db.query(Order).filter(
+        Order.is_draft == False,
+        Order.created_at >= start_date
+    ).all()
+
+    # 按日期聚合
+    trend_data = {}
+    for order in orders:
+        if order.created_at:
+            key = order.created_at.strftime(group_format)
+            if key not in trend_data:
+                trend_data[key] = {"date": key, "count": 0, "amount": 0}
+            trend_data[key]["count"] += 1
+            trend_data[key]["amount"] += float(order.total_fee or 0)
+
+    # 排序并返回
+    sorted_data = sorted(trend_data.values(), key=lambda x: x["date"])
+
+    return Response.success(data={
+        "time_range": time_range,
+        "trend": sorted_data
+    })
+
+
+@router.get("/reports/project-ranking", summary="获取项目排行")
+async def get_project_ranking(
+    time_range: str = Query("month", description="时间范围"),
+    limit: int = Query(10, ge=1, le=50),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """获取热门项目排行"""
+    from datetime import date, timedelta
+
+    today = date.today()
+
+    if time_range == "week":
+        start_date = today - timedelta(days=7)
+    elif time_range == "year":
+        start_date = today.replace(month=1, day=1)
+    else:
+        start_date = today.replace(day=1)
+
+    # 按项目统计订单数和金额
+    ranking = db.query(
+        Order.project_id,
+        Order.project_name,
+        func.count(Order.id).label("order_count"),
+        func.sum(Order.total_fee).label("total_amount")
+    ).filter(
+        Order.is_draft == False,
+        Order.created_at >= start_date
+    ).group_by(Order.project_id, Order.project_name).order_by(
+        desc("order_count")
+    ).limit(limit).all()
+
+    return Response.success(data={
+        "time_range": time_range,
+        "ranking": [
+            {
+                "project_id": r.project_id,
+                "project_name": r.project_name,
+                "order_count": r.order_count,
+                "total_amount": float(r.total_amount or 0)
+            }
+            for r in ranking
+        ]
+    })
+
+
+@router.get("/reports/lab-performance", summary="获取实验室业绩")
+async def get_lab_performance(
+    time_range: str = Query("month", description="时间范围"),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """获取实验室业绩排行"""
+    from datetime import date, timedelta
+
+    today = date.today()
+
+    if time_range == "week":
+        start_date = today - timedelta(days=7)
+    elif time_range == "year":
+        start_date = today.replace(month=1, day=1)
+    else:
+        start_date = today.replace(day=1)
+
+    # 按实验室统计
+    performance = db.query(
+        Laboratory.id,
+        Laboratory.name,
+        func.count(Order.id).label("order_count"),
+        func.sum(Order.total_fee).label("total_amount")
+    ).outerjoin(
+        Order, Order.assigned_lab_id == Laboratory.id
+    ).filter(
+        Laboratory.status == LabStatus.ACTIVE
+    ).group_by(Laboratory.id, Laboratory.name).order_by(
+        desc("order_count")
+    ).all()
+
+    return Response.success(data={
+        "time_range": time_range,
+        "labs": [
+            {
+                "lab_id": p.id,
+                "lab_name": p.name,
+                "order_count": p.order_count or 0,
+                "total_amount": float(p.total_amount or 0)
+            }
+            for p in performance
+        ]
+    })
+
+
+@router.get("/reports/finance-summary", summary="获取财务汇总")
+async def get_finance_summary(
+    year: int = Query(None, description="年份"),
+    month: int = Query(None, description="月份"),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """获取财务汇总报表"""
+    from datetime import date
+
+    today = date.today()
+    year = year or today.year
+    month = month or today.month
+
+    # 计算月份范围
+    from calendar import monthrange
+    _, last_day = monthrange(year, month)
+    start_date = date(year, month, 1)
+    end_date = date(year, month, last_day)
+
+    # 订单收入
+    order_income = db.query(func.sum(Order.paid_fee)).filter(
+        Order.paid_at >= start_date,
+        Order.paid_at <= end_date
+    ).scalar() or 0
+
+    # 充值收入
+    recharge_income = db.query(func.sum(RechargeRecord.amount)).filter(
+        RechargeRecord.status == RechargeStatus.SUCCESS,
+        RechargeRecord.created_at >= start_date,
+        RechargeRecord.created_at <= end_date
+    ).scalar() or 0
+
+    # 提现支出
+    withdraw_amount = db.query(func.sum(WithdrawRecord.amount)).filter(
+        WithdrawRecord.status == "success",
+        WithdrawRecord.created_at >= start_date,
+        WithdrawRecord.created_at <= end_date
+    ).scalar() or 0
+
+    # 信用支付
+    credit_usage = db.query(func.sum(Order.credit_amount)).filter(
+        Order.paid_at >= start_date,
+        Order.paid_at <= end_date,
+        Order.credit_amount > 0
+    ).scalar() or 0
+
+    return Response.success(data={
+        "year": year,
+        "month": month,
+        "income": {
+            "orders": float(order_income),
+            "recharge": float(recharge_income),
+            "total": float(order_income) + float(recharge_income)
+        },
+        "expense": {
+            "withdraw": float(withdraw_amount)
+        },
+        "credit": {
+            "usage": float(credit_usage)
+        },
+        "net": float(order_income) + float(recharge_income) - float(withdraw_amount)
+    })
 
