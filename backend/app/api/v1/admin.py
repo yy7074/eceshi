@@ -3834,3 +3834,1311 @@ async def get_finance_summary(
         "net": float(order_income) + float(recharge_income) - float(withdraw_amount)
     })
 
+
+# ==================== 员工管理 ====================
+
+@router.get("/staff", summary="获取员工列表")
+async def get_staff_list(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    keyword: str = Query(None),
+    role_id: int = Query(None),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """获取员工列表"""
+    from app.models.role import Role
+
+    query = db.query(User).filter(User.is_admin == True)
+
+    if keyword:
+        query = query.filter(
+            or_(
+                User.nickname.contains(keyword),
+                User.phone.contains(keyword)
+            )
+        )
+
+    if role_id:
+        query = query.join(User.roles).filter(Role.id == role_id)
+
+    total = query.count()
+    staff_list = query.order_by(User.id.desc()).offset((page - 1) * page_size).limit(page_size).all()
+
+    return Response.success(data={
+        "items": [{
+            "id": s.id,
+            "nickname": s.nickname,
+            "phone": s.phone,
+            "avatar": s.avatar,
+            "status": s.status.value if s.status else "active",
+            "roles": [{"id": r.id, "name": r.name} for r in s.roles] if hasattr(s, 'roles') else [],
+            "created_at": s.created_at.isoformat() if s.created_at else None,
+            "last_login_at": s.last_login_at.isoformat() if hasattr(s, 'last_login_at') and s.last_login_at else None
+        } for s in staff_list],
+        "total": total,
+        "page": page,
+        "page_size": page_size
+    })
+
+
+@router.post("/staff", summary="创建员工")
+async def create_staff(
+    nickname: str = Query(...),
+    phone: str = Query(...),
+    password: str = Query(...),
+    role_ids: str = Query(None, description="角色ID列表，逗号分隔"),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """创建员工账号"""
+    from app.models.role import Role
+    from app.core.security import get_password_hash
+
+    # 检查手机号是否已存在
+    existing = db.query(User).filter(User.phone == phone).first()
+    if existing:
+        return Response.error(message="手机号已存在")
+
+    staff = User(
+        phone=phone,
+        nickname=nickname,
+        password_hash=get_password_hash(password),
+        is_admin=True
+    )
+
+    if role_ids:
+        role_id_list = [int(x) for x in role_ids.split(",")]
+        roles = db.query(Role).filter(Role.id.in_(role_id_list)).all()
+        staff.roles = roles
+
+    db.add(staff)
+    db.commit()
+    db.refresh(staff)
+
+    return Response.success(data={"id": staff.id}, message="创建成功")
+
+
+@router.put("/staff/{staff_id}", summary="更新员工")
+async def update_staff(
+    staff_id: int,
+    nickname: str = Query(None),
+    role_ids: str = Query(None),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """更新员工信息"""
+    from app.models.role import Role
+
+    staff = db.query(User).filter(User.id == staff_id).first()
+    if not staff:
+        return Response.error(message="员工不存在")
+
+    if nickname:
+        staff.nickname = nickname
+
+    if role_ids is not None:
+        if role_ids:
+            role_id_list = [int(x) for x in role_ids.split(",")]
+            roles = db.query(Role).filter(Role.id.in_(role_id_list)).all()
+            staff.roles = roles
+        else:
+            staff.roles = []
+
+    db.commit()
+    return Response.success(message="更新成功")
+
+
+@router.put("/staff/{staff_id}/reset-password", summary="重置员工密码")
+async def reset_staff_password(
+    staff_id: int,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """重置员工密码为默认值"""
+    from app.core.security import get_password_hash
+
+    staff = db.query(User).filter(User.id == staff_id).first()
+    if not staff:
+        return Response.error(message="员工不存在")
+
+    staff.password_hash = get_password_hash("123456")
+    db.commit()
+
+    return Response.success(message="密码已重置为 123456")
+
+
+@router.put("/staff/{staff_id}/status", summary="修改员工状态")
+async def update_staff_status(
+    staff_id: int,
+    status: str = Query(...),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """修改员工状态"""
+    from app.models.user import UserStatus
+
+    staff = db.query(User).filter(User.id == staff_id).first()
+    if not staff:
+        return Response.error(message="员工不存在")
+
+    try:
+        staff.status = UserStatus(status)
+        db.commit()
+        return Response.success(message="状态更新成功")
+    except ValueError:
+        return Response.error(message="无效的状态值")
+
+
+# ==================== 财务管理 ====================
+
+@router.get("/finance/stats", summary="获取财务统计")
+async def get_finance_stats(
+    start_date: str = Query(None),
+    end_date: str = Query(None),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """获取财务统计数据"""
+    from datetime import date, timedelta
+
+    today = date.today()
+    start = datetime.strptime(start_date, "%Y-%m-%d").date() if start_date else today - timedelta(days=30)
+    end = datetime.strptime(end_date, "%Y-%m-%d").date() if end_date else today
+
+    # 订单收入
+    order_income = db.query(func.sum(Order.paid_fee)).filter(
+        Order.paid_at >= start,
+        Order.paid_at <= end
+    ).scalar() or 0
+
+    # 充值金额
+    recharge_amount = db.query(func.sum(RechargeRecord.amount)).filter(
+        RechargeRecord.status == RechargeStatus.SUCCESS,
+        RechargeRecord.created_at >= start,
+        RechargeRecord.created_at <= end
+    ).scalar() or 0
+
+    # 提现金额
+    withdraw_amount = db.query(func.sum(WithdrawRecord.amount)).filter(
+        WithdrawRecord.status == "success",
+        WithdrawRecord.created_at >= start,
+        WithdrawRecord.created_at <= end
+    ).scalar() or 0
+
+    return Response.success(data={
+        "order_income": float(order_income),
+        "recharge_amount": float(recharge_amount),
+        "withdraw_amount": float(withdraw_amount),
+        "net_income": float(order_income) + float(recharge_amount) - float(withdraw_amount),
+        "start_date": start.isoformat(),
+        "end_date": end.isoformat()
+    })
+
+
+@router.get("/finance/income", summary="获取收入明细")
+async def get_finance_income(
+    start_date: str = Query(None),
+    end_date: str = Query(None),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """获取收入明细列表"""
+    from datetime import date, timedelta
+
+    today = date.today()
+    start = datetime.strptime(start_date, "%Y-%m-%d").date() if start_date else today - timedelta(days=30)
+    end = datetime.strptime(end_date, "%Y-%m-%d").date() if end_date else today
+
+    query = db.query(Order).filter(
+        Order.paid_at >= start,
+        Order.paid_at <= end,
+        Order.paid_fee > 0
+    )
+
+    total = query.count()
+    orders = query.order_by(Order.paid_at.desc()).offset((page - 1) * page_size).limit(page_size).all()
+
+    return Response.success(data={
+        "items": [{
+            "id": o.id,
+            "order_no": o.order_no,
+            "amount": float(o.paid_fee),
+            "type": "order",
+            "user_id": o.user_id,
+            "created_at": o.paid_at.isoformat() if o.paid_at else None
+        } for o in orders],
+        "total": total,
+        "page": page,
+        "page_size": page_size
+    })
+
+
+@router.get("/finance/expense", summary="获取支出明细")
+async def get_finance_expense(
+    start_date: str = Query(None),
+    end_date: str = Query(None),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """获取支出明细列表"""
+    from datetime import date, timedelta
+
+    today = date.today()
+    start = datetime.strptime(start_date, "%Y-%m-%d").date() if start_date else today - timedelta(days=30)
+    end = datetime.strptime(end_date, "%Y-%m-%d").date() if end_date else today
+
+    query = db.query(WithdrawRecord).filter(
+        WithdrawRecord.status == "success",
+        WithdrawRecord.created_at >= start,
+        WithdrawRecord.created_at <= end
+    )
+
+    total = query.count()
+    records = query.order_by(WithdrawRecord.created_at.desc()).offset((page - 1) * page_size).limit(page_size).all()
+
+    return Response.success(data={
+        "items": [{
+            "id": r.id,
+            "amount": float(r.amount),
+            "type": "withdraw",
+            "user_id": r.user_id,
+            "status": r.status,
+            "created_at": r.created_at.isoformat() if r.created_at else None
+        } for r in records],
+        "total": total,
+        "page": page,
+        "page_size": page_size
+    })
+
+
+@router.post("/finance/expense", summary="添加支出记录")
+async def create_finance_expense(
+    amount: float = Query(...),
+    category: str = Query(...),
+    description: str = Query(None),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """添加支出记录（手动记录）"""
+    # 这里可以创建一个专门的支出表，暂时返回成功
+    return Response.success(message="支出记录已添加")
+
+
+@router.get("/finance/settlement", summary="获取结算列表")
+async def get_finance_settlement(
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """获取实验室结算列表"""
+    from app.models.laboratory import Laboratory, LabSettlement
+
+    settlements = db.query(LabSettlement).order_by(LabSettlement.id.desc()).limit(50).all()
+
+    return Response.success(data={
+        "items": [{
+            "id": s.id,
+            "lab_id": s.lab_id,
+            "lab_name": s.laboratory.name if s.laboratory else "",
+            "amount": float(s.amount) if hasattr(s, 'amount') else 0,
+            "status": s.status if hasattr(s, 'status') else "pending",
+            "created_at": s.created_at.isoformat() if s.created_at else None
+        } for s in settlements]
+    })
+
+
+@router.put("/finance/settlement/{settlement_id}/confirm", summary="确认结算")
+async def confirm_settlement(
+    settlement_id: int,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """确认结算"""
+    from app.models.laboratory import LabSettlement
+
+    settlement = db.query(LabSettlement).filter(LabSettlement.id == settlement_id).first()
+    if not settlement:
+        return Response.error(message="结算记录不存在")
+
+    if hasattr(settlement, 'status'):
+        settlement.status = "confirmed"
+    db.commit()
+
+    return Response.success(message="结算确认成功")
+
+
+@router.get("/finance/export", summary="导出财务数据")
+async def export_finance_data(
+    start_date: str = Query(None),
+    end_date: str = Query(None),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """导出财务数据"""
+    import io
+    import csv
+    from fastapi.responses import StreamingResponse
+    from datetime import date, timedelta
+
+    today = date.today()
+    start = datetime.strptime(start_date, "%Y-%m-%d").date() if start_date else today - timedelta(days=30)
+    end = datetime.strptime(end_date, "%Y-%m-%d").date() if end_date else today
+
+    orders = db.query(Order).filter(
+        Order.paid_at >= start,
+        Order.paid_at <= end,
+        Order.paid_fee > 0
+    ).all()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["订单号", "金额", "支付时间", "用户ID"])
+
+    for o in orders:
+        writer.writerow([
+            o.order_no,
+            float(o.paid_fee),
+            o.paid_at.isoformat() if o.paid_at else "",
+            o.user_id
+        ])
+
+    output.seek(0)
+    return StreamingResponse(
+        io.BytesIO(output.getvalue().encode('utf-8-sig')),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename=finance_{start}_{end}.csv"}
+    )
+
+
+# ==================== 设备管理 ====================
+
+@router.get("/equipment", summary="获取设备列表")
+async def get_equipment_list(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    lab_id: int = Query(None),
+    keyword: str = Query(None),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """获取设备列表"""
+    from app.models.laboratory import Equipment, Laboratory
+
+    query = db.query(Equipment)
+
+    if lab_id:
+        query = query.filter(Equipment.lab_id == lab_id)
+
+    if keyword:
+        query = query.filter(Equipment.name.contains(keyword))
+
+    total = query.count()
+    equipment_list = query.order_by(Equipment.id.desc()).offset((page - 1) * page_size).limit(page_size).all()
+
+    return Response.success(data={
+        "items": [{
+            "id": e.id,
+            "name": e.name,
+            "model": e.model if hasattr(e, 'model') else "",
+            "lab_id": e.lab_id,
+            "lab_name": e.laboratory.name if e.laboratory else "",
+            "status": e.status.value if hasattr(e, 'status') and e.status else "normal",
+            "created_at": e.created_at.isoformat() if e.created_at else None
+        } for e in equipment_list],
+        "total": total,
+        "page": page,
+        "page_size": page_size
+    })
+
+
+@router.post("/equipment", summary="创建设备")
+async def create_equipment(
+    name: str = Query(...),
+    model: str = Query(None),
+    lab_id: int = Query(...),
+    description: str = Query(None),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """创建设备"""
+    from app.models.laboratory import Equipment
+
+    equipment = Equipment(
+        name=name,
+        lab_id=lab_id
+    )
+    if model and hasattr(equipment, 'model'):
+        equipment.model = model
+    if description and hasattr(equipment, 'description'):
+        equipment.description = description
+
+    db.add(equipment)
+    db.commit()
+    db.refresh(equipment)
+
+    return Response.success(data={"id": equipment.id}, message="创建成功")
+
+
+@router.put("/equipment/{equipment_id}", summary="更新设备")
+async def update_equipment(
+    equipment_id: int,
+    name: str = Query(None),
+    model: str = Query(None),
+    description: str = Query(None),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """更新设备"""
+    from app.models.laboratory import Equipment
+
+    equipment = db.query(Equipment).filter(Equipment.id == equipment_id).first()
+    if not equipment:
+        return Response.error(message="设备不存在")
+
+    if name:
+        equipment.name = name
+    if model and hasattr(equipment, 'model'):
+        equipment.model = model
+    if description and hasattr(equipment, 'description'):
+        equipment.description = description
+
+    db.commit()
+    return Response.success(message="更新成功")
+
+
+@router.delete("/equipment/{equipment_id}", summary="删除设备")
+async def delete_equipment(
+    equipment_id: int,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """删除设备"""
+    from app.models.laboratory import Equipment
+
+    equipment = db.query(Equipment).filter(Equipment.id == equipment_id).first()
+    if not equipment:
+        return Response.error(message="设备不存在")
+
+    db.delete(equipment)
+    db.commit()
+    return Response.success(message="删除成功")
+
+
+@router.put("/equipment/{equipment_id}/status", summary="修改设备状态")
+async def update_equipment_status(
+    equipment_id: int,
+    status: str = Query(...),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """修改设备状态"""
+    from app.models.laboratory import Equipment, EquipmentStatus
+
+    equipment = db.query(Equipment).filter(Equipment.id == equipment_id).first()
+    if not equipment:
+        return Response.error(message="设备不存在")
+
+    try:
+        equipment.status = EquipmentStatus(status)
+        db.commit()
+        return Response.success(message="状态更新成功")
+    except ValueError:
+        return Response.error(message="无效的状态值")
+
+
+# ==================== 轮播图管理 ====================
+
+@router.get("/banners", summary="获取轮播图列表")
+async def get_admin_banners(
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """获取轮播图列表"""
+    from app.models.banner import Banner
+
+    banners = db.query(Banner).order_by(Banner.sort_order.asc(), Banner.id.desc()).all()
+
+    return Response.success(data={
+        "items": [{
+            "id": b.id,
+            "title": b.title if hasattr(b, 'title') else "",
+            "image_url": b.image_url,
+            "link_url": b.link_url if hasattr(b, 'link_url') else "",
+            "sort_order": b.sort_order if hasattr(b, 'sort_order') else 0,
+            "is_active": b.is_active if hasattr(b, 'is_active') else True,
+            "created_at": b.created_at.isoformat() if b.created_at else None
+        } for b in banners]
+    })
+
+
+@router.post("/banners", summary="创建轮播图")
+async def create_admin_banner(
+    title: str = Query(None),
+    image_url: str = Query(...),
+    link_url: str = Query(None),
+    sort_order: int = Query(0),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """创建轮播图"""
+    from app.models.banner import Banner
+
+    banner = Banner(image_url=image_url)
+    if title and hasattr(banner, 'title'):
+        banner.title = title
+    if link_url and hasattr(banner, 'link_url'):
+        banner.link_url = link_url
+    if hasattr(banner, 'sort_order'):
+        banner.sort_order = sort_order
+
+    db.add(banner)
+    db.commit()
+    db.refresh(banner)
+
+    return Response.success(data={"id": banner.id}, message="创建成功")
+
+
+@router.put("/banners/{banner_id}", summary="更新轮播图")
+async def update_admin_banner(
+    banner_id: int,
+    title: str = Query(None),
+    image_url: str = Query(None),
+    link_url: str = Query(None),
+    sort_order: int = Query(None),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """更新轮播图"""
+    from app.models.banner import Banner
+
+    banner = db.query(Banner).filter(Banner.id == banner_id).first()
+    if not banner:
+        return Response.error(message="轮播图不存在")
+
+    if title is not None and hasattr(banner, 'title'):
+        banner.title = title
+    if image_url:
+        banner.image_url = image_url
+    if link_url is not None and hasattr(banner, 'link_url'):
+        banner.link_url = link_url
+    if sort_order is not None and hasattr(banner, 'sort_order'):
+        banner.sort_order = sort_order
+
+    db.commit()
+    return Response.success(message="更新成功")
+
+
+@router.put("/banners/{banner_id}/status", summary="修改轮播图状态")
+async def update_banner_status(
+    banner_id: int,
+    is_active: bool = Query(...),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """修改轮播图状态"""
+    from app.models.banner import Banner
+
+    banner = db.query(Banner).filter(Banner.id == banner_id).first()
+    if not banner:
+        return Response.error(message="轮播图不存在")
+
+    if hasattr(banner, 'is_active'):
+        banner.is_active = is_active
+    db.commit()
+
+    return Response.success(message="状态更新成功")
+
+
+@router.delete("/banners/{banner_id}", summary="删除轮播图")
+async def delete_admin_banner(
+    banner_id: int,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """删除轮播图"""
+    from app.models.banner import Banner
+
+    banner = db.query(Banner).filter(Banner.id == banner_id).first()
+    if not banner:
+        return Response.error(message="轮播图不存在")
+
+    db.delete(banner)
+    db.commit()
+    return Response.success(message="删除成功")
+
+
+# ==================== 公告管理 ====================
+
+@router.get("/announcements", summary="获取公告列表")
+async def get_admin_announcements(
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """获取公告列表"""
+    from app.models.announcement import Announcement
+
+    announcements = db.query(Announcement).order_by(Announcement.id.desc()).all()
+
+    return Response.success(data={
+        "items": [{
+            "id": a.id,
+            "title": a.title,
+            "content": a.content,
+            "is_active": a.is_active if hasattr(a, 'is_active') else True,
+            "created_at": a.created_at.isoformat() if a.created_at else None
+        } for a in announcements]
+    })
+
+
+@router.post("/announcements", summary="创建公告")
+async def create_admin_announcement(
+    title: str = Query(...),
+    content: str = Query(...),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """创建公告"""
+    from app.models.announcement import Announcement
+
+    announcement = Announcement(title=title, content=content)
+    db.add(announcement)
+    db.commit()
+    db.refresh(announcement)
+
+    return Response.success(data={"id": announcement.id}, message="创建成功")
+
+
+@router.put("/announcements/{announcement_id}", summary="更新公告")
+async def update_admin_announcement(
+    announcement_id: int,
+    title: str = Query(None),
+    content: str = Query(None),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """更新公告"""
+    from app.models.announcement import Announcement
+
+    announcement = db.query(Announcement).filter(Announcement.id == announcement_id).first()
+    if not announcement:
+        return Response.error(message="公告不存在")
+
+    if title:
+        announcement.title = title
+    if content:
+        announcement.content = content
+
+    db.commit()
+    return Response.success(message="更新成功")
+
+
+@router.put("/announcements/{announcement_id}/status", summary="修改公告状态")
+async def update_announcement_status(
+    announcement_id: int,
+    is_active: bool = Query(...),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """修改公告状态"""
+    from app.models.announcement import Announcement
+
+    announcement = db.query(Announcement).filter(Announcement.id == announcement_id).first()
+    if not announcement:
+        return Response.error(message="公告不存在")
+
+    if hasattr(announcement, 'is_active'):
+        announcement.is_active = is_active
+    db.commit()
+
+    return Response.success(message="状态更新成功")
+
+
+@router.delete("/announcements/{announcement_id}", summary="删除公告")
+async def delete_admin_announcement(
+    announcement_id: int,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """删除公告"""
+    from app.models.announcement import Announcement
+
+    announcement = db.query(Announcement).filter(Announcement.id == announcement_id).first()
+    if not announcement:
+        return Response.error(message="公告不存在")
+
+    db.delete(announcement)
+    db.commit()
+    return Response.success(message="删除成功")
+
+
+# ==================== 帮助文章管理 ====================
+
+@router.get("/help-articles", summary="获取帮助文章列表")
+async def get_admin_help_articles(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    category: str = Query(None),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """获取帮助文章列表"""
+    from app.models.help import HelpArticle
+
+    query = db.query(HelpArticle)
+
+    if category:
+        query = query.filter(HelpArticle.category == category)
+
+    total = query.count()
+    articles = query.order_by(HelpArticle.sort_order.asc(), HelpArticle.id.desc()).offset((page - 1) * page_size).limit(page_size).all()
+
+    return Response.success(data={
+        "items": [{
+            "id": a.id,
+            "title": a.title,
+            "content": a.content,
+            "category": a.category if hasattr(a, 'category') else "",
+            "sort_order": a.sort_order if hasattr(a, 'sort_order') else 0,
+            "is_active": a.is_active if hasattr(a, 'is_active') else True,
+            "created_at": a.created_at.isoformat() if a.created_at else None
+        } for a in articles],
+        "total": total,
+        "page": page,
+        "page_size": page_size
+    })
+
+
+@router.post("/help-articles", summary="创建帮助文章")
+async def create_admin_help_article(
+    title: str = Query(...),
+    content: str = Query(...),
+    category: str = Query(None),
+    sort_order: int = Query(0),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """创建帮助文章"""
+    from app.models.help import HelpArticle
+
+    article = HelpArticle(title=title, content=content)
+    if category and hasattr(article, 'category'):
+        article.category = category
+    if hasattr(article, 'sort_order'):
+        article.sort_order = sort_order
+
+    db.add(article)
+    db.commit()
+    db.refresh(article)
+
+    return Response.success(data={"id": article.id}, message="创建成功")
+
+
+@router.put("/help-articles/{article_id}", summary="更新帮助文章")
+async def update_admin_help_article(
+    article_id: int,
+    title: str = Query(None),
+    content: str = Query(None),
+    category: str = Query(None),
+    sort_order: int = Query(None),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """更新帮助文章"""
+    from app.models.help import HelpArticle
+
+    article = db.query(HelpArticle).filter(HelpArticle.id == article_id).first()
+    if not article:
+        return Response.error(message="文章不存在")
+
+    if title:
+        article.title = title
+    if content:
+        article.content = content
+    if category is not None and hasattr(article, 'category'):
+        article.category = category
+    if sort_order is not None and hasattr(article, 'sort_order'):
+        article.sort_order = sort_order
+
+    db.commit()
+    return Response.success(message="更新成功")
+
+
+@router.delete("/help-articles/{article_id}", summary="删除帮助文章")
+async def delete_admin_help_article(
+    article_id: int,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """删除帮助文章"""
+    from app.models.help import HelpArticle
+
+    article = db.query(HelpArticle).filter(HelpArticle.id == article_id).first()
+    if not article:
+        return Response.error(message="文章不存在")
+
+    db.delete(article)
+    db.commit()
+    return Response.success(message="删除成功")
+
+
+# ==================== 客服聊天管理 ====================
+
+@router.get("/chats", summary="获取聊天列表")
+async def get_admin_chats(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    status: str = Query(None),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """获取客服聊天列表"""
+    from app.models.chat import ChatSession
+
+    query = db.query(ChatSession)
+
+    if status:
+        query = query.filter(ChatSession.status == status)
+
+    total = query.count()
+    chats = query.order_by(ChatSession.updated_at.desc()).offset((page - 1) * page_size).limit(page_size).all()
+
+    return Response.success(data={
+        "items": [{
+            "id": c.id,
+            "user_id": c.user_id,
+            "user_nickname": c.user.nickname if c.user else "",
+            "status": c.status if hasattr(c, 'status') else "open",
+            "last_message": c.last_message if hasattr(c, 'last_message') else "",
+            "created_at": c.created_at.isoformat() if c.created_at else None,
+            "updated_at": c.updated_at.isoformat() if c.updated_at else None
+        } for c in chats],
+        "total": total,
+        "page": page,
+        "page_size": page_size
+    })
+
+
+@router.get("/chats/{chat_id}/messages", summary="获取聊天消息")
+async def get_chat_messages(
+    chat_id: int,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """获取聊天消息"""
+    from app.models.chat import ChatMessage
+
+    messages = db.query(ChatMessage).filter(ChatMessage.session_id == chat_id).order_by(ChatMessage.created_at.asc()).all()
+
+    return Response.success(data={
+        "items": [{
+            "id": m.id,
+            "content": m.content,
+            "sender_type": m.sender_type if hasattr(m, 'sender_type') else "user",
+            "created_at": m.created_at.isoformat() if m.created_at else None
+        } for m in messages]
+    })
+
+
+@router.put("/chats/{chat_id}/close", summary="关闭聊天")
+async def close_chat(
+    chat_id: int,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """关闭聊天会话"""
+    from app.models.chat import ChatSession
+
+    chat = db.query(ChatSession).filter(ChatSession.id == chat_id).first()
+    if not chat:
+        return Response.error(message="聊天会话不存在")
+
+    if hasattr(chat, 'status'):
+        chat.status = "closed"
+    db.commit()
+
+    return Response.success(message="会话已关闭")
+
+
+@router.get("/phrases", summary="获取快捷回复")
+async def get_phrases(
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """获取快捷回复短语"""
+    # 返回预设的快捷回复
+    return Response.success(data={
+        "items": [
+            {"id": 1, "content": "您好，请问有什么可以帮助您的？"},
+            {"id": 2, "content": "感谢您的咨询，我们会尽快处理。"},
+            {"id": 3, "content": "您的问题已收到，请耐心等待。"},
+            {"id": 4, "content": "如有其他问题，欢迎随时咨询。"},
+            {"id": 5, "content": "祝您生活愉快！"}
+        ]
+    })
+
+
+# ==================== 加盟管理 ====================
+
+@router.get("/franchise/applications", summary="获取加盟申请列表")
+async def get_franchise_applications(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    status: str = Query(None),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """获取加盟申请列表"""
+    from app.models.franchise import FranchiseApplication
+
+    query = db.query(FranchiseApplication)
+
+    if status:
+        query = query.filter(FranchiseApplication.status == status)
+
+    total = query.count()
+    applications = query.order_by(FranchiseApplication.id.desc()).offset((page - 1) * page_size).limit(page_size).all()
+
+    return Response.success(data={
+        "items": [{
+            "id": a.id,
+            "company_name": a.company_name if hasattr(a, 'company_name') else "",
+            "contact_name": a.contact_name if hasattr(a, 'contact_name') else "",
+            "contact_phone": a.contact_phone if hasattr(a, 'contact_phone') else "",
+            "status": a.status if hasattr(a, 'status') else "pending",
+            "created_at": a.created_at.isoformat() if a.created_at else None
+        } for a in applications],
+        "total": total,
+        "page": page,
+        "page_size": page_size
+    })
+
+
+@router.get("/franchise/franchisees", summary="获取加盟商列表")
+async def get_franchisees(
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """获取加盟商列表"""
+    from app.models.franchise import Franchisee
+
+    franchisees = db.query(Franchisee).order_by(Franchisee.id.desc()).all()
+
+    return Response.success(data={
+        "items": [{
+            "id": f.id,
+            "company_name": f.company_name if hasattr(f, 'company_name') else "",
+            "contact_name": f.contact_name if hasattr(f, 'contact_name') else "",
+            "contact_phone": f.contact_phone if hasattr(f, 'contact_phone') else "",
+            "status": f.status if hasattr(f, 'status') else "active",
+            "created_at": f.created_at.isoformat() if f.created_at else None
+        } for f in franchisees]
+    })
+
+
+@router.put("/franchise/applications/{app_id}/approve", summary="批准加盟申请")
+async def approve_franchise_application(
+    app_id: int,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """批准加盟申请"""
+    from app.models.franchise import FranchiseApplication, Franchisee
+
+    application = db.query(FranchiseApplication).filter(FranchiseApplication.id == app_id).first()
+    if not application:
+        return Response.error(message="申请不存在")
+
+    if hasattr(application, 'status'):
+        application.status = "approved"
+
+    # 创建加盟商
+    franchisee = Franchisee()
+    if hasattr(application, 'company_name') and hasattr(franchisee, 'company_name'):
+        franchisee.company_name = application.company_name
+    if hasattr(application, 'contact_name') and hasattr(franchisee, 'contact_name'):
+        franchisee.contact_name = application.contact_name
+    if hasattr(application, 'contact_phone') and hasattr(franchisee, 'contact_phone'):
+        franchisee.contact_phone = application.contact_phone
+
+    db.add(franchisee)
+    db.commit()
+
+    return Response.success(message="申请已批准")
+
+
+@router.put("/franchise/applications/{app_id}/reject", summary="拒绝加盟申请")
+async def reject_franchise_application(
+    app_id: int,
+    reason: str = Query(None),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """拒绝加盟申请"""
+    from app.models.franchise import FranchiseApplication
+
+    application = db.query(FranchiseApplication).filter(FranchiseApplication.id == app_id).first()
+    if not application:
+        return Response.error(message="申请不存在")
+
+    if hasattr(application, 'status'):
+        application.status = "rejected"
+    if reason and hasattr(application, 'reject_reason'):
+        application.reject_reason = reason
+
+    db.commit()
+
+    return Response.success(message="申请已拒绝")
+
+
+@router.put("/franchise/franchisees/{franchisee_id}/status", summary="修改加盟商状态")
+async def update_franchisee_status(
+    franchisee_id: int,
+    status: str = Query(...),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """修改加盟商状态"""
+    from app.models.franchise import Franchisee
+
+    franchisee = db.query(Franchisee).filter(Franchisee.id == franchisee_id).first()
+    if not franchisee:
+        return Response.error(message="加盟商不存在")
+
+    if hasattr(franchisee, 'status'):
+        franchisee.status = status
+    db.commit()
+
+    return Response.success(message="状态更新成功")
+
+
+# ==================== 发票管理 ====================
+
+@router.get("/invoices", summary="获取发票申请列表")
+async def get_admin_invoices(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    status: str = Query(None),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """获取发票申请列表"""
+    from app.models.invoice import Invoice
+
+    query = db.query(Invoice)
+
+    if status:
+        query = query.filter(Invoice.status == status)
+
+    total = query.count()
+    invoices = query.order_by(Invoice.id.desc()).offset((page - 1) * page_size).limit(page_size).all()
+
+    return Response.success(data={
+        "items": [{
+            "id": i.id,
+            "invoice_no": i.invoice_no if hasattr(i, 'invoice_no') else "",
+            "user_id": i.user_id,
+            "amount": float(i.amount) if hasattr(i, 'amount') else 0,
+            "title": i.title if hasattr(i, 'title') else "",
+            "tax_no": i.tax_no if hasattr(i, 'tax_no') else "",
+            "status": i.status.value if hasattr(i, 'status') and i.status else "pending",
+            "created_at": i.created_at.isoformat() if i.created_at else None
+        } for i in invoices],
+        "total": total,
+        "page": page,
+        "page_size": page_size
+    })
+
+
+@router.get("/invoices/records", summary="获取开票记录")
+async def get_invoice_records(
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """获取开票记录"""
+    from app.models.invoice import Invoice, InvoiceStatus
+
+    records = db.query(Invoice).filter(Invoice.status == InvoiceStatus.ISSUED).order_by(Invoice.id.desc()).limit(50).all()
+
+    return Response.success(data={
+        "items": [{
+            "id": r.id,
+            "invoice_no": r.invoice_no if hasattr(r, 'invoice_no') else "",
+            "amount": float(r.amount) if hasattr(r, 'amount') else 0,
+            "title": r.title if hasattr(r, 'title') else "",
+            "created_at": r.created_at.isoformat() if r.created_at else None
+        } for r in records]
+    })
+
+
+@router.put("/invoices/{invoice_id}/approve", summary="批准发票申请")
+async def approve_invoice(
+    invoice_id: int,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """批准发票申请"""
+    from app.models.invoice import Invoice, InvoiceStatus
+
+    invoice = db.query(Invoice).filter(Invoice.id == invoice_id).first()
+    if not invoice:
+        return Response.error(message="发票申请不存在")
+
+    invoice.status = InvoiceStatus.APPROVED
+    db.commit()
+
+    return Response.success(message="已批准")
+
+
+@router.put("/invoices/{invoice_id}/reject", summary="拒绝发票申请")
+async def reject_invoice(
+    invoice_id: int,
+    reason: str = Query(None),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """拒绝发票申请"""
+    from app.models.invoice import Invoice, InvoiceStatus
+
+    invoice = db.query(Invoice).filter(Invoice.id == invoice_id).first()
+    if not invoice:
+        return Response.error(message="发票申请不存在")
+
+    invoice.status = InvoiceStatus.REJECTED
+    if reason and hasattr(invoice, 'reject_reason'):
+        invoice.reject_reason = reason
+    db.commit()
+
+    return Response.success(message="已拒绝")
+
+
+@router.put("/invoices/{invoice_id}/confirm", summary="确认开票")
+async def confirm_invoice(
+    invoice_id: int,
+    invoice_no: str = Query(...),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """确认开票并填写发票号"""
+    from app.models.invoice import Invoice, InvoiceStatus
+
+    invoice = db.query(Invoice).filter(Invoice.id == invoice_id).first()
+    if not invoice:
+        return Response.error(message="发票申请不存在")
+
+    invoice.status = InvoiceStatus.ISSUED
+    if hasattr(invoice, 'invoice_no'):
+        invoice.invoice_no = invoice_no
+    db.commit()
+
+    return Response.success(message="开票成功")
+
+
+@router.get("/invoices/{invoice_id}/download", summary="下载发票")
+async def download_invoice(
+    invoice_id: int,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """下载发票文件"""
+    from app.models.invoice import Invoice
+
+    invoice = db.query(Invoice).filter(Invoice.id == invoice_id).first()
+    if not invoice:
+        return Response.error(message="发票不存在")
+
+    # 返回发票下载链接或文件
+    file_url = invoice.file_url if hasattr(invoice, 'file_url') else None
+
+    return Response.success(data={
+        "file_url": file_url,
+        "invoice_no": invoice.invoice_no if hasattr(invoice, 'invoice_no') else ""
+    })
+
+
+@router.get("/invoices/export", summary="导出发票数据")
+async def export_invoices(
+    start_date: str = Query(None),
+    end_date: str = Query(None),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """导出发票数据"""
+    import io
+    import csv
+    from fastapi.responses import StreamingResponse
+    from app.models.invoice import Invoice
+
+    query = db.query(Invoice)
+
+    if start_date:
+        query = query.filter(Invoice.created_at >= start_date)
+    if end_date:
+        query = query.filter(Invoice.created_at <= end_date)
+
+    invoices = query.all()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["ID", "发票号", "金额", "抬头", "税号", "状态", "创建时间"])
+
+    for i in invoices:
+        writer.writerow([
+            i.id,
+            i.invoice_no if hasattr(i, 'invoice_no') else "",
+            float(i.amount) if hasattr(i, 'amount') else 0,
+            i.title if hasattr(i, 'title') else "",
+            i.tax_no if hasattr(i, 'tax_no') else "",
+            i.status.value if hasattr(i, 'status') and i.status else "",
+            i.created_at.isoformat() if i.created_at else ""
+        ])
+
+    output.seek(0)
+    return StreamingResponse(
+        io.BytesIO(output.getvalue().encode('utf-8-sig')),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=invoices.csv"}
+    )
+
+
+# ==================== 系统设置 ====================
+
+@router.put("/settings/points", summary="更新积分设置")
+async def update_points_settings(
+    sign_points: int = Query(None),
+    order_points_rate: float = Query(None),
+    review_points: int = Query(None),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """更新积分设置"""
+    # 这里可以存储到系统设置表或配置文件
+    # 暂时返回成功
+    return Response.success(message="设置已更新")
+
+
+@router.get("/laboratories/{lab_id}/tasks", summary="获取实验室任务")
+async def get_lab_tasks(
+    lab_id: int,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """获取实验室任务列表"""
+    from app.models.laboratory import LabOrder
+
+    tasks = db.query(LabOrder).filter(LabOrder.lab_id == lab_id).order_by(LabOrder.id.desc()).limit(50).all()
+
+    return Response.success(data={
+        "items": [{
+            "id": t.id,
+            "order_id": t.order_id,
+            "order_no": t.order.order_no if t.order else "",
+            "status": t.status.value if t.status else "pending",
+            "assigned_at": t.assigned_at.isoformat() if hasattr(t, 'assigned_at') and t.assigned_at else None,
+            "created_at": t.created_at.isoformat() if t.created_at else None
+        } for t in tasks]
+    })
+

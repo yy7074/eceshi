@@ -4,6 +4,11 @@
 from app.models.user import User, UserCertification, UserStatus, MembershipLevel, IdentityType, EducationLevel
 from app.models.sms_code import SMSCode
 from app.models.order import Order, OrderSample, OrderFee, OrderStatusHistory, Payment, UserAddress
+# 实验室模型必须在project之前导入
+from app.models.laboratory import (
+    Laboratory, LabApplication, LabEquipment, LabStaff,
+    LabStatus, LabType
+)
 from app.models.project import ProjectCategory, Project, ProjectReview
 from app.models.coupon import Coupon, UserCoupon, CouponType, CouponStatus, UserCouponStatus
 from app.models.recharge import RechargeRecord, RechargeStatus, RechargeMethod
@@ -24,10 +29,6 @@ from app.models.franchise import FranchiseApplication
 from app.models.credit import (
     CreditRecord, CreditDebt, Repayment, CreditLimitApplication,
     CreditTransactionType, CreditTransactionStatus, RepaymentStatus
-)
-from app.models.laboratory import (
-    Laboratory, LabApplication, LabEquipment, LabStaff,
-    LabStatus, LabType
 )
 from app.models.role import (
     Role, Permission, role_permissions, user_roles,

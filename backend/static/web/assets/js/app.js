@@ -3,7 +3,7 @@ const { createApp } = Vue
 const { ElMessage, ElMessageBox } = ElementPlus
 
 // API基础URL
-const API_BASE_URL = 'https://3000.dachaonet.com'
+const API_BASE_URL = 'https://3001.dachaonet.com'
 
 // Axios配置
 axios.defaults.baseURL = API_BASE_URL
@@ -47,7 +47,7 @@ const api = {
     // 信用系统
     getCreditInfo: () => axios.get('/api/v1/credit/info'),
     getCreditDebts: (params) => axios.get('/api/v1/credit/debts', { params }),
-    applyCreditLimit: (data) => axios.post('/api/v1/credit/apply-limit', data),
+    applyCreditLimit: (data) => axios.post('/api/v1/credit/limit/apply', data),
     repayCredit: (data) => axios.post('/api/v1/credit/repay', data),
     getCreditRecords: (params) => axios.get('/api/v1/credit/records', { params }),
     
@@ -71,7 +71,7 @@ const api = {
     createAddress: (data) => axios.post('/api/v1/addresses/create', data),
     updateAddress: (id, data) => axios.put(`/api/v1/addresses/${id}`, data),
     deleteAddress: (id) => axios.delete(`/api/v1/addresses/${id}`),
-    setDefaultAddress: (id) => axios.put(`/api/v1/addresses/${id}/default`),
+    setDefaultAddress: (id) => axios.post(`/api/v1/addresses/${id}/set-default`),
     
     // 优惠券
     getCoupons: (params) => axios.get('/api/v1/coupons/list', { params }),

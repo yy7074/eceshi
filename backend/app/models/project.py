@@ -5,46 +5,7 @@ from sqlalchemy import Column, BigInteger, String, Integer, DateTime, Boolean, T
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.core.database import Base
-
-
-class Laboratory(Base):
-    """实验室表"""
-    __tablename__ = "laboratories"
-    
-    id = Column(BigInteger, primary_key=True, index=True, autoincrement=True)
-    lab_no = Column(String(32), unique=True, nullable=False, comment="实验室编号")
-    
-    # 基本信息
-    name = Column(String(200), nullable=False, comment="实验室名称")
-    short_name = Column(String(100), comment="简称")
-    type = Column(String(50), comment="实验室类型")
-    level = Column(String(50), comment="实验室级别")
-    
-    # 所属机构
-    institution = Column(String(200), comment="所属机构")
-    province = Column(String(50), comment="省份")
-    city = Column(String(50), comment="城市")
-    address = Column(String(500), comment="详细地址")
-    
-    # 联系方式
-    contact_person = Column(String(50), comment="联系人")
-    contact_phone = Column(String(20), comment="联系电话")
-    contact_email = Column(String(100), comment="联系邮箱")
-    
-    # 状态
-    status = Column(String(20), default="active", comment="状态")
-    is_verified = Column(Boolean, default=False, comment="是否认证")
-    
-    # 评分
-    rating = Column(Numeric(3, 1), default=5.0, comment="评分")
-    order_count = Column(Integer, default=0, comment="订单数量")
-    
-    # 简介
-    introduction = Column(Text, comment="实验室简介")
-    equipment_list = Column(JSON, comment="设备清单")
-    
-    created_at = Column(DateTime, server_default=func.now(), comment="创建时间")
-    updated_at = Column(DateTime, onupdate=func.now(), comment="更新时间")
+from app.models.laboratory import Laboratory
 
 
 class ProjectCategory(Base):
