@@ -174,7 +174,7 @@ async def create_payment(
                 order_no=order.order_no,
                 user_id=current_user.id,
                 payment_method="wechat",
-                payment_channel="wechat_h5",
+                payment_channel="wechat_jsapi",
                 amount=amount_to_pay,
                 status="pending"
             )
@@ -184,39 +184,27 @@ async def create_payment(
             
             # 调用微信支付服务获取支付参数
             try:
-                # 判断是否为Web端（没有openid则为Web端）
+                # 获取用户openid
                 openid = current_user.wechat_openid
+                if not openid:
+                    # 在Web端使用微信支付需要先绑定微信账号
+                    # 暂时返回提示信息
+                    db.rollback()
+                    raise HTTPException(status_code=400, detail="Web端暂不支持微信支付，请使用余额或支付宝支付")
                 
-                if openid:
-                    # 小程序端：使用JSAPI支付
-                    pay_params = await wechatpay_service.create_jsapi_payment(
-                        db=db,
-                        order=order,
-                        user_id=current_user.id,
-                        openid=openid
-                    )
-                    
-                    return SuccessResponse(data={
-                        "payment_id": payment.id,
-                        "payment_no": payment.payment_no,
-                        **pay_params,  # 包含appId, timeStamp, nonceStr, package, signType, paySign
-                        "status": "pending"
-                    }, message="请在新页面完成支付")
-                else:
-                    # Web端：使用H5支付（不需要openid）
-                    pay_params = await wechatpay_service.create_h5_payment(
-                        db=db,
-                        order=order,
-                        user_id=current_user.id
-                    )
-                    
-                    return SuccessResponse(data={
-                        "payment_id": payment.id,
-                        "payment_no": payment.payment_no,
-                        "mweb_url": pay_params.get("mweb_url"),
-                        "order_no": pay_params.get("order_no"),
-                        "status": "pending"
-                    }, message="请在新页面完成支付")
+                pay_params = await wechatpay_service.create_jsapi_payment(
+                    db=db,
+                    order=order,
+                    user_id=current_user.id,
+                    openid=openid
+                )
+                
+                return SuccessResponse(data={
+                    "payment_id": payment.id,
+                    "payment_no": payment.payment_no,
+                    **pay_params,  # 包含appId, timeStamp, nonceStr, package, signType, paySign
+                    "status": "pending"
+                }, message="请在新页面完成支付")
                 
             except HTTPException:
                 raise
