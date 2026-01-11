@@ -275,7 +275,7 @@ async def get_users(
     
     return Response.success(
         data={
-            "items": [
+            "list": [
                 {
                     "id": u.id,
                     "phone": u.phone,

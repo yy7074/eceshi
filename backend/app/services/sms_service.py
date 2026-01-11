@@ -131,7 +131,7 @@ class SMSService:
                 SMSCode.phone == phone,
                 SMSCode.code == code,
                 SMSCode.is_used == False,
-                SMSCode.expires_at > datetime.utcnow()
+                SMSCode.expires_at > datetime.now()
             )
             
             # 如果指定了场景，添加场景过滤
@@ -189,7 +189,7 @@ class SMSService:
             ).delete()
             
             # 创建新的验证码记录，5分钟后过期
-            expires_at = datetime.utcnow() + timedelta(minutes=5)
+            expires_at = datetime.now() + timedelta(minutes=5)
             sms_code = SMSCode(
                 phone=phone,
                 code=code,

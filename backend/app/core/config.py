@@ -51,7 +51,7 @@ class Settings(BaseSettings):
     # 微信支付配置
     WECHAT_MCH_ID: str = ""  # 微信商户号
     WECHAT_PAY_KEY: str = ""  # API密钥
-    WECHAT_PAY_NOTIFY_URL: str = "https://3001.dachaonet.com/api/v1/payments/wechat/notify"
+    WECHAT_PAY_NOTIFY_URL: str = "https://3000.dachaonet.com/api/v1/payments/wechat/notify"
     
     # 阿里云短信配置
     SMS_ACCESS_KEY: str = ""
@@ -73,7 +73,7 @@ class Settings(BaseSettings):
     ALLOWED_EXTENSIONS: str = ".jpg,.jpeg,.png,.gif,.webp"
     
     # CORS配置
-    CORS_ORIGINS: List[str] = ["http://localhost:3001", "https://3001.dachaonet.com", "*"]
+    CORS_ORIGINS: List[str] = ["http://localhost:3000", "https://3000.dachaonet.com", "*"]
     
     class Config:
         env_file = ".env"

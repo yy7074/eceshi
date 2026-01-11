@@ -2,12 +2,13 @@
 科研检测服务平台 - 后端主入口
 FastAPI Application
 """
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 from pathlib import Path
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.core.config import settings
 from app.core.database import engine, Base
@@ -47,6 +48,20 @@ app = FastAPI(
     redoc_url="/api/redoc" if settings.DEBUG else None,
 )
 
+
+# 处理 X-Forwarded-Host 的中间件
+class ProxyFixMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        # 如果存在 X-Forwarded-Host，使用它来修复重定向
+        if "x-forwarded-host" in request.headers:
+            request.scope["headers"] = [
+                (k, v) if k != b"host" else (b"host", request.headers["x-forwarded-host"].encode())
+                for k, v in request.scope["headers"]
+            ]
+        response = await call_next(request)
+        return response
+
+app.add_middleware(ProxyFixMiddleware)
 
 # CORS中间件配置
 app.add_middleware(
@@ -101,12 +116,32 @@ static_dir.mkdir(exist_ok=True)
 # 挂载Web端用户网站（html=True 会自动处理 index.html）
 web_dir = Path("static/web")
 if web_dir.exists():
-    app.mount("/web", StaticFiles(directory="static/web", html=True), name="web")
+    # 添加 /web 路由，直接返回 index.html（避免重定向到 127.0.0.1）
+    @app.get("/web")
+    async def web_index():
+        """直接返回 web/index.html"""
+        index_file = web_dir / "index.html"
+        if index_file.exists():
+            return FileResponse(index_file)
+        return {"error": "Web page not found"}
+    
+    # 挂载 /web/ 路径下的静态文件
+    app.mount("/web/", StaticFiles(directory="static/web", html=True), name="web")
 
 # 挂载后台管理页面（html=True 会自动处理 index.html）
 admin_dir = Path("admin")
 if admin_dir.exists():
-    app.mount("/admin", StaticFiles(directory="admin", html=True), name="admin")
+    # 添加 /admin 路由，直接返回 index.html（避免重定向到 127.0.0.1）
+    @app.get("/admin")
+    async def admin_index():
+        """直接返回 admin/index.html"""
+        index_file = admin_dir / "index.html"
+        if index_file.exists():
+            return FileResponse(index_file)
+        return {"error": "Admin page not found"}
+    
+    # 挂载 /admin/ 路径下的静态文件
+    app.mount("/admin/", StaticFiles(directory="admin", html=True), name="admin")
 
 # 挂载静态文件
 app.mount("/static", StaticFiles(directory="static"), name="static")

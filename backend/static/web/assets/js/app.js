@@ -3,7 +3,7 @@ const { createApp } = Vue
 const { ElMessage, ElMessageBox } = ElementPlus
 
 // API基础URL
-const API_BASE_URL = 'https://3001.dachaonet.com'
+const API_BASE_URL = 'https://3000.dachaonet.com'
 
 // Axios配置
 axios.defaults.baseURL = API_BASE_URL

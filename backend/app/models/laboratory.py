@@ -37,7 +37,9 @@ class Laboratory(Base):
 
     # 基本信息
     name = Column(String(200), nullable=False, comment="实验室名称")
+    lab_no = Column(String(32), unique=True, comment="实验室编号(旧)")
     code = Column(String(50), unique=True, index=True, comment="实验室编号")
+    short_name = Column(String(100), comment="简称")
     logo = Column(String(255), comment="实验室Logo")
     cover_image = Column(String(255), comment="封面图片")
 
@@ -47,12 +49,15 @@ class Laboratory(Base):
         default=LabType.UNIVERSITY,
         comment="实验室类型"
     )
+    type = Column(String(50), comment="类型(旧)")
+    level = Column(String(50), comment="级别")
     status = Column(
         Enum(LabStatus),
         default=LabStatus.PENDING,
         index=True,
         comment="状态"
     )
+    is_verified = Column(Boolean, default=False, comment="是否认证")
 
     # 所属机构信息
     institution = Column(String(200), comment="所属机构")
@@ -63,6 +68,7 @@ class Laboratory(Base):
 
     # 负责人信息
     contact_name = Column(String(50), comment="联系人姓名")
+    contact_person = Column(String(50), comment="联系人(旧)")
     contact_phone = Column(String(20), comment="联系电话")
     contact_email = Column(String(100), comment="联系邮箱")
 
@@ -82,9 +88,14 @@ class Laboratory(Base):
     min_order_amount = Column(Numeric(10, 2), default=0, comment="起订金额")
 
     # 评价信息
-    rating = Column(Numeric(2, 1), default=5.0, comment="评分")
+    rating = Column(Numeric(3, 1), default=5.0, comment="评分")
+    order_count = Column(Integer, default=0, comment="订单数(旧)")
     total_orders = Column(Integer, default=0, comment="总订单数")
     completed_orders = Column(Integer, default=0, comment="完成订单数")
+
+    # 描述信息(旧)
+    introduction = Column(Text, comment="介绍(旧)")
+    equipment_list = Column(JSON, comment="设备列表(旧)")
 
     # 分成比例
     commission_rate = Column(Numeric(5, 2), default=20.0, comment="平台佣金比例(%)")
@@ -109,7 +120,7 @@ class LabApplication(Base):
     id = Column(BigInteger, primary_key=True, index=True, autoincrement=True)
 
     # 申请人信息
-    applicant_user_id = Column(BigInteger, ForeignKey("users.id"), nullable=False, index=True, comment="申请人用户ID")
+    applicant_user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True, comment="申请人用户ID")
     applicant_name = Column(String(50), comment="申请人姓名")
     applicant_phone = Column(String(20), comment="申请人电话")
     applicant_email = Column(String(100), comment="申请人邮箱")
@@ -204,7 +215,7 @@ class LabStaff(Base):
 
     id = Column(BigInteger, primary_key=True, index=True, autoincrement=True)
     laboratory_id = Column(BigInteger, ForeignKey("laboratories.id"), nullable=False, index=True, comment="实验室ID")
-    user_id = Column(BigInteger, ForeignKey("users.id"), comment="关联用户ID")
+    user_id = Column(Integer, ForeignKey("users.id"), comment="关联用户ID")
 
     # 基本信息
     name = Column(String(50), nullable=False, comment="姓名")
