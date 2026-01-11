@@ -222,6 +222,11 @@ class PaymentCreate(BaseModel):
     payment_password: Optional[str] = Field(None, description="支付密码（余额支付时必填）")
 
 
+class BalancePayRequest(BaseModel):
+    """余额支付请求"""
+    order_id: int = Field(..., description="订单ID")
+
+
 class PaymentInDB(BaseModel):
     """数据库中的支付记录"""
     id: int

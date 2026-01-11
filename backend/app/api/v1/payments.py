@@ -1,16 +1,17 @@
 """
 支付相关API
 """
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from datetime import datetime
 import time
 from decimal import Decimal
+import json
 
 from app.api.deps import get_db, get_current_user
 from app.models.user import User
 from app.models.order import Order, Payment, OrderStatusHistory
-from app.schemas.order import PaymentCreate, PaymentInDB
+from app.schemas.order import PaymentCreate, PaymentInDB, BalancePayRequest
 from app.core.response import SuccessResponse
 from app.core.security import verify_password
 from app.services.alipay_service import alipay_service
@@ -26,6 +27,7 @@ def generate_payment_no() -> str:
 
 @router.post("/create")
 async def create_payment(
+    request: Request,
     data: PaymentCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -35,6 +37,11 @@ async def create_payment(
     """
     import traceback
     try:
+        # 打印原始请求体
+        body = await request.body()
+        print(f"[支付创建] 原始请求体: {body.decode()}")
+        print(f"[支付创建] 收到请求数据: order_id={data.order_id}, payment_method={data.payment_method}")
+        
         # 查询订单
         order = db.query(Order).filter(
             Order.id == data.order_id,
@@ -167,7 +174,7 @@ async def create_payment(
                 order_no=order.order_no,
                 user_id=current_user.id,
                 payment_method="wechat",
-                payment_channel="wechat_jsapi",
+                payment_channel="wechat_h5",
                 amount=amount_to_pay,
                 status="pending"
             )
@@ -177,27 +184,39 @@ async def create_payment(
             
             # 调用微信支付服务获取支付参数
             try:
-                # 获取用户openid
+                # 判断是否为Web端（没有openid则为Web端）
                 openid = current_user.wechat_openid
-                if not openid:
-                    # 在Web端使用微信支付需要先绑定微信账号
-                    # 暂时返回提示信息
-                    db.rollback()
-                    raise HTTPException(status_code=400, detail="Web端暂不支持微信支付，请使用余额或支付宝支付")
                 
-                pay_params = await wechatpay_service.create_jsapi_payment(
-                    db=db,
-                    order=order,
-                    user_id=current_user.id,
-                    openid=openid
-                )
-                
-                return SuccessResponse(data={
-                    "payment_id": payment.id,
-                    "payment_no": payment.payment_no,
-                    **pay_params,  # 包含appId, timeStamp, nonceStr, package, signType, paySign
-                    "status": "pending"
-                }, message="请在新页面完成支付")
+                if openid:
+                    # 小程序端：使用JSAPI支付
+                    pay_params = await wechatpay_service.create_jsapi_payment(
+                        db=db,
+                        order=order,
+                        user_id=current_user.id,
+                        openid=openid
+                    )
+                    
+                    return SuccessResponse(data={
+                        "payment_id": payment.id,
+                        "payment_no": payment.payment_no,
+                        **pay_params,  # 包含appId, timeStamp, nonceStr, package, signType, paySign
+                        "status": "pending"
+                    }, message="请在新页面完成支付")
+                else:
+                    # Web端：使用H5支付（不需要openid）
+                    pay_params = await wechatpay_service.create_h5_payment(
+                        db=db,
+                        order=order,
+                        user_id=current_user.id
+                    )
+                    
+                    return SuccessResponse(data={
+                        "payment_id": payment.id,
+                        "payment_no": payment.payment_no,
+                        "mweb_url": pay_params.get("mweb_url"),
+                        "order_no": pay_params.get("order_no"),
+                        "status": "pending"
+                    }, message="请在新页面完成支付")
                 
             except HTTPException:
                 raise
@@ -219,16 +238,16 @@ async def create_payment(
 
 @router.post("/balance-pay")
 async def balance_pay(
-    data: dict,
+    request: BalancePayRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """
     余额支付（简化版，不需要支付密码）
     """
-    order_id = data.get("order_id")
-    if not order_id:
-        raise HTTPException(status_code=400, detail="缺少订单ID")
+    print(f"[余额支付] 收到请求数据: order_id={request.order_id}")
+    
+    order_id = request.order_id
     
     # 查询订单
     order = db.query(Order).filter(

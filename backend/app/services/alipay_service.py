@@ -90,15 +90,18 @@ class AlipayService:
         # 订单信息
         subject = f"科研检测订单-{order.order_no}"
         body = f"订单号: {order.order_no}"
-        total_amount = str(order.total_amount)
+        total_amount = str(order.total_fee)
         
         # 创建支付记录
         payment = Payment(
+            payment_no=f"PAY{int(datetime.now().timestamp())}",
             order_id=order_id,
+            order_no=order.order_no,
             user_id=user_id,
             payment_method="alipay",
-            amount=order.total_amount,
-            transaction_id=out_trade_no,
+            payment_channel="h5",
+            amount=order.total_fee,
+            trade_no=out_trade_no,
             status="pending"
         )
         
@@ -173,15 +176,18 @@ class AlipayService:
         # 订单信息
         subject = f"科研检测订单-{order.order_no}"
         body = f"订单号: {order.order_no}"
-        total_amount = str(order.total_amount)
+        total_amount = str(order.total_fee)
         
         # 创建支付记录
         payment = Payment(
+            payment_no=f"PAY{int(datetime.now().timestamp())}",
             order_id=order_id,
+            order_no=order.order_no,
             user_id=user_id,
             payment_method="alipay",
-            amount=order.total_amount,
-            transaction_id=out_trade_no,
+            payment_channel="app",
+            amount=order.total_fee,
+            trade_no=out_trade_no,
             status="pending"
         )
         
@@ -289,8 +295,8 @@ class AlipayService:
             out_trade_no = notify_data.get("out_trade_no")
             
             # 验证商户订单号
-            if payment.transaction_id != out_trade_no:
-                logger.error(f"商户订单号不匹配: {payment.transaction_id} != {out_trade_no}")
+            if payment.trade_no != out_trade_no:
+                logger.error(f"商户订单号不匹配: {payment.trade_no} != {out_trade_no}")
                 return False
             
             # 处理支付状态
@@ -414,7 +420,7 @@ class AlipayService:
             # 调用支付宝退款接口
             request = AlipayTradeRefundRequest()
             biz_content = {
-                "out_trade_no": payment.transaction_id,
+                "out_trade_no": payment.trade_no,
                 "refund_amount": str(refund_amount),
                 "out_request_no": out_refund_no,
                 "refund_reason": refund_reason

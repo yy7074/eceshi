@@ -280,7 +280,8 @@ async def create_order(
     
     # 返回完整的订单信息，包括价格和支付所需信息
     return SuccessResponse(data={
-        "order_id": order.id,
+        "id": order.id,  # 修改为 id 字段，与订单列表保持一致
+        "order_id": order.id,  # 保留 order_id 以兼容旧代码
         "order_no": order.order_no,
         "status": order.status,
         "project_id": order.project_id,
