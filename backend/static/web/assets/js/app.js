@@ -2647,7 +2647,7 @@ createApp({
                     this.showPayment = false
                     this.currentView = 'orders'
                 } else {
-                    const res = await api.createPayment({ order_id: this.paymentOrder.id, pay_method: this.payMethod })
+                    const res = await api.createPayment({ order_id: this.paymentOrder.id, payment_method: this.payMethod })
                     if (res.data?.pay_url) { window.open(res.data.pay_url, '_blank') }
                     ElMessage.info('请在新窗口完成支付')
                     this.showPayment = false

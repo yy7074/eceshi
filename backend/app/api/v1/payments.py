@@ -33,171 +33,188 @@ async def create_payment(
     """
     创建支付
     """
-    # 查询订单
-    order = db.query(Order).filter(
-        Order.id == data.order_id,
-        Order.user_id == current_user.id
-    ).first()
-    
-    if not order:
-        raise HTTPException(status_code=404, detail="订单不存在")
-    
-    if order.status != "pending_payment":
-        raise HTTPException(status_code=400, detail="订单状态不正确")
-    
-    # 检查是否已支付
-    if order.paid_fee >= order.total_fee:
-        raise HTTPException(status_code=400, detail="订单已支付")
-    
-    # 计算待支付金额
-    amount_to_pay = order.total_fee - order.paid_fee
-    
-    # 余额支付
-    if data.payment_method == "balance":
-        # 验证支付密码（这里简化处理，实际应该有独立的支付密码）
-        if not data.payment_password:
-            raise HTTPException(status_code=400, detail="请输入支付密码")
+    import traceback
+    try:
+        # 查询订单
+        order = db.query(Order).filter(
+            Order.id == data.order_id,
+            Order.user_id == current_user.id
+        ).first()
         
-        # 这里简化验证，实际应该验证专门的支付密码
-        if not verify_password(data.payment_password, current_user.hashed_password):
-            raise HTTPException(status_code=400, detail="支付密码错误")
+        if not order:
+            raise HTTPException(status_code=404, detail="订单不存在")
         
-        # 检查余额（从数据库获取）
-        user_balance = current_user.prepaid_balance if current_user.prepaid_balance else Decimal("0")
+        if order.status != "pending_payment":
+            raise HTTPException(status_code=400, detail="订单状态不正确")
         
-        if user_balance < amount_to_pay:
-            raise HTTPException(status_code=400, detail=f"余额不足，当前余额：¥{user_balance}，需要支付：¥{amount_to_pay}")
+        # 检查是否已支付
+        if order.paid_fee >= order.total_fee:
+            raise HTTPException(status_code=400, detail="订单已支付")
         
-        # 创建支付记录
-        payment = Payment(
-            payment_no=generate_payment_no(),
-            order_id=order.id,
-            order_no=order.order_no,
-            user_id=current_user.id,
-            payment_method="balance",
-            payment_channel="balance",
-            amount=amount_to_pay,
-            status="success",
-            paid_at=datetime.now()
-        )
-        db.add(payment)
+        # 计算待支付金额
+        amount_to_pay = order.total_fee - order.paid_fee
         
-        # 更新订单状态
-        order.paid_fee = order.total_fee
-        order.status = "confirmed"
-        order.payment_method = "balance"
-        order.paid_at = datetime.now()
+        print(f"[支付创建] 订单ID: {order.id}, 支付方式: {data.payment_method}, 金额: {amount_to_pay}")
         
-        # 记录状态变更
-        history = OrderStatusHistory(
-            order_id=order.id,
-            from_status="pending_payment",
-            to_status="confirmed",
-            operator_id=current_user.id,
-            operator_type="user",
-            remark="余额支付成功"
-        )
-        db.add(history)
-        
-        # 扣除用户余额
-        current_user.prepaid_balance = current_user.prepaid_balance - amount_to_pay
-        current_user.total_spent = (current_user.total_spent or Decimal("0")) + amount_to_pay
-        current_user.total_orders = (current_user.total_orders or 0) + 1
-        
-        db.commit()
-        db.refresh(payment)
-        
-        return SuccessResponse(data={
-            "payment_id": payment.id,
-            "payment_no": payment.payment_no,
-            "status": "success",
-            "message": "支付成功"
-        }, message="支付成功")
-    
-    # 支付宝支付
-    elif data.payment_method == "alipay":
-        try:
-            # 调用支付宝服务创建支付
-            # 根据平台选择H5或App支付
-            payment_type = data.payment_channel if hasattr(data, 'payment_channel') else "h5"
+        # 余额支付
+        if data.payment_method == "balance":
+            # 验证支付密码（这里简化处理，实际应该有独立的支付密码）
+            if not data.payment_password:
+                raise HTTPException(status_code=400, detail="请输入支付密码")
             
-            if payment_type == "app":
-                # App支付
-                result = await alipay_service.create_app_payment(
-                    db=db,
-                    order_id=order.id,
-                    user_id=current_user.id,
-                    notify_url=data.notify_url if hasattr(data, 'notify_url') else None
-                )
-                
-                return SuccessResponse(data={
-                    "payment_id": result["payment_id"],
-                    "order_string": result["order_string"],
-                    "out_trade_no": result["out_trade_no"],
-                    "status": "pending"
-                }, message="请在新页面完成支付")
-            else:
-                # H5/网页支付
-                pay_url = await alipay_service.create_h5_payment(
-                    db=db,
-                    order_id=order.id,
-                    user_id=current_user.id,
-                    return_url=data.return_url if hasattr(data, 'return_url') else None,
-                    notify_url=data.notify_url if hasattr(data, 'notify_url') else None
-                )
-                
-                return SuccessResponse(data={
-                    "pay_url": pay_url,
-                    "status": "pending"
-                }, message="请在新页面完成支付")
-                
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"创建支付失败: {str(e)}")
-    
-    # 微信支付
-    elif data.payment_method == "wechat":
-        # 创建支付记录
-        payment = Payment(
-            payment_no=generate_payment_no(),
-            order_id=order.id,
-            order_no=order.order_no,
-            user_id=current_user.id,
-            payment_method="wechat",
-            payment_channel="wechat_jsapi",
-            amount=amount_to_pay,
-            status="pending"
-        )
-        db.add(payment)
-        db.commit()
-        db.refresh(payment)
-        
-        # 调用微信支付服务获取支付参数
-        try:
-            # 获取用户openid
-            openid = current_user.wechat_openid
-            if not openid:
-                raise HTTPException(status_code=400, detail="请先使用微信登录")
+            # 这里简化验证，实际应该验证专门的支付密码
+            if not verify_password(data.payment_password, current_user.hashed_password):
+                raise HTTPException(status_code=400, detail="支付密码错误")
             
-            pay_params = await wechatpay_service.create_jsapi_payment(
-                db=db,
-                order=order,
+            # 检查余额（从数据库获取）
+            user_balance = current_user.prepaid_balance if current_user.prepaid_balance else Decimal("0")
+            
+            if user_balance < amount_to_pay:
+                raise HTTPException(status_code=400, detail=f"余额不足，当前余额：¥{user_balance}，需要支付：¥{amount_to_pay}")
+            
+            # 创建支付记录
+            payment = Payment(
+                payment_no=generate_payment_no(),
+                order_id=order.id,
+                order_no=order.order_no,
                 user_id=current_user.id,
-                openid=openid
+                payment_method="balance",
+                payment_channel="balance",
+                amount=amount_to_pay,
+                status="success",
+                paid_at=datetime.now()
             )
+            db.add(payment)
+            
+            # 更新订单状态
+            order.paid_fee = order.total_fee
+            order.status = "confirmed"
+            order.payment_method = "balance"
+            order.paid_at = datetime.now()
+            
+            # 记录状态变更
+            history = OrderStatusHistory(
+                order_id=order.id,
+                from_status="pending_payment",
+                to_status="confirmed",
+                operator_id=current_user.id,
+                operator_type="user",
+                remark="余额支付成功"
+            )
+            db.add(history)
+            
+            # 扣除用户余额
+            current_user.prepaid_balance = current_user.prepaid_balance - amount_to_pay
+            current_user.total_spent = (current_user.total_spent or Decimal("0")) + amount_to_pay
+            current_user.total_orders = (current_user.total_orders or 0) + 1
+            
+            db.commit()
+            db.refresh(payment)
             
             return SuccessResponse(data={
                 "payment_id": payment.id,
                 "payment_no": payment.payment_no,
-                **pay_params,  # 包含appId, timeStamp, nonceStr, package, signType, paySign
-                "status": "pending"
-            }, message="请在新页面完成支付")
+                "status": "success",
+                "message": "支付成功"
+            }, message="支付成功")
+        
+        # 支付宝支付
+        elif data.payment_method == "alipay":
+            try:
+                # 调用支付宝服务创建支付
+                # 根据平台选择H5或App支付
+                payment_type = data.payment_channel if hasattr(data, 'payment_channel') else "h5"
+                
+                if payment_type == "app":
+                    # App支付
+                    result = await alipay_service.create_app_payment(
+                        db=db,
+                        order_id=order.id,
+                        user_id=current_user.id,
+                        notify_url=data.notify_url if hasattr(data, 'notify_url') else None
+                    )
+                    
+                    return SuccessResponse(data={
+                        "payment_id": result["payment_id"],
+                        "order_string": result["order_string"],
+                        "out_trade_no": result["out_trade_no"],
+                        "status": "pending"
+                    }, message="请在新页面完成支付")
+                else:
+                    # H5/网页支付
+                    pay_url = await alipay_service.create_h5_payment(
+                        db=db,
+                        order_id=order.id,
+                        user_id=current_user.id,
+                        return_url=data.return_url if hasattr(data, 'return_url') else None,
+                        notify_url=data.notify_url if hasattr(data, 'notify_url') else None
+                    )
+                    
+                    return SuccessResponse(data={
+                        "pay_url": pay_url,
+                        "status": "pending"
+                    }, message="请在新页面完成支付")
+                    
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=f"创建支付失败: {str(e)}")
+        
+        # 微信支付
+        elif data.payment_method == "wechat":
+            # 创建支付记录
+            payment = Payment(
+                payment_no=generate_payment_no(),
+                order_id=order.id,
+                order_no=order.order_no,
+                user_id=current_user.id,
+                payment_method="wechat",
+                payment_channel="wechat_jsapi",
+                amount=amount_to_pay,
+                status="pending"
+            )
+            db.add(payment)
+            db.commit()
+            db.refresh(payment)
             
-        except Exception as e:
-            db.rollback()
-            raise HTTPException(status_code=500, detail=f"创建微信支付失败: {str(e)}")
-    
-    else:
-        raise HTTPException(status_code=400, detail="不支持的支付方式")
+            # 调用微信支付服务获取支付参数
+            try:
+                # 获取用户openid
+                openid = current_user.wechat_openid
+                if not openid:
+                    # 在Web端使用微信支付需要先绑定微信账号
+                    # 暂时返回提示信息
+                    db.rollback()
+                    raise HTTPException(status_code=400, detail="Web端暂不支持微信支付，请使用余额或支付宝支付")
+                
+                pay_params = await wechatpay_service.create_jsapi_payment(
+                    db=db,
+                    order=order,
+                    user_id=current_user.id,
+                    openid=openid
+                )
+                
+                return SuccessResponse(data={
+                    "payment_id": payment.id,
+                    "payment_no": payment.payment_no,
+                    **pay_params,  # 包含appId, timeStamp, nonceStr, package, signType, paySign
+                    "status": "pending"
+                }, message="请在新页面完成支付")
+                
+            except HTTPException:
+                raise
+            except Exception as e:
+                print(f"[微信支付] 创建支付失败: {str(e)}")
+                db.rollback()
+                raise HTTPException(status_code=500, detail=f"创建微信支付失败: {str(e)}")
+        
+        else:
+            raise HTTPException(status_code=400, detail="不支持的支付方式")
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[支付创建] 支付创建失败: {str(e)}")
+        print(traceback.format_exc())
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"支付创建失败: {str(e)}")
 
 
 @router.post("/balance-pay")

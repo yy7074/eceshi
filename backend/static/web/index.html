@@ -21,7 +21,7 @@
     <script src="https://unpkg.com/axios@1.6.7/dist/axios.min.js"></script>
     
     <!-- 自定义样式 -->
-    <link rel="stylesheet" href="./assets/css/style.css">
+    <link rel="stylesheet" href="/web/assets/css/style.css">
 </head>
 <body>
     <div id="app" v-cloak>
@@ -32,7 +32,7 @@
                 <div class="header-content">
                     <div class="header-left">
                         <h1 class="logo" @click="currentView = 'home'">
-                            <img src="./assets/images/logo.jpg" alt="ceshi" style="height: 40px; vertical-align: middle; margin-right: 8px;">
+                            <img src="/web/assets/images/logo.jpg" alt="ceshi" style="height: 40px; vertical-align: middle; margin-right: 8px;">
                             <span>ceshi</span>
                         </h1>
                         <el-menu
@@ -432,7 +432,7 @@
             <div v-if="paymentOrder" class="payment-form">
                 <div class="payment-amount">
                     <div class="payment-label">支付金额</div>
-                    <div class="payment-value">¥{{ paymentOrder.total_amount }}</div>
+                    <div class="payment-value">¥{{ paymentOrder.total_fee || paymentOrder.total_amount || 0 }}</div>
                 </div>
                 <div class="payment-methods">
                     <div class="payment-method" :class="{ active: payMethod === 'balance' }" @click="payMethod = 'balance'">
@@ -513,7 +513,7 @@
     </div>
 
     <!-- 应用脚本 -->
-    <script src="./assets/js/app.js?v=20251221-3"></script>
+    <script src="/web/assets/js/app.js?v=20251221-3"></script>
 </body>
 </html>
 

@@ -191,15 +191,15 @@ class WeChatPayService:
             raise ValueError("未配置微信支付商户号或密钥，请在.env文件中配置WECHAT_MCH_ID和WECHAT_PAY_KEY")
         
         # 计算待支付金额（单位：分）
-        total_fee = int((order.total_amount - order.paid_amount) * 100)
-        
+        total_fee = int((order.total_fee - order.paid_fee) * 100)
+
         # 确保金额大于0
         if total_fee <= 0:
-            raise ValueError(f"订单支付金额必须大于0，当前金额: {order.total_amount - order.paid_amount}")
-        
+            raise ValueError(f"订单支付金额必须大于0，当前金额: {order.total_fee - order.paid_fee}")
+
         print(f"[订单支付] 创建微信支付订单:")
         print(f"  - 订单号: {order.order_no}")
-        print(f"  - 支付金额: {order.total_amount - order.paid_amount}元 ({total_fee}分)")
+        print(f"  - 支付金额: {order.total_fee - order.paid_fee}元 ({total_fee}分)")
         print(f"  - 用户OpenID: {openid}")
         print(f"  - 商户号: {self.mch_id}")
         
@@ -330,7 +330,7 @@ class WeChatPayService:
             
             # 更新订单状态
             order.status = 'paid'
-            order.paid_amount = order.total_amount
+            order.paid_fee = order.total_fee
             order.paid_at = datetime.now()
             
             db.commit()
