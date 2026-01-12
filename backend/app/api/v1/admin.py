@@ -2430,6 +2430,22 @@ class CertificationReviewRequest(BaseModel):
     credit_limit: Optional[float] = 3000.0  # 默认授予3000元信用额度
 
 
+class BannerCreate(BaseModel):
+    title: Optional[str] = None
+    image: str
+    link: Optional[str] = None
+    sort_order: int = 0
+    is_active: bool = True
+
+
+class BannerUpdate(BaseModel):
+    title: Optional[str] = None
+    image: Optional[str] = None
+    link: Optional[str] = None
+    sort_order: Optional[int] = None
+    is_active: Optional[bool] = None
+
+
 @router.put("/certifications/{cert_id}/review", summary="审核实名认证（管理员）")
 async def review_certification_admin(
     cert_id: int,
@@ -4489,8 +4505,8 @@ async def get_admin_banners(
         "items": [{
             "id": b.id,
             "title": b.title if hasattr(b, 'title') else "",
-            "image_url": b.image if hasattr(b, 'image') else "",
-            "link_url": b.link_value if hasattr(b, 'link_value') else "",
+            "image": b.image if hasattr(b, 'image') else "",
+            "link": b.link_value if hasattr(b, 'link_value') else "",
             "sort_order": b.sort_order if hasattr(b, 'sort_order') else 0,
             "is_active": b.is_active if hasattr(b, 'is_active') else True,
             "created_at": b.created_at.isoformat() if b.created_at else None
@@ -4500,23 +4516,23 @@ async def get_admin_banners(
 
 @router.post("/banners", summary="创建轮播图")
 async def create_admin_banner(
-    title: str = Query(None),
-    image_url: str = Query(...),
-    link_url: str = Query(None),
-    sort_order: int = Query(0),
+    data: BannerCreate = Body(...),
     db: Session = Depends(get_db),
     current_admin: User = Depends(get_current_admin_user)
 ):
     """创建轮播图"""
     from app.models.banner import Banner
 
-    banner = Banner(image_url=image_url)
-    if title and hasattr(banner, 'title'):
-        banner.title = title
-    if link_url and hasattr(banner, 'link_url'):
-        banner.link_url = link_url
+    banner = Banner(
+        image=data.image,
+        title=data.title or ""
+    )
+    if data.link:
+        banner.link_value = data.link
     if hasattr(banner, 'sort_order'):
-        banner.sort_order = sort_order
+        banner.sort_order = data.sort_order
+    if hasattr(banner, 'is_active'):
+        banner.is_active = data.is_active
 
     db.add(banner)
     db.commit()
@@ -4528,10 +4544,7 @@ async def create_admin_banner(
 @router.put("/banners/{banner_id}", summary="更新轮播图")
 async def update_admin_banner(
     banner_id: int,
-    title: str = Query(None),
-    image_url: str = Query(None),
-    link_url: str = Query(None),
-    sort_order: int = Query(None),
+    data: BannerUpdate = Body(...),
     db: Session = Depends(get_db),
     current_admin: User = Depends(get_current_admin_user)
 ):
@@ -4542,14 +4555,16 @@ async def update_admin_banner(
     if not banner:
         return Response.error(message="轮播图不存在")
 
-    if title is not None and hasattr(banner, 'title'):
-        banner.title = title
-    if image_url:
-        banner.image_url = image_url
-    if link_url is not None and hasattr(banner, 'link_url'):
-        banner.link_url = link_url
-    if sort_order is not None and hasattr(banner, 'sort_order'):
-        banner.sort_order = sort_order
+    if data.title is not None and hasattr(banner, 'title'):
+        banner.title = data.title
+    if data.image is not None:
+        banner.image = data.image
+    if data.link is not None and hasattr(banner, 'link_value'):
+        banner.link_value = data.link
+    if data.sort_order is not None and hasattr(banner, 'sort_order'):
+        banner.sort_order = data.sort_order
+    if data.is_active is not None and hasattr(banner, 'is_active'):
+        banner.is_active = data.is_active
 
     db.commit()
     return Response.success(message="更新成功")
@@ -4558,7 +4573,7 @@ async def update_admin_banner(
 @router.put("/banners/{banner_id}/status", summary="修改轮播图状态")
 async def update_banner_status(
     banner_id: int,
-    is_active: bool = Query(...),
+    data: dict = Body(...),
     db: Session = Depends(get_db),
     current_admin: User = Depends(get_current_admin_user)
 ):
@@ -4569,7 +4584,8 @@ async def update_banner_status(
     if not banner:
         return Response.error(message="轮播图不存在")
 
-    if hasattr(banner, 'is_active'):
+    is_active = data.get('is_active')
+    if is_active is not None and hasattr(banner, 'is_active'):
         banner.is_active = is_active
     db.commit()
 
