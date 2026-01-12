@@ -10,7 +10,7 @@ import enum
 from app.core.database import Base
 
 
-class LabStatus(enum.Enum):
+class LabStatus(str, enum.Enum):
     """实验室状态"""
     PENDING = "pending"  # 待审核
     APPROVED = "approved"  # 已通过
@@ -20,13 +20,14 @@ class LabStatus(enum.Enum):
     CLOSED = "closed"  # 已关闭
 
 
-class LabType(enum.Enum):
+class LabType(str, enum.Enum):
     """实验室类型"""
     UNIVERSITY = "university"  # 高校实验室
     RESEARCH = "research"  # 科研机构
     ENTERPRISE = "enterprise"  # 企业实验室
     THIRD_PARTY = "third_party"  # 第三方检测机构
     HOSPITAL = "hospital"  # 医院实验室
+    PLATFORM = "platform"  # 平台自营
 
 
 class Laboratory(Base):
@@ -45,15 +46,15 @@ class Laboratory(Base):
 
     # 类型和状态
     lab_type = Column(
-        Enum(LabType),
-        default=LabType.UNIVERSITY,
+        String(50),
+        default="university",
         comment="实验室类型"
     )
     type = Column(String(50), comment="类型(旧)")
     level = Column(String(50), comment="级别")
     status = Column(
-        Enum(LabStatus),
-        default=LabStatus.PENDING,
+        String(50),
+        default="pending",
         index=True,
         comment="状态"
     )
@@ -129,8 +130,8 @@ class LabApplication(Base):
     # 实验室信息
     lab_name = Column(String(200), nullable=False, comment="实验室名称")
     lab_type = Column(
-        Enum(LabType),
-        default=LabType.UNIVERSITY,
+        String(50),
+        default="university",
         comment="实验室类型"
     )
     institution = Column(String(200), comment="所属机构")
