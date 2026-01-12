@@ -2768,8 +2768,8 @@ async def get_laboratories_admin(
                 "name": lab.name,
                 "code": lab.code,
                 "logo": lab.logo,
-                "lab_type": lab.lab_type.value if lab.lab_type else None,
-                "status": lab.status.value if lab.status else None,
+                "lab_type": lab.lab_type if lab.lab_type else None,
+                "status": lab.status if lab.status else None,
                 "institution": lab.institution,
                 "province": lab.province,
                 "city": lab.city,
@@ -3794,17 +3794,14 @@ async def get_order_trend(
         if order.created_at:
             key = order.created_at.strftime(group_format)
             if key not in trend_data:
-                trend_data[key] = {"date": key, "count": 0, "amount": 0}
-            trend_data[key]["count"] += 1
+                trend_data[key] = {"date": key, "order_count": 0, "amount": 0}
+            trend_data[key]["order_count"] += 1
             trend_data[key]["amount"] += float(order.total_fee or 0)
 
     # 排序并返回
     sorted_data = sorted(trend_data.values(), key=lambda x: x["date"])
 
-    return Response.success(data={
-        "time_range": time_range,
-        "trend": sorted_data
-    })
+    return Response.success(data=sorted_data)
 
 
 @router.get("/reports/project-ranking", summary="获取项目排行")
@@ -3839,18 +3836,15 @@ async def get_project_ranking(
         desc("order_count")
     ).limit(limit).all()
 
-    return Response.success(data={
-        "time_range": time_range,
-        "ranking": [
-            {
-                "project_id": r.project_id,
-                "project_name": r.project_name,
-                "order_count": r.order_count,
-                "total_amount": float(r.total_amount or 0)
-            }
-            for r in ranking
-        ]
-    })
+    return Response.success(data=[
+        {
+            "project_id": r.project_id,
+            "project_name": r.project_name,
+            "order_count": r.order_count,
+            "total_amount": float(r.total_amount or 0)
+        }
+        for r in ranking
+    ])
 
 
 @router.get("/reports/lab-performance", summary="获取实验室业绩")
@@ -4355,27 +4349,27 @@ async def get_equipment_list(
     current_admin: User = Depends(get_current_admin_user)
 ):
     """获取设备列表"""
-    from app.models.laboratory import Equipment, Laboratory
+    from app.models.laboratory import LabEquipment, Laboratory
 
-    query = db.query(Equipment)
+    query = db.query(LabEquipment)
 
     if lab_id:
-        query = query.filter(Equipment.lab_id == lab_id)
+        query = query.filter(LabEquipment.laboratory_id == lab_id)
 
     if keyword:
-        query = query.filter(Equipment.name.contains(keyword))
+        query = query.filter(LabEquipment.name.contains(keyword))
 
     total = query.count()
-    equipment_list = query.order_by(Equipment.id.desc()).offset((page - 1) * page_size).limit(page_size).all()
+    equipment_list = query.order_by(LabEquipment.id.desc()).offset((page - 1) * page_size).limit(page_size).all()
 
     return Response.success(data={
         "items": [{
             "id": e.id,
             "name": e.name,
             "model": e.model if hasattr(e, 'model') else "",
-            "lab_id": e.lab_id,
+            "lab_id": e.laboratory_id,
             "lab_name": e.laboratory.name if e.laboratory else "",
-            "status": e.status.value if hasattr(e, 'status') and e.status else "normal",
+            "status": e.status if hasattr(e, 'status') and e.status else "available",
             "created_at": e.created_at.isoformat() if e.created_at else None
         } for e in equipment_list],
         "total": total,
@@ -4394,11 +4388,11 @@ async def create_equipment(
     current_admin: User = Depends(get_current_admin_user)
 ):
     """创建设备"""
-    from app.models.laboratory import Equipment
+    from app.models.laboratory import LabEquipment
 
-    equipment = Equipment(
+    equipment = LabEquipment(
         name=name,
-        lab_id=lab_id
+        laboratory_id=lab_id
     )
     if model and hasattr(equipment, 'model'):
         equipment.model = model
@@ -4422,9 +4416,9 @@ async def update_equipment(
     current_admin: User = Depends(get_current_admin_user)
 ):
     """更新设备"""
-    from app.models.laboratory import Equipment
+    from app.models.laboratory import LabEquipment
 
-    equipment = db.query(Equipment).filter(Equipment.id == equipment_id).first()
+    equipment = db.query(LabEquipment).filter(LabEquipment.id == equipment_id).first()
     if not equipment:
         return Response.error(message="设备不存在")
 
@@ -4446,9 +4440,9 @@ async def delete_equipment(
     current_admin: User = Depends(get_current_admin_user)
 ):
     """删除设备"""
-    from app.models.laboratory import Equipment
+    from app.models.laboratory import LabEquipment
 
-    equipment = db.query(Equipment).filter(Equipment.id == equipment_id).first()
+    equipment = db.query(LabEquipment).filter(LabEquipment.id == equipment_id).first()
     if not equipment:
         return Response.error(message="设备不存在")
 
@@ -4465,18 +4459,18 @@ async def update_equipment_status(
     current_admin: User = Depends(get_current_admin_user)
 ):
     """修改设备状态"""
-    from app.models.laboratory import Equipment, EquipmentStatus
+    from app.models.laboratory import LabEquipment
 
-    equipment = db.query(Equipment).filter(Equipment.id == equipment_id).first()
+    equipment = db.query(LabEquipment).filter(LabEquipment.id == equipment_id).first()
     if not equipment:
         return Response.error(message="设备不存在")
 
     try:
-        equipment.status = EquipmentStatus(status)
+        equipment.status = status
         db.commit()
         return Response.success(message="状态更新成功")
-    except ValueError:
-        return Response.error(message="无效的状态值")
+    except Exception as e:
+        return Response.error(message=f"状态更新失败: {str(e)}")
 
 
 # ==================== 轮播图管理 ====================
@@ -4495,8 +4489,8 @@ async def get_admin_banners(
         "items": [{
             "id": b.id,
             "title": b.title if hasattr(b, 'title') else "",
-            "image_url": b.image_url,
-            "link_url": b.link_url if hasattr(b, 'link_url') else "",
+            "image_url": b.image if hasattr(b, 'image') else "",
+            "link_url": b.link_value if hasattr(b, 'link_value') else "",
             "sort_order": b.sort_order if hasattr(b, 'sort_order') else 0,
             "is_active": b.is_active if hasattr(b, 'is_active') else True,
             "created_at": b.created_at.isoformat() if b.created_at else None
@@ -4934,9 +4928,9 @@ async def get_franchise_applications(
     return Response.success(data={
         "items": [{
             "id": a.id,
-            "company_name": a.company_name if hasattr(a, 'company_name') else "",
-            "contact_name": a.contact_name if hasattr(a, 'contact_name') else "",
-            "contact_phone": a.contact_phone if hasattr(a, 'contact_phone') else "",
+            "company_name": a.company if hasattr(a, 'company') else "",
+            "contact_name": a.name if hasattr(a, 'name') else "",
+            "contact_phone": a.phone if hasattr(a, 'phone') else "",
             "status": a.status if hasattr(a, 'status') else "pending",
             "created_at": a.created_at.isoformat() if a.created_at else None
         } for a in applications],
@@ -4952,16 +4946,19 @@ async def get_franchisees(
     current_admin: User = Depends(get_current_admin_user)
 ):
     """获取加盟商列表"""
-    from app.models.franchise import Franchisee
+    from app.models.franchise import FranchiseApplication
 
-    franchisees = db.query(Franchisee).order_by(Franchisee.id.desc()).all()
+    # 使用已批准的加盟申请作为加盟商列表
+    franchisees = db.query(FranchiseApplication).filter(
+        FranchiseApplication.status == "approved"
+    ).order_by(FranchiseApplication.id.desc()).all()
 
     return Response.success(data={
         "items": [{
             "id": f.id,
-            "company_name": f.company_name if hasattr(f, 'company_name') else "",
-            "contact_name": f.contact_name if hasattr(f, 'contact_name') else "",
-            "contact_phone": f.contact_phone if hasattr(f, 'contact_phone') else "",
+            "company_name": f.company if hasattr(f, 'company') else "",
+            "contact_name": f.name if hasattr(f, 'name') else "",
+            "contact_phone": f.phone if hasattr(f, 'phone') else "",
             "status": f.status if hasattr(f, 'status') else "active",
             "created_at": f.created_at.isoformat() if f.created_at else None
         } for f in franchisees]
@@ -4975,7 +4972,7 @@ async def approve_franchise_application(
     current_admin: User = Depends(get_current_admin_user)
 ):
     """批准加盟申请"""
-    from app.models.franchise import FranchiseApplication, Franchisee
+    from app.models.franchise import FranchiseApplication
 
     application = db.query(FranchiseApplication).filter(FranchiseApplication.id == app_id).first()
     if not application:
@@ -4984,16 +4981,6 @@ async def approve_franchise_application(
     if hasattr(application, 'status'):
         application.status = "approved"
 
-    # 创建加盟商
-    franchisee = Franchisee()
-    if hasattr(application, 'company_name') and hasattr(franchisee, 'company_name'):
-        franchisee.company_name = application.company_name
-    if hasattr(application, 'contact_name') and hasattr(franchisee, 'contact_name'):
-        franchisee.contact_name = application.contact_name
-    if hasattr(application, 'contact_phone') and hasattr(franchisee, 'contact_phone'):
-        franchisee.contact_phone = application.contact_phone
-
-    db.add(franchisee)
     db.commit()
 
     return Response.success(message="申请已批准")
