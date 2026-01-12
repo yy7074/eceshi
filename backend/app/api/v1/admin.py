@@ -891,7 +891,7 @@ async def get_suitable_labs_for_order(
 
     # 获取所有活跃的实验室
     labs = db.query(Laboratory).filter(
-        Laboratory.status == "active"
+        Laboratory.status == LabStatus.ACTIVE
     ).all()
 
     lab_list = []
@@ -904,15 +904,24 @@ async def get_suitable_labs_for_order(
             # 实际应用中可以根据项目类型匹配实验室专长
             pass
 
+        # 获取当前任务数（未完成的订单数）
+        current_tasks = db.query(Order).filter(
+            Order.assigned_lab_id == lab.id,
+            Order.status.in_(["assigned", "accepted", "testing"])
+        ).count()
+
         lab_list.append({
             "id": lab.id,
             "name": lab.name,
             "code": lab.code,
+            "director": lab.contact_name or lab.contact_person or "",
             "institution": lab.institution,
             "province": lab.province,
             "city": lab.city,
+            "status": lab.status,
             "rating": float(lab.rating) if lab.rating else 5.0,
             "completed_orders": lab.completed_orders or 0,
+            "current_tasks": current_tasks,
             "commission_rate": float(lab.commission_rate) if lab.commission_rate else 20.0,
             "match_score": match_score
         })
@@ -1576,35 +1585,53 @@ async def get_reviews_admin(
     current_admin: User = Depends(get_current_admin_user)
 ):
     """管理员获取评价列表"""
+    from app.models.project import ProjectReview
+    
     query = db.query(ProjectReview)
     
     if status:
         query = query.filter(ProjectReview.status == status)
     
+    if search:
+        query = query.join(User).filter(
+            or_(
+                User.nickname.like(f"%{search}%"),
+                User.phone.like(f"%{search}%"),
+                ProjectReview.content.like(f"%{search}%")
+            )
+        )
+    
     total = query.count()
     reviews = query.order_by(desc(ProjectReview.created_at)).offset((page - 1) * page_size).limit(page_size).all()
     
     # 获取关联信息
-    user_ids = [r.user_id for r in reviews]
-    project_ids = [r.project_id for r in reviews]
-    users = {u.id: u for u in db.query(User).filter(User.id.in_(user_ids)).all()}
-    projects = {p.id: p for p in db.query(Project).filter(Project.id.in_(project_ids)).all()}
+    user_ids = list(set([r.user_id for r in reviews if r.user_id]))
+    project_ids = list(set([r.project_id for r in reviews if r.project_id]))
+    
+    users = {}
+    projects = {}
+    
+    if user_ids:
+        users = {u.id: u for u in db.query(User).filter(User.id.in_(user_ids)).all()}
+    
+    if project_ids:
+        projects = {p.id: p for p in db.query(Project).filter(Project.id.in_(project_ids)).all()}
     
     return Response.success(data={
         "items": [
             {
                 "id": r.id,
                 "user_id": r.user_id,
-                "user_nickname": users.get(r.user_id).nickname if users.get(r.user_id) else None,
+                "user_nickname": (users.get(r.user_id).nickname if users.get(r.user_id) else None) if r.user_id else None,
                 "project_id": r.project_id,
-                "project_name": projects.get(r.project_id).name if projects.get(r.project_id) else None,
+                "project_name": (projects.get(r.project_id).name if projects.get(r.project_id) else None) if r.project_id else None,
                 "order_id": r.order_id,
                 "rating": r.rating,
-                "content": r.content,
-                "images": r.images,
-                "reply_content": r.reply_content,
-                "is_anonymous": r.is_anonymous,
-                "status": r.status,
+                "content": r.content or "",
+                "images": r.images or [],
+                "reply_content": r.reply_content or "",
+                "is_anonymous": False,  # 数据库表中没有此字段
+                "status": r.status or "pending",
                 "created_at": r.created_at.isoformat() if r.created_at else None
             }
             for r in reviews

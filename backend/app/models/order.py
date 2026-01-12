@@ -35,6 +35,8 @@ class Order(Base):
     assigned_lab_id = Column(BigInteger, comment="指派实验室ID")
     assigned_user_id = Column(BigInteger, comment="指派操作员ID")
     assigned_at = Column(DateTime, comment="指派时间")
+    assigned_staff_id = Column(BigInteger, comment="指派实验人员ID")
+    assigned_staff_name = Column(String(50), comment="指派实验人员姓名")
 
     # 费用信息
     project_fee = Column(Numeric(10, 2), nullable=False, comment="项目费用")

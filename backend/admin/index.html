@@ -3637,10 +3637,21 @@
                             headers: this.uploadHeaders,
                             params: { page: this.reviewPage, page_size: this.reviewPageSize, status: this.reviewStatusFilter || undefined }
                         })
-                        this.reviewList = res.data.data.items || []
-                        this.reviewTotal = res.data.data.total || 0
-                    } catch (error) { ElMessage.error('加载评价失败') }
-                    finally { this.reviewLoading = false }
+                        if (res.data && res.data.data) {
+                            this.reviewList = res.data.data.items || []
+                            this.reviewTotal = res.data.data.total || 0
+                        } else {
+                            this.reviewList = []
+                            this.reviewTotal = 0
+                        }
+                    } catch (error) {
+                        console.error('加载评价失败:', error)
+                        ElMessage.error(error.response?.data?.detail || error.message || '加载评价失败')
+                        this.reviewList = []
+                        this.reviewTotal = 0
+                    } finally {
+                        this.reviewLoading = false
+                    }
                 },
                 async replyReview(review) {
                     const { value } = await ElMessageBox.prompt('请输入回复内容', '回复评价', { inputValue: review.reply_content || '' })
@@ -4263,7 +4274,7 @@
                     this.labRecommendLoading = true
                     try {
                         const res = await axios.get(`${this.baseUrl}/api/v1/admin/orders/${order.id}/suitable-labs`, { headers: this.uploadHeaders })
-                        this.suitableLabs = res.data.data || []
+                        this.suitableLabs = res.data.data?.laboratories || []
                     } catch (error) {
                         console.error('加载推荐实验室失败', error)
                         // 如果API失败，使用全部实验室

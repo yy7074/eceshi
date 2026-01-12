@@ -99,23 +99,20 @@ class ProjectReview(Base):
     
     # 关联信息
     project_id = Column(BigInteger, nullable=False, index=True, comment="项目ID")
-    order_id = Column(BigInteger, nullable=False, index=True, comment="订单ID")
+    order_id = Column(BigInteger, index=True, comment="订单ID")
     user_id = Column(BigInteger, nullable=False, index=True, comment="用户ID")
-    lab_id = Column(BigInteger, nullable=False, comment="实验室ID")
     
     # 评价内容
     rating = Column(Integer, nullable=False, comment="评分1-5")
     content = Column(Text, comment="评价内容")
-    tags = Column(JSON, comment="评价标签")
     images = Column(JSON, comment="评价图片")
     
-    # 回复
-    reply_content = Column(Text, comment="商家回复")
-    reply_time = Column(DateTime, comment="回复时间")
+    # 回复（数据库字段名是 reply 和 reply_at）
+    reply_content = Column("reply", Text, comment="商家回复")
+    reply_time = Column("reply_at", DateTime, comment="回复时间")
     
     # 状态
-    is_anonymous = Column(Boolean, default=False, comment="是否匿名")
-    status = Column(String(20), default="published", comment="状态")
+    status = Column(String(20), default="pending", comment="状态")
     
     created_at = Column(DateTime, server_default=func.now(), comment="创建时间")
 

@@ -403,10 +403,23 @@ def init_test_data():
         # 9. 创建积分商品
         print("\n🎁 创建积分商品...")
         points_goods_data = [
-            {"name": "满100减10优惠券", "points": 100, "type": "coupon", "stock": 1000},
-            {"name": "满500减50优惠券", "points": 500, "type": "coupon", "stock": 500},
-            {"name": "京东E卡50元", "points": 2000, "type": "gift", "stock": 100},
-            {"name": "京东E卡100元", "points": 3500, "type": "gift", "stock": 50},
+            # 优惠券类
+            {"name": "满100减10优惠券", "points": 100, "category": "优惠券", "stock": 1000, "description": "满100元可用，立减10元", "sort_order": 1},
+            {"name": "满500减50优惠券", "points": 500, "category": "优惠券", "stock": 500, "description": "满500元可用，立减50元", "sort_order": 2},
+            {"name": "500元测试现金抵用券", "points": 13440, "category": "优惠券", "stock": 50, "description": "测试专用，价值500元现金抵用券", "sort_order": 3},
+            {"name": "100元测试现金抵用券", "points": 2688, "category": "优惠券", "stock": 100, "description": "测试专用，价值100元现金抵用券", "sort_order": 4},
+            # 京东E卡类
+            {"name": "京东E卡50元", "points": 2000, "category": "京东E卡", "stock": 100, "description": "京东购物卡，面值50元", "sort_order": 5},
+            {"name": "京东E卡100元", "points": 3500, "category": "京东E卡", "stock": 50, "description": "京东购物卡，面值100元", "sort_order": 6},
+            # 实物礼品类
+            {"name": "小熊电煮锅", "points": 3032, "category": "实物礼", "stock": 30, "description": "小熊多功能电煮锅，1.5L容量，适合宿舍使用", "sort_order": 7},
+            {"name": "小米电动牙刷T200", "points": 3544, "category": "实物礼", "stock": 25, "description": "小米米家电动牙刷，声波震动，2分钟智能定时", "sort_order": 8},
+            {"name": "骨传导耳机", "points": 6638, "category": "实物礼", "stock": 20, "description": "骨传导运动耳机，不入耳设计，适合运动使用", "sort_order": 9},
+            {"name": "苏泊尔养生壶", "points": 5794, "category": "实物礼", "stock": 15, "description": "苏泊尔多功能养生壶，1.5L容量，24小时预约", "sort_order": 10},
+            # 测试商品
+            {"name": "测试商品A", "points": 500, "category": "测试商品", "stock": 999, "description": "测试用商品A，积分500", "sort_order": 11},
+            {"name": "测试商品B", "points": 1000, "category": "测试商品", "stock": 999, "description": "测试用商品B，积分1000", "sort_order": 12},
+            {"name": "测试商品C", "points": 2000, "category": "测试商品", "stock": 999, "description": "测试用商品C，积分2000", "sort_order": 13},
         ]
         
         for goods_data in points_goods_data:
@@ -414,13 +427,15 @@ def init_test_data():
             if not existing:
                 goods = PointsGoods(
                     name=goods_data["name"],
-                    points_required=goods_data["points"],
-                    goods_type=goods_data["type"],
+                    points=goods_data["points"],
+                    category=goods_data["category"],
                     stock=goods_data["stock"],
-                    status="active"
+                    description=goods_data.get("description", ""),
+                    sort_order=goods_data.get("sort_order", 0),
+                    is_active=True
                 )
                 db.add(goods)
-                print(f"  ✅ 创建积分商品: {goods_data['name']}")
+                print(f"  ✅ 创建积分商品: {goods_data['name']} ({goods_data['points']}积分)")
         
         db.commit()
         
