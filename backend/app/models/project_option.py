@@ -37,7 +37,7 @@ class ProjectOption(Base):
     category_id = Column(BigInteger, index=True, comment="关联分类ID（与project_id二选一）")
 
     # 树形结构
-    parent_id = Column(BigInteger, index=True, comment="父选项ID（null为根选项）")
+    parent_id = Column(BigInteger, ForeignKey("project_options.id"), index=True, comment="父选项ID（null为根选项）")
     level = Column(Integer, default=1, comment="层级深度")
     path = Column(String(500), comment="物化路径 如 /1/5/12/")
 
@@ -69,12 +69,13 @@ class ProjectOption(Base):
     created_at = Column(DateTime, server_default=func.now(), comment="创建时间")
     updated_at = Column(DateTime, onupdate=func.now(), comment="更新时间")
 
-    # 自引用关系
-    parent = relationship(
+    # 自引用关系 - 获取子选项
+    children = relationship(
         "ProjectOption",
-        remote_side=[id],
-        backref="children",
-        foreign_keys=[parent_id]
+        backref="parent",
+        remote_side="ProjectOption.id",
+        cascade="all, delete-orphan",
+        single_parent=True
     )
 
 
@@ -88,8 +89,8 @@ class OrderOptionSelection(Base):
     id = Column(BigInteger, primary_key=True, index=True, autoincrement=True)
 
     # 关联
-    order_id = Column(BigInteger, nullable=False, index=True, comment="订单ID")
-    option_id = Column(BigInteger, nullable=False, index=True, comment="选项ID")
+    order_id = Column(BigInteger, ForeignKey("orders.id"), nullable=False, index=True, comment="订单ID")
+    option_id = Column(BigInteger, ForeignKey("project_options.id"), nullable=False, index=True, comment="选项ID")
 
     # 选项信息快照（用于历史记录）
     option_name = Column(String(200), comment="选项名称快照")
@@ -104,4 +105,4 @@ class OrderOptionSelection(Base):
     created_at = Column(DateTime, server_default=func.now(), comment="创建时间")
 
     # 关系
-    option = relationship("ProjectOption", foreign_keys=[option_id], primaryjoin="OrderOptionSelection.option_id == ProjectOption.id")
+    option = relationship("ProjectOption")

@@ -74,6 +74,42 @@ async def get_current_certified_user(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="需要完成实名认证"
         )
-    
+
     return current_user
+
+
+# 可选的Bearer认证
+security_optional = HTTPBearer(auto_error=False)
+
+
+async def get_current_user_optional(
+    credentials: HTTPAuthorizationCredentials = Depends(security_optional),
+    db: Session = Depends(get_db)
+) -> User:
+    """
+    可选的用户认证
+    如果提供了有效的令牌则返回用户，否则返回None
+    用于同时支持登录和未登录用户的接口
+    """
+    if not credentials:
+        return None
+
+    token = credentials.credentials
+
+    # 解码JWT令牌
+    payload = decode_access_token(token)
+    if not payload:
+        return None
+
+    # 获取用户ID
+    user_id = payload.get("user_id")
+    if not user_id:
+        return None
+
+    # 查询用户
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user or user.status.value != "active":
+        return None
+
+    return user
 
