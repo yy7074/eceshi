@@ -15,6 +15,7 @@ from decimal import Decimal
 import json
 from datetime import datetime
 import logging
+import time
 
 from app.core.config import settings
 from app.models.order import Order, Payment
@@ -87,6 +88,9 @@ class AlipayService:
         # 生成商户订单号
         out_trade_no = f"ORDER_{order_id}_{datetime.now().strftime('%Y%m%d%H%M%S')}"
         
+        # 生成支付单号
+        payment_no = f"PAY{int(time.time())}{int(time.time() * 1000000) % 1000000}"
+        
         # 订单信息
         subject = f"科研检测订单-{order.order_no}"
         body = f"订单号: {order.order_no}"
@@ -94,11 +98,13 @@ class AlipayService:
         
         # 创建支付记录
         payment = Payment(
+            payment_no=payment_no,
             order_id=order_id,
+            order_no=order.order_no,
             user_id=user_id,
             payment_method="alipay",
             amount=order.total_fee,
-            transaction_id=out_trade_no,
+            trade_no=out_trade_no,
             status="pending"
         )
         
@@ -170,6 +176,9 @@ class AlipayService:
         # 生成商户订单号
         out_trade_no = f"ORDER_{order_id}_{datetime.now().strftime('%Y%m%d%H%M%S')}"
         
+        # 生成支付单号
+        payment_no = f"PAY{int(time.time())}{int(time.time() * 1000000) % 1000000}"
+        
         # 订单信息
         subject = f"科研检测订单-{order.order_no}"
         body = f"订单号: {order.order_no}"
@@ -177,11 +186,13 @@ class AlipayService:
         
         # 创建支付记录
         payment = Payment(
+            payment_no=payment_no,
             order_id=order_id,
+            order_no=order.order_no,
             user_id=user_id,
             payment_method="alipay",
             amount=order.total_fee,
-            transaction_id=out_trade_no,
+            trade_no=out_trade_no,
             status="pending"
         )
         
@@ -289,8 +300,8 @@ class AlipayService:
             out_trade_no = notify_data.get("out_trade_no")
             
             # 验证商户订单号
-            if payment.transaction_id != out_trade_no:
-                logger.error(f"商户订单号不匹配: {payment.transaction_id} != {out_trade_no}")
+            if payment.trade_no != out_trade_no:
+                logger.error(f"商户订单号不匹配: {payment.trade_no} != {out_trade_no}")
                 return False
             
             # 处理支付状态
@@ -414,7 +425,7 @@ class AlipayService:
             # 调用支付宝退款接口
             request = AlipayTradeRefundRequest()
             biz_content = {
-                "out_trade_no": payment.transaction_id,
+                "out_trade_no": payment.trade_no,
                 "refund_amount": str(refund_amount),
                 "out_request_no": out_refund_no,
                 "refund_reason": refund_reason
@@ -426,12 +437,15 @@ class AlipayService:
             
             if result.get("code") == "10000":
                 # 退款成功，创建退款记录
+                refund_payment_no = f"REF{int(time.time())}{int(time.time() * 1000000) % 1000000}"
                 refund_payment = Payment(
+                    payment_no=refund_payment_no,
                     order_id=payment.order_id,
+                    order_no=payment.order_no,
                     user_id=payment.user_id,
                     payment_method="alipay",
                     amount=-refund_amount,  # 负数表示退款
-                    transaction_id=out_refund_no,
+                    trade_no=out_refund_no,
                     status="refunded"
                 )
                 

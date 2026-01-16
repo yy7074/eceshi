@@ -128,6 +128,13 @@ async def create_payment(
         # 支付宝支付
         elif data.payment_method == "alipay":
             try:
+                # 检查支付宝服务是否已配置
+                if not alipay_service.alipay_client:
+                    raise HTTPException(
+                        status_code=400, 
+                        detail="支付宝服务未配置，请联系管理员配置支付宝支付参数"
+                    )
+                
                 # 调用支付宝服务创建支付
                 # 根据平台选择H5或App支付
                 payment_type = data.payment_channel if hasattr(data, 'payment_channel') else "h5"
@@ -157,61 +164,35 @@ async def create_payment(
                         notify_url=data.notify_url if hasattr(data, 'notify_url') else None
                     )
                     
+                    # 验证返回的URL格式
+                    if not pay_url or not isinstance(pay_url, str):
+                        raise HTTPException(status_code=500, detail="支付宝返回的支付链接格式错误")
+                    
+                    if not pay_url.startswith('http'):
+                        raise HTTPException(status_code=500, detail="支付宝返回的支付链接无效")
+                    
                     return SuccessResponse(data={
                         "pay_url": pay_url,
                         "status": "pending"
                     }, message="请在新页面完成支付")
                     
+            except HTTPException:
+                raise
+            except ValueError as e:
+                # 支付宝服务抛出的ValueError（如配置错误、订单状态错误等）
+                raise HTTPException(status_code=400, detail=str(e))
             except Exception as e:
-                raise HTTPException(status_code=500, detail=f"创建支付失败: {str(e)}")
+                print(f"[支付宝支付] 创建支付失败: {str(e)}")
+                print(traceback.format_exc())
+                raise HTTPException(status_code=500, detail=f"创建支付宝支付失败: {str(e)}")
         
         # 微信支付
         elif data.payment_method == "wechat":
-            # 创建支付记录
-            payment = Payment(
-                payment_no=generate_payment_no(),
-                order_id=order.id,
-                order_no=order.order_no,
-                user_id=current_user.id,
-                payment_method="wechat",
-                payment_channel="wechat_jsapi",
-                amount=amount_to_pay,
-                status="pending"
+            # Web端不支持微信支付
+            raise HTTPException(
+                status_code=400, 
+                detail="Web端暂不支持微信支付，请使用余额或支付宝支付"
             )
-            db.add(payment)
-            db.commit()
-            db.refresh(payment)
-            
-            # 调用微信支付服务获取支付参数
-            try:
-                # 获取用户openid
-                openid = current_user.wechat_openid
-                if not openid:
-                    # 在Web端使用微信支付需要先绑定微信账号
-                    # 暂时返回提示信息
-                    db.rollback()
-                    raise HTTPException(status_code=400, detail="Web端暂不支持微信支付，请使用余额或支付宝支付")
-                
-                pay_params = await wechatpay_service.create_jsapi_payment(
-                    db=db,
-                    order=order,
-                    user_id=current_user.id,
-                    openid=openid
-                )
-                
-                return SuccessResponse(data={
-                    "payment_id": payment.id,
-                    "payment_no": payment.payment_no,
-                    **pay_params,  # 包含appId, timeStamp, nonceStr, package, signType, paySign
-                    "status": "pending"
-                }, message="请在新页面完成支付")
-                
-            except HTTPException:
-                raise
-            except Exception as e:
-                print(f"[微信支付] 创建支付失败: {str(e)}")
-                db.rollback()
-                raise HTTPException(status_code=500, detail=f"创建微信支付失败: {str(e)}")
         
         else:
             raise HTTPException(status_code=400, detail="不支持的支付方式")

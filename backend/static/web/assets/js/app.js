@@ -2646,13 +2646,24 @@ createApp({
                     ElMessage.success('支付成功')
                     this.showPayment = false
                     this.currentView = 'orders'
+                    this.loadOrders()
                 } else {
                     const res = await api.createPayment({ order_id: this.paymentOrder.id, payment_method: this.payMethod })
-                    if (res.data?.pay_url) { window.open(res.data.pay_url, '_blank') }
-                    ElMessage.info('请在新窗口完成支付')
-                    this.showPayment = false
+                    if (res.data?.pay_url) { 
+                        window.open(res.data.pay_url, '_blank') 
+                        ElMessage.info('请在新窗口完成支付')
+                        this.showPayment = false
+                    } else {
+                        ElMessage.error('支付失败：未获取到支付链接')
+                    }
                 }
-            } catch (error) {} finally { this.paymentLoading = false }
+            } catch (error) {
+                console.error('支付失败:', error)
+                const errorMsg = error.response?.data?.detail || error.message || '支付失败，请稍后重试'
+                ElMessage.error(errorMsg)
+            } finally { 
+                this.paymentLoading = false 
+            }
         },
         // 评价
         openReview(order) { this.reviewOrder = order; this.reviewForm = { rating: 5, content: '' }; this.showReview = true },
