@@ -23,7 +23,11 @@ from app.models.points import PointsGoods, PointsRecord, PointsExchangeRecord
 from app.models.group import UserGroup, GroupMember
 from app.models.invite import InviteRecord, WithdrawRecord
 from app.models.laboratory import Laboratory, LabApplication, LabStatus
+from app.models.project_option import ProjectOption, OptionType, PriceType, OrderOptionSelection
 from app.schemas.project import ProjectCreate, ProjectUpdate
+from app.schemas.project_option import (
+    ProjectOptionCreate, ProjectOptionUpdate, ProjectOptionInDB
+)
 
 
 router = APIRouter()
@@ -5273,4 +5277,343 @@ async def get_lab_tasks(
             "created_at": t.created_at.isoformat() if t.created_at else None
         } for t in tasks]
     })
+
+
+# ==================== 项目选项管理 ====================
+
+def build_admin_option_tree(options: List[ProjectOption], parent_id: Optional[int] = None) -> List[dict]:
+    """构建选项树结构（管理端）"""
+    tree = []
+    for opt in options:
+        if opt.parent_id == parent_id:
+            node = {
+                "id": opt.id,
+                "project_id": opt.project_id,
+                "category_id": opt.category_id,
+                "parent_id": opt.parent_id,
+                "level": opt.level,
+                "path": opt.path,
+                "name": opt.name,
+                "option_type": opt.option_type.value if isinstance(opt.option_type, OptionType) else opt.option_type,
+                "price": float(opt.price) if opt.price else 0,
+                "price_type": opt.price_type.value if isinstance(opt.price_type, PriceType) else opt.price_type,
+                "hint_text": opt.hint_text,
+                "placeholder": opt.placeholder,
+                "sort_order": opt.sort_order,
+                "is_required": opt.is_required,
+                "is_active": opt.is_active,
+                "created_at": opt.created_at.isoformat() if opt.created_at else None,
+                "children": build_admin_option_tree(options, opt.id)
+            }
+            tree.append(node)
+    tree.sort(key=lambda x: x["sort_order"])
+    return tree
+
+
+@router.get("/options", summary="获取选项列表")
+async def admin_get_options(
+    project_id: Optional[int] = Query(None, description="项目ID"),
+    category_id: Optional[int] = Query(None, description="分类ID"),
+    is_active: Optional[bool] = Query(None, description="是否启用"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """获取项目选项列表（管理端）"""
+    query = db.query(ProjectOption)
+
+    if project_id is not None:
+        query = query.filter(ProjectOption.project_id == project_id)
+    if category_id is not None:
+        query = query.filter(ProjectOption.category_id == category_id)
+    if is_active is not None:
+        query = query.filter(ProjectOption.is_active == is_active)
+
+    total = query.count()
+    options = query.order_by(ProjectOption.sort_order, ProjectOption.id).offset((page - 1) * page_size).limit(page_size).all()
+
+    items = [{
+        "id": opt.id,
+        "project_id": opt.project_id,
+        "category_id": opt.category_id,
+        "parent_id": opt.parent_id,
+        "level": opt.level,
+        "name": opt.name,
+        "option_type": opt.option_type.value if isinstance(opt.option_type, OptionType) else opt.option_type,
+        "price": float(opt.price) if opt.price else 0,
+        "price_type": opt.price_type.value if isinstance(opt.price_type, PriceType) else opt.price_type,
+        "hint_text": opt.hint_text,
+        "placeholder": opt.placeholder,
+        "sort_order": opt.sort_order,
+        "is_required": opt.is_required,
+        "is_active": opt.is_active,
+        "created_at": opt.created_at.isoformat() if opt.created_at else None
+    } for opt in options]
+
+    return Response.success(data={"total": total, "list": items})
+
+
+@router.get("/options/tree/project/{project_id}", summary="获取项目选项树")
+async def admin_get_project_option_tree(
+    project_id: int,
+    include_inactive: bool = Query(False, description="是否包含禁用选项"),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """获取项目的选项树结构（管理端）"""
+    query = db.query(ProjectOption).filter(ProjectOption.project_id == project_id)
+    if not include_inactive:
+        query = query.filter(ProjectOption.is_active == True)
+
+    options = query.all()
+    tree = build_admin_option_tree(options)
+
+    return Response.success(data={
+        "project_id": project_id,
+        "options": tree
+    })
+
+
+@router.get("/options/tree/category/{category_id}", summary="获取分类选项树")
+async def admin_get_category_option_tree(
+    category_id: int,
+    include_inactive: bool = Query(False, description="是否包含禁用选项"),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """获取分类的选项树结构（管理端）"""
+    query = db.query(ProjectOption).filter(ProjectOption.category_id == category_id)
+    if not include_inactive:
+        query = query.filter(ProjectOption.is_active == True)
+
+    options = query.all()
+    tree = build_admin_option_tree(options)
+
+    return Response.success(data={
+        "category_id": category_id,
+        "options": tree
+    })
+
+
+@router.post("/options", summary="创建选项")
+async def admin_create_option(
+    data: ProjectOptionCreate,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """创建项目选项"""
+    # 验证: project_id 和 category_id 二选一
+    if not data.project_id and not data.category_id:
+        raise HTTPException(status_code=400, detail="必须指定 project_id 或 category_id")
+
+    # 计算层级和路径
+    level = 1
+    path = "/"
+
+    if data.parent_id:
+        parent = db.query(ProjectOption).filter(ProjectOption.id == data.parent_id).first()
+        if not parent:
+            raise HTTPException(status_code=404, detail="父选项不存在")
+
+        # 验证：输入类型选项不能有子选项
+        parent_type = parent.option_type.value if isinstance(parent.option_type, OptionType) else parent.option_type
+        if parent_type == "input":
+            raise HTTPException(status_code=400, detail="输入类型选项不能有子选项")
+
+        level = parent.level + 1
+        path = f"{parent.path}{parent.id}/"
+
+        # 继承 project_id 或 category_id
+        if not data.project_id:
+            data.project_id = parent.project_id
+        if not data.category_id:
+            data.category_id = parent.category_id
+
+    # 创建选项
+    option = ProjectOption(
+        project_id=data.project_id,
+        category_id=data.category_id,
+        parent_id=data.parent_id,
+        level=level,
+        path=path,
+        name=data.name,
+        option_type=data.option_type.value,
+        price=data.price,
+        price_type=data.price_type.value,
+        hint_text=data.hint_text,
+        placeholder=data.placeholder,
+        sort_order=data.sort_order,
+        is_required=data.is_required,
+        is_active=data.is_active
+    )
+
+    db.add(option)
+    db.commit()
+    db.refresh(option)
+
+    # 更新路径
+    option.path = f"{path}{option.id}/"
+    db.commit()
+
+    return Response.success(data={"id": option.id}, message="选项创建成功")
+
+
+@router.put("/options/{option_id}", summary="更新选项")
+async def admin_update_option(
+    option_id: int,
+    data: ProjectOptionUpdate,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """更新项目选项"""
+    option = db.query(ProjectOption).filter(ProjectOption.id == option_id).first()
+    if not option:
+        raise HTTPException(status_code=404, detail="选项不存在")
+
+    # 如果更改为input类型，检查是否有子选项
+    if data.option_type and data.option_type.value == "input":
+        children = db.query(ProjectOption).filter(ProjectOption.parent_id == option_id).count()
+        if children > 0:
+            raise HTTPException(status_code=400, detail="该选项有子选项，不能更改为输入类型")
+
+    # 更新字段
+    update_data = data.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        if key == "option_type" and value:
+            setattr(option, key, value.value)
+        elif key == "price_type" and value:
+            setattr(option, key, value.value)
+        else:
+            setattr(option, key, value)
+
+    db.commit()
+    db.refresh(option)
+
+    return Response.success(message="选项更新成功")
+
+
+@router.delete("/options/{option_id}", summary="删除选项")
+async def admin_delete_option(
+    option_id: int,
+    cascade: bool = Query(False, description="是否级联删除子选项"),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """删除项目选项"""
+    option = db.query(ProjectOption).filter(ProjectOption.id == option_id).first()
+    if not option:
+        raise HTTPException(status_code=404, detail="选项不存在")
+
+    # 检查是否有子选项
+    children = db.query(ProjectOption).filter(ProjectOption.parent_id == option_id).all()
+
+    if children and not cascade:
+        raise HTTPException(status_code=400, detail="该选项有子选项，请先删除子选项或使用级联删除")
+
+    # 级联删除子选项
+    if cascade and children:
+        def delete_children(parent_id):
+            child_options = db.query(ProjectOption).filter(ProjectOption.parent_id == parent_id).all()
+            for child in child_options:
+                delete_children(child.id)
+                db.delete(child)
+
+        delete_children(option_id)
+
+    db.delete(option)
+    db.commit()
+
+    return Response.success(message="选项删除成功")
+
+
+@router.post("/options/{option_id}/toggle", summary="切换选项状态")
+async def admin_toggle_option(
+    option_id: int,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """切换选项启用/禁用状态"""
+    option = db.query(ProjectOption).filter(ProjectOption.id == option_id).first()
+    if not option:
+        raise HTTPException(status_code=404, detail="选项不存在")
+
+    option.is_active = not option.is_active
+    db.commit()
+
+    return Response.success(message="状态已更新", data={"is_active": option.is_active})
+
+
+@router.post("/options/batch-create", summary="批量创建选项")
+async def admin_batch_create_options(
+    options: List[ProjectOptionCreate] = Body(...),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """批量创建项目选项"""
+    created_ids = []
+
+    for data in options:
+        # 验证: project_id 和 category_id 二选一
+        if not data.project_id and not data.category_id:
+            continue
+
+        level = 1
+        path = "/"
+
+        if data.parent_id:
+            parent = db.query(ProjectOption).filter(ProjectOption.id == data.parent_id).first()
+            if parent:
+                parent_type = parent.option_type.value if isinstance(parent.option_type, OptionType) else parent.option_type
+                if parent_type != "input":
+                    level = parent.level + 1
+                    path = f"{parent.path}{parent.id}/"
+                else:
+                    continue  # 跳过输入类型的子选项
+            else:
+                continue
+
+        option = ProjectOption(
+            project_id=data.project_id,
+            category_id=data.category_id,
+            parent_id=data.parent_id,
+            level=level,
+            path=path,
+            name=data.name,
+            option_type=data.option_type.value,
+            price=data.price,
+            price_type=data.price_type.value,
+            hint_text=data.hint_text,
+            placeholder=data.placeholder,
+            sort_order=data.sort_order,
+            is_required=data.is_required,
+            is_active=data.is_active
+        )
+
+        db.add(option)
+        db.flush()
+
+        option.path = f"{path}{option.id}/"
+        created_ids.append(option.id)
+
+    db.commit()
+
+    return Response.success(data={"created_ids": created_ids}, message=f"成功创建 {len(created_ids)} 个选项")
+
+
+@router.put("/options/batch-sort", summary="批量更新选项排序")
+async def admin_batch_sort_options(
+    sort_data: List[dict] = Body(..., example=[{"id": 1, "sort_order": 1}, {"id": 2, "sort_order": 2}]),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """批量更新选项排序"""
+    for item in sort_data:
+        option = db.query(ProjectOption).filter(ProjectOption.id == item["id"]).first()
+        if option:
+            option.sort_order = item.get("sort_order", 0)
+
+    db.commit()
+
+    return Response.success(message="排序更新成功")
 

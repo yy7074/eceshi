@@ -13,10 +13,12 @@ from app.api.deps import get_db, get_current_user
 from app.models.user import User
 from app.models.order import Order, OrderSample, OrderFee, OrderStatusHistory, UserAddress
 from app.models.project import Project
+from app.models.project_option import ProjectOption, OrderOptionSelection, OptionType, PriceType
 from app.schemas.order import (
     OrderCreate, OrderCalculate, OrderCalculateResponse,
     OrderDetail, OrderListResponse, OrderListItem, OrderCancel, OrderFeeDetail
 )
+from app.schemas.project_option import OptionSelectionInput
 from app.core.response import SuccessResponse, ErrorResponse
 
 router = APIRouter()
@@ -27,68 +29,159 @@ def generate_order_no() -> str:
     return f"ORD{int(time.time())}{int(time.time() * 1000000) % 1000000}"
 
 
+def get_option_path_name(db: Session, option: ProjectOption) -> str:
+    """获取选项的完整路径名称"""
+    path_names = []
+    current = option
+    while current:
+        path_names.insert(0, current.name)
+        if current.parent_id:
+            current = db.query(ProjectOption).filter(ProjectOption.id == current.parent_id).first()
+        else:
+            break
+    return " > ".join(path_names)
+
+
+def calculate_option_price(option: ProjectOption, base_price: Decimal, sample_count: int) -> Decimal:
+    """计算单个选项的价格"""
+    price = option.price if option.price else Decimal("0")
+    price_type = option.price_type.value if isinstance(option.price_type, PriceType) else option.price_type
+
+    if price_type == "fixed":
+        return price
+    elif price_type == "per_sample":
+        return price * sample_count
+    elif price_type == "percentage":
+        return base_price * (price / 100)
+    return Decimal("0")
+
+
+def calculate_options_fee(
+    db: Session,
+    option_selections: list,
+    base_price: Decimal,
+    sample_count: int
+) -> tuple:
+    """
+    计算选项总费用
+    返回: (总费用, 选项详情列表)
+    """
+    total_fee = Decimal("0")
+    details = []
+
+    for selection in option_selections:
+        option_id = selection.get("option_id") if isinstance(selection, dict) else selection.option_id
+        input_value = selection.get("input_value") if isinstance(selection, dict) else getattr(selection, "input_value", None)
+
+        option = db.query(ProjectOption).filter(
+            ProjectOption.id == option_id,
+            ProjectOption.is_active == True
+        ).first()
+
+        if not option:
+            continue
+
+        calculated_price = calculate_option_price(option, base_price, sample_count)
+        total_fee += calculated_price
+
+        option_path = get_option_path_name(db, option)
+
+        details.append({
+            "option_id": option.id,
+            "option_name": option.name,
+            "option_path": option_path,
+            "input_value": input_value,
+            "price": float(option.price) if option.price else 0,
+            "price_type": option.price_type.value if isinstance(option.price_type, PriceType) else option.price_type,
+            "calculated_price": float(calculated_price)
+        })
+
+    return total_fee, details
+
+
 @router.post("/calculate")
 async def calculate_order(
-    data: OrderCalculate,
+    data: dict = Body(...),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """
     计算订单费用（下单前）
+    支持动态选项价格计算
     """
+    project_id = data.get("project_id")
+    sample_count = data.get("sample_count", 1)
+    is_urgent = data.get("is_urgent", False)
+    shipping_method = data.get("shipping_method", "self")
+    coupon_id = data.get("coupon_id")
+    use_points = data.get("use_points", 0)
+    option_selections = data.get("option_selections", [])
+
     # 从数据库查询项目信息
-    project = db.query(Project).filter(Project.id == data.project_id).first()
+    project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="项目不存在")
-    
+
     # 基础费用：项目单价 × 样品数量
-    project_fee = Decimal(str(project.current_price)) * data.sample_count
-    
+    project_fee = Decimal(str(project.current_price)) * sample_count
+
+    # 选项费用计算
+    options_fee = Decimal("0")
+    options_details = []
+    if option_selections:
+        options_fee, options_details = calculate_options_fee(
+            db, option_selections, project_fee, sample_count
+        )
+
     # 加急费用
-    urgent_fee = Decimal("100.00") if data.is_urgent else Decimal("0")
-    
+    urgent_fee = Decimal("100.00") if is_urgent else Decimal("0")
+
     # 运费计算
     shipping_fee = Decimal("0")
-    if data.shipping_method == "express":
+    if shipping_method == "express":
         shipping_fee = Decimal("20.00")
-    elif data.shipping_method == "platform":
+    elif shipping_method == "platform":
         shipping_fee = Decimal("30.00")
-    
+
     # 优惠计算
     discount_amount = Decimal("0")
-    if data.coupon_id:
+    if coupon_id:
         discount_amount = Decimal("50.00")  # 模拟优惠券
-    
+
     # 积分抵扣（100积分=1元，最多抵扣20%）
-    if data.use_points > 0:
-        points_discount = Decimal(data.use_points) / 100
-        max_discount = (project_fee + urgent_fee + shipping_fee) * Decimal("0.2")
+    if use_points > 0:
+        points_discount = Decimal(use_points) / 100
+        max_discount = (project_fee + options_fee + urgent_fee + shipping_fee) * Decimal("0.2")
         points_discount = min(points_discount, max_discount)
         discount_amount += points_discount
-    
+
     # 总费用
-    total_fee = project_fee + urgent_fee + shipping_fee - discount_amount
-    
+    total_fee = project_fee + options_fee + urgent_fee + shipping_fee - discount_amount
+
     # 费用明细
     fee_details = [
-        OrderFeeDetail(fee_type="project", fee_name="检测费用", amount=project_fee)
+        {"fee_type": "project", "fee_name": "检测费用", "amount": float(project_fee)}
     ]
+    if options_fee > 0:
+        fee_details.append({"fee_type": "options", "fee_name": "选项费用", "amount": float(options_fee)})
     if urgent_fee > 0:
-        fee_details.append(OrderFeeDetail(fee_type="urgent", fee_name="加急费用", amount=urgent_fee))
+        fee_details.append({"fee_type": "urgent", "fee_name": "加急费用", "amount": float(urgent_fee)})
     if shipping_fee > 0:
-        fee_details.append(OrderFeeDetail(fee_type="shipping", fee_name="运费", amount=shipping_fee))
+        fee_details.append({"fee_type": "shipping", "fee_name": "运费", "amount": float(shipping_fee)})
     if discount_amount > 0:
-        fee_details.append(OrderFeeDetail(fee_type="discount", fee_name="优惠", amount=-discount_amount))
-    
-    result = OrderCalculateResponse(
-        project_fee=project_fee,
-        urgent_fee=urgent_fee,
-        shipping_fee=shipping_fee,
-        discount_amount=discount_amount,
-        total_fee=total_fee,
-        fee_details=fee_details
-    )
-    
+        fee_details.append({"fee_type": "discount", "fee_name": "优惠", "amount": float(-discount_amount)})
+
+    result = {
+        "project_fee": float(project_fee),
+        "options_fee": float(options_fee),
+        "urgent_fee": float(urgent_fee),
+        "shipping_fee": float(shipping_fee),
+        "discount_amount": float(discount_amount),
+        "total_fee": float(total_fee),
+        "fee_details": fee_details,
+        "options_details": options_details
+    }
+
     return SuccessResponse(data=result)
 
 
@@ -183,23 +276,32 @@ async def create_order(
     
     # 计算费用：项目单价 × 样品数量
     project_fee = Decimal(str(project_fee)) * len(data.samples)
-    
+
+    # 选项费用计算
+    option_selections = request_data.get("option_selections", [])
+    options_fee = Decimal("0")
+    options_details = []
+    if option_selections:
+        options_fee, options_details = calculate_options_fee(
+            db, option_selections, project_fee, len(data.samples)
+        )
+
     # 加急费用
     urgent_fee = Decimal("100.00") if data.is_urgent else Decimal("0")
-    
+
     # 运费
     shipping_fee = Decimal("0")
     if data.shipping_method == "express":
         shipping_fee = Decimal("20.00")
     elif data.shipping_method == "platform":
         shipping_fee = Decimal("30.00")
-    
+
     # 优惠金额
     discount_amount = Decimal("0")
-    
-    # 总费用
-    total_fee = project_fee + urgent_fee + shipping_fee - discount_amount
-    
+
+    # 总费用（包含选项费用）
+    total_fee = project_fee + options_fee + urgent_fee + shipping_fee - discount_amount
+
     # 创建订单
     order = Order(
         order_no=generate_order_no(),
@@ -244,15 +346,30 @@ async def create_order(
         )
         db.add(sample)
     
+    # 创建选项选择记录
+    if options_details:
+        for detail in options_details:
+            option_selection = OrderOptionSelection(
+                order_id=order.id,
+                option_id=detail["option_id"],
+                option_name=detail["option_name"],
+                option_path=detail["option_path"],
+                input_value=detail.get("input_value"),
+                calculated_price=Decimal(str(detail["calculated_price"]))
+            )
+            db.add(option_selection)
+
     # 创建费用明细
     fee_items = [
         ("project", "检测费用", project_fee),
     ]
+    if options_fee > 0:
+        fee_items.append(("options", "选项费用", options_fee))
     if urgent_fee > 0:
         fee_items.append(("urgent", "加急费用", urgent_fee))
     if shipping_fee > 0:
         fee_items.append(("shipping", "运费", shipping_fee))
-    
+
     for fee_type, fee_name, amount in fee_items:
         fee = OrderFee(
             order_id=order.id,
@@ -288,6 +405,7 @@ async def create_order(
         "project_name": order.project_name,
         "total_fee": float(order.total_fee),
         "project_fee": float(order.project_fee),
+        "options_fee": float(options_fee),
         "urgent_fee": float(order.urgent_fee),
         "shipping_fee": float(order.shipping_fee),
         "discount_amount": float(order.discount_amount),
@@ -299,6 +417,7 @@ async def create_order(
         "receiver_address": order.receiver_address,
         "is_urgent": order.is_urgent,
         "remark": order.remark,
+        "options_details": options_details,
         "created_at": order.created_at.isoformat() if order.created_at else None
     }, message="订单创建成功")
 

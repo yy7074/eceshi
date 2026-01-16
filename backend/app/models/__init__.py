@@ -34,6 +34,9 @@ from app.models.role import (
     Role, Permission, role_permissions, user_roles,
     RoleCode, PermissionCode, DEFAULT_ROLE_PERMISSIONS
 )
+from app.models.project_option import (
+    ProjectOption, OrderOptionSelection, OptionType, PriceType
+)
 
 __all__ = [
     "User",
@@ -114,6 +117,11 @@ __all__ = [
     "user_roles",
     "RoleCode",
     "PermissionCode",
-    "DEFAULT_ROLE_PERMISSIONS"
+    "DEFAULT_ROLE_PERMISSIONS",
+    # 项目动态选项系统
+    "ProjectOption",
+    "OrderOptionSelection",
+    "OptionType",
+    "PriceType"
 ]
 

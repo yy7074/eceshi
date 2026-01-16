@@ -105,8 +105,18 @@
 				<view class="section-title">备注</view>
 				<textarea class="textarea" placeholder="请输入备注" v-model="formData.remark" />
 			</view>
+
+			<!-- 动态检测选项 -->
+			<dynamic-options-form
+				v-if="optionsTree.length > 0"
+				ref="optionsForm"
+				:options-tree="optionsTree"
+				:project-id="projectId"
+				:sample-count="formData.sampleCount"
+				@change="handleOptionsChange"
+			/>
 		</view>
-		
+
 		<!-- 步骤2：配送信息 -->
 		<view class="form-container" v-if="currentStep === 2">
 			<!-- 收货地址 -->
@@ -220,6 +230,10 @@
 						<text class="fee-label">样品数量</text>
 						<text class="fee-value">x{{ formData.sampleCount }}</text>
 					</view>
+					<view class="fee-row" v-if="optionsFee > 0">
+						<text class="fee-label">选项费用</text>
+						<text class="fee-value">¥{{ optionsFee.toFixed(2) }}</text>
+					</view>
 					<view class="fee-row">
 						<text class="fee-label">配送费用</text>
 						<text class="fee-value">¥{{ deliveryFee.toFixed(2) }}</text>
@@ -267,14 +281,21 @@
 
 <script>
 import api from '@/utils/api.js'
+import DynamicOptionsForm from '@/components/DynamicOptionsForm.vue'
 
 export default {
+	components: {
+		DynamicOptionsForm
+	},
 	data() {
 		return {
 			projectId: null,
 			projectName: 'XRD织构测试',
 			projectPrice: 0,
 			deliveryFee: 0,
+			optionsFee: 0,
+			optionsTree: [],
+			optionSelections: [],
 			currentStep: 1,
 			stepNames: ['填写样品信息', '完善配送信息', '提交文档和支付'],
 			
@@ -319,7 +340,7 @@ export default {
 	},
 	computed: {
 		totalPrice() {
-			return this.projectPrice * this.formData.sampleCount + this.deliveryFee
+			return this.projectPrice * this.formData.sampleCount + this.optionsFee + this.deliveryFee
 		}
 	},
 	onLoad(options) {
@@ -341,12 +362,15 @@ export default {
 			if (this.projectId) {
 				const res = await api.getProjectDetail(this.projectId)
 				const project = res.data
-				
+
 				// 设置项目价格
 				this.projectPrice = project.current_price || 0
-				
+
 				// 配送费用（可以根据地区或项目类型计算）
 				this.deliveryFee = 20.00
+
+				// 加载项目选项
+				this.loadProjectOptions()
 			}
 		} catch (e) {
 			console.error('加载项目信息失败', e)
@@ -354,6 +378,27 @@ export default {
 			this.projectPrice = 0
 			this.deliveryFee = 20.00
 		}
+	},
+
+	// 加载项目选项
+	async loadProjectOptions() {
+		try {
+			if (this.projectId) {
+				const res = await api.getProjectOptions(this.projectId)
+				if (res.code === 200 && res.data) {
+					this.optionsTree = res.data.options || []
+				}
+			}
+		} catch (e) {
+			console.error('加载项目选项失败', e)
+			this.optionsTree = []
+		}
+	},
+
+	// 处理选项变化
+	handleOptionsChange(data) {
+		this.optionSelections = data.selections || []
+		this.optionsFee = data.totalOptionsFee || 0
 	},
 		
 		// 样品数量控制
@@ -495,11 +540,11 @@ export default {
 		// 提交订单
 		async submitOrder() {
 			uni.showLoading({ title: '提交中...' })
-			
+
 			try {
 				// 上传文件
 				const uploadedFiles = await this.uploadFiles()
-				
+
 				// 创建订单
 				const orderData = {
 					project_id: this.projectId,
@@ -515,9 +560,10 @@ export default {
 					delivery_date: this.formData.deliveryDate,
 					delivery_remark: this.formData.deliveryRemark,
 					attachments: uploadedFiles,
-					total_amount: this.totalPrice
+					total_amount: this.totalPrice,
+					option_selections: this.optionSelections
 				}
-				
+
 				const res = await api.createOrder(orderData)
 				
 				uni.hideLoading()

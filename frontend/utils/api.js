@@ -75,9 +75,26 @@ export default {
 		return request.get(`/api/v1/projects/${id}`)
 	},
 	
+	// ========== 项目选项相关 ==========
+
+	// 获取项目选项树
+	getProjectOptions(projectId) {
+		return request.get(`/api/v1/project-options/project/${projectId}/options`)
+	},
+
+	// 获取分类选项树
+	getCategoryOptions(categoryId) {
+		return request.get(`/api/v1/project-options/category/${categoryId}/options`)
+	},
+
+	// 计算选项价格
+	calculateOptionsPrice(data) {
+		return request.post('/api/v1/project-options/options/calculate', data)
+	},
+
 	// ========== 订单相关 ==========
-	
-	// 计算订单费用
+
+	// 计算订单费用（支持选项）
 	calculateOrder(data) {
 		return request.post('/api/v1/orders/calculate', data)
 	},
