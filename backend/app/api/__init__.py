@@ -6,7 +6,7 @@ from fastapi import APIRouter
 from app.api.v1 import (
     auth, users, projects, orders, addresses, payments, upload, admin,
     favorites, reviews, points, coupons, invites, groups, recharge,
-    invoices, lottery, prepay, credit, laboratory, project_options,
+    invoices, lottery, prepay, credit, laboratory, project_options, sample_groups,
     # 新增模块
     banners, announcements, help, chat, reports, samples, contracts, franchise, statistics
 )
@@ -37,6 +37,7 @@ router.include_router(credit.router, prefix="/credit", tags=["信用系统"])
 router.include_router(laboratory.router, prefix="/laboratories", tags=["实验室"])
 router.include_router(admin.router, prefix="/admin", tags=["后台管理"])
 router.include_router(project_options.router, prefix="/project-options", tags=["项目选项"])
+router.include_router(sample_groups.router, tags=["样品组管理"])
 # 新增路由
 router.include_router(banners.router, prefix="/banners", tags=["轮播图"])
 router.include_router(announcements.router, prefix="/announcements", tags=["公告通知"])

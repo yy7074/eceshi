@@ -92,6 +92,73 @@ export default {
 		return request.post('/api/v1/project-options/options/calculate', data)
 	},
 
+	// ========== 样品组管理相关 ==========
+
+	// 获取样品组列表
+	getSampleGroups(params) {
+		return request.get('/api/v1/sample-groups', params)
+	},
+
+	// 获取样品组详情
+	getSampleGroupDetail(groupId) {
+		return request.get(`/api/v1/sample-groups/${groupId}`)
+	},
+
+	// 创建样品组
+	createSampleGroup(data) {
+		return request.post('/api/v1/sample-groups', data)
+	},
+
+	// 更新样品组
+	updateSampleGroup(groupId, data) {
+		return request.put(`/api/v1/sample-groups/${groupId}`, data)
+	},
+
+	// 删除样品组
+	deleteSampleGroup(groupId) {
+		return request.delete(`/api/v1/sample-groups/${groupId}`)
+	},
+
+	// 复制样品组
+	copySampleGroup(groupId) {
+		return request.post(`/api/v1/sample-groups/${groupId}/copy`)
+	},
+
+	// 获取组内样品列表
+	getSampleItems(groupId) {
+		return request.get(`/api/v1/sample-groups/${groupId}/items`)
+	},
+
+	// 添加样品
+	addSampleItem(groupId, data) {
+		return request.post(`/api/v1/sample-groups/${groupId}/items`, data)
+	},
+
+	// 批量添加样品
+	batchAddSampleItems(groupId, data) {
+		return request.post(`/api/v1/sample-groups/${groupId}/items/batch`, data)
+	},
+
+	// 更新样品
+	updateSampleItem(groupId, itemId, data) {
+		return request.put(`/api/v1/sample-groups/${groupId}/items/${itemId}`, data)
+	},
+
+	// 删除样品
+	deleteSampleItem(groupId, itemId) {
+		return request.delete(`/api/v1/sample-groups/${groupId}/items/${itemId}`)
+	},
+
+	// 计算多组价格
+	calculateGroupsPrice(data) {
+		return request.post('/api/v1/sample-groups/calculate', data)
+	},
+
+	// 批量提交样品组生成订单
+	submitSampleGroups(data) {
+		return request.post('/api/v1/sample-groups/submit', data)
+	},
+
 	// ========== 订单相关 ==========
 
 	// 计算订单费用（支持选项）

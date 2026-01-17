@@ -1,7 +1,8 @@
 """
 钱包充值模型
 """
-from sqlalchemy import Column, Integer, String, DateTime, Numeric, Enum
+from sqlalchemy import Column, Integer, BigInteger, String, DateTime, Numeric, Enum, Text, ForeignKey
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 import enum
 
@@ -20,6 +21,14 @@ class RechargeMethod(enum.Enum):
     """充值方式"""
     WECHAT = "wechat"  # 微信支付
     ALIPAY = "alipay"  # 支付宝
+    INVOICE = "invoice"  # 开票充值
+
+
+class InvoiceRechargeStatus(enum.Enum):
+    """开票充值状态"""
+    PENDING = "pending"  # 待确认
+    CONFIRMED = "confirmed"  # 已确认到账
+    REJECTED = "rejected"  # 已拒绝
 
 
 class RechargeRecord(Base):
@@ -57,4 +66,56 @@ class RechargeRecord(Base):
     
     def __repr__(self):
         return f"<RechargeRecord {self.recharge_no}>"
+
+
+class InvoiceRechargeRecord(Base):
+    """
+    开票充值记录表
+    用户提交发票信息后，由管理员确认到账后充值
+    """
+    __tablename__ = "invoice_recharge_records"
+
+    id = Column(BigInteger, primary_key=True, index=True, autoincrement=True)
+    user_id = Column(BigInteger, ForeignKey("users.id"), nullable=False, index=True, comment="用户ID")
+
+    # 充值金额
+    amount = Column(Numeric(10, 2), nullable=False, comment="充值金额")
+    bonus_amount = Column(Numeric(10, 2), default=0, comment="赠送金额")
+
+    # 发票信息
+    invoice_title = Column(String(200), comment="发票抬头")
+    invoice_tax_no = Column(String(50), comment="税号")
+    invoice_type = Column(String(20), comment="发票类型: normal-普通发票, special-增值税专用发票")
+    invoice_email = Column(String(100), comment="发票接收邮箱")
+    invoice_remark = Column(Text, comment="发票备注")
+
+    # 汇款信息
+    bank_name = Column(String(100), comment="汇款银行")
+    bank_account = Column(String(50), comment="汇款账号后四位")
+    transfer_date = Column(DateTime, comment="汇款日期")
+    transfer_voucher = Column(String(500), comment="汇款凭证图片URL")
+
+    # 状态
+    status = Column(
+        Enum(InvoiceRechargeStatus),
+        default=InvoiceRechargeStatus.PENDING,
+        comment="状态"
+    )
+
+    # 审核信息
+    admin_id = Column(BigInteger, ForeignKey("users.id"), comment="确认的管理员")
+    confirmed_at = Column(DateTime, comment="确认时间")
+    reject_reason = Column(String(500), comment="拒绝原因")
+    remark = Column(Text, comment="管理员备注")
+
+    # 时间戳
+    created_at = Column(DateTime, server_default=func.now(), comment="创建时间")
+    updated_at = Column(DateTime, onupdate=func.now(), comment="更新时间")
+
+    # 关系
+    user = relationship("User", foreign_keys=[user_id], backref="invoice_recharges")
+    admin = relationship("User", foreign_keys=[admin_id])
+
+    def __repr__(self):
+        return f"<InvoiceRechargeRecord {self.id}>"
 

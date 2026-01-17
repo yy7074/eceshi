@@ -27,6 +27,40 @@
 		
 		<!-- 步骤1：样品信息 -->
 		<view class="form-container" v-if="currentStep === 1">
+			<!-- 样品模式切换 -->
+			<view class="mode-toggle">
+				<view
+					class="mode-btn"
+					:class="{ active: sampleMode === 'single' }"
+					@click="sampleMode = 'single'"
+				>
+					<text class="mode-icon">📦</text>
+					<text class="mode-text">单样品模式</text>
+				</view>
+				<view
+					class="mode-btn"
+					:class="{ active: sampleMode === 'group' }"
+					@click="sampleMode = 'group'"
+				>
+					<text class="mode-icon">📁</text>
+					<text class="mode-text">分组模式</text>
+					<text class="mode-tag">推荐</text>
+				</view>
+			</view>
+
+			<!-- 分组模式 -->
+			<view v-if="sampleMode === 'group'">
+				<SampleGroupList
+					ref="sampleGroupList"
+					:project-id="projectId"
+					:base-price="projectPrice"
+					:options-tree="optionsTree"
+					@change="handleGroupsChange"
+				/>
+			</view>
+
+			<!-- 单样品模式 -->
+			<view v-else>
 			<view class="form-section">
 				<view class="section-title">样品信息</view>
 				
@@ -115,6 +149,7 @@
 				:sample-count="formData.sampleCount"
 				@change="handleOptionsChange"
 			/>
+			</view>
 		</view>
 
 		<!-- 步骤2：配送信息 -->
@@ -282,10 +317,12 @@
 <script>
 import api from '@/utils/api.js'
 import DynamicOptionsForm from '@/components/DynamicOptionsForm.vue'
+import SampleGroupList from '@/components/SampleGroupList.vue'
 
 export default {
 	components: {
-		DynamicOptionsForm
+		DynamicOptionsForm,
+		SampleGroupList
 	},
 	data() {
 		return {
@@ -298,6 +335,11 @@ export default {
 			optionSelections: [],
 			currentStep: 1,
 			stepNames: ['填写样品信息', '完善配送信息', '提交文档和支付'],
+
+			// 样品模式：single - 单样品模式，group - 分组模式
+			sampleMode: 'single',
+			sampleGroups: [],
+			groupsTotalPrice: 0,
 			
 			// 表单选项
 			sampleStates: ['粉末', '块状/薄膜', '溶液', '气体', '其它'],
@@ -340,7 +382,19 @@ export default {
 	},
 	computed: {
 		totalPrice() {
+			if (this.sampleMode === 'group') {
+				return this.groupsTotalPrice + this.deliveryFee
+			}
 			return this.projectPrice * this.formData.sampleCount + this.optionsFee + this.deliveryFee
+		},
+		effectiveSampleCount() {
+			if (this.sampleMode === 'group') {
+				return this.sampleGroups.reduce((sum, g) => {
+					const items = g.items || []
+					return sum + items.reduce((s, i) => s + (i.quantity || 1), 0)
+				}, 0)
+			}
+			return this.formData.sampleCount
 		}
 	},
 	onLoad(options) {
@@ -399,6 +453,12 @@ export default {
 	handleOptionsChange(data) {
 		this.optionSelections = data.selections || []
 		this.optionsFee = data.totalOptionsFee || 0
+	},
+
+	// 处理样品分组变化
+	handleGroupsChange(data) {
+		this.sampleGroups = data.groups || []
+		this.groupsTotalPrice = data.totalPrice || 0
 	},
 		
 		// 样品数量控制
@@ -512,13 +572,27 @@ export default {
 		async nextStep() {
 			// 验证当前步骤
 			if (this.currentStep === 1) {
-				if (!this.formData.sampleName) {
-					uni.showToast({ title: '请输入样品名称', icon: 'none' })
-					return
-				}
-				if (!this.formData.sampleState) {
-					uni.showToast({ title: '请选择样品状态', icon: 'none' })
-					return
+				// 分组模式验证
+				if (this.sampleMode === 'group') {
+					if (this.sampleGroups.length === 0) {
+						uni.showToast({ title: '请至少创建一个样品分组', icon: 'none' })
+						return
+					}
+					const emptyGroups = this.sampleGroups.filter(g => !g.items || g.items.length === 0)
+					if (emptyGroups.length > 0) {
+						uni.showToast({ title: '所有分组都需要添加样品', icon: 'none' })
+						return
+					}
+				} else {
+					// 单样品模式验证
+					if (!this.formData.sampleName) {
+						uni.showToast({ title: '请输入样品名称', icon: 'none' })
+						return
+					}
+					if (!this.formData.sampleState) {
+						uni.showToast({ title: '请选择样品状态', icon: 'none' })
+						return
+					}
 				}
 				this.currentStep = 2
 			} else if (this.currentStep === 2) {
@@ -545,7 +619,26 @@ export default {
 				// 上传文件
 				const uploadedFiles = await this.uploadFiles()
 
-				// 创建订单
+				// 分组模式提交
+				if (this.sampleMode === 'group') {
+					const groupIds = this.sampleGroups.map(g => g.id)
+					const res = await api.submitSampleGroups({
+						group_ids: groupIds,
+						merge_order: true, // 合并为一个订单
+						address_id: this.formData.addressId,
+						remark: this.formData.remark
+					})
+
+					uni.hideLoading()
+
+					if (res.code === 200 && res.data.order_ids.length > 0) {
+						// 跳转支付第一个订单
+						this.goPay(res.data.order_ids[0])
+					}
+					return
+				}
+
+				// 单样品模式提交
 				const orderData = {
 					project_id: this.projectId,
 					sample_count: this.formData.sampleCount,
@@ -565,15 +658,15 @@ export default {
 				}
 
 				const res = await api.createOrder(orderData)
-				
+
 				uni.hideLoading()
-				
+
 				// 跳转支付
 				if (res.code === 200) {
 					const orderId = res.data.order_id
 					this.goPay(orderId)
 				}
-				
+
 			} catch (e) {
 				uni.hideLoading()
 				uni.showToast({
@@ -1220,6 +1313,55 @@ export default {
 		.btn-next {
 			background: #4facfe;
 			color: white;
+		}
+	}
+}
+
+/* 样品模式切换 */
+.mode-toggle {
+	display: flex;
+	gap: 20rpx;
+	padding: 20rpx;
+	background: white;
+	margin-bottom: 20rpx;
+
+	.mode-btn {
+		flex: 1;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		padding: 30rpx 20rpx;
+		background: #f5f5f5;
+		border-radius: 16rpx;
+		border: 2rpx solid transparent;
+		position: relative;
+		transition: all 0.3s;
+
+		&.active {
+			background: #f5f8ff;
+			border-color: #4facfe;
+		}
+
+		.mode-icon {
+			font-size: 48rpx;
+			margin-bottom: 12rpx;
+		}
+
+		.mode-text {
+			font-size: 28rpx;
+			color: #333;
+			font-weight: 500;
+		}
+
+		.mode-tag {
+			position: absolute;
+			top: -10rpx;
+			right: -10rpx;
+			background: linear-gradient(135deg, #ff6b6b 0%, #ff8e53 100%);
+			color: white;
+			font-size: 20rpx;
+			padding: 4rpx 12rpx;
+			border-radius: 20rpx;
 		}
 	}
 }

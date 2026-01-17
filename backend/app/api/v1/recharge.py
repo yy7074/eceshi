@@ -14,8 +14,9 @@ from app.core.database import get_db
 from app.core.response import Response
 from app.api.deps import get_current_user
 from app.models.user import User
-from app.models.recharge import RechargeRecord, RechargeStatus, RechargeMethod
+from app.models.recharge import RechargeRecord, RechargeStatus, RechargeMethod, InvoiceRechargeRecord, InvoiceRechargeStatus
 from app.services.wechatpay_service import wechatpay_service
+from typing import List
 
 router = APIRouter()
 
@@ -320,4 +321,158 @@ async def wechat_recharge_notify(
             content='<xml><return_code><![CDATA[FAIL]]></return_code><return_msg><![CDATA[FAIL]]></return_msg></xml>',
             media_type='application/xml'
         )
+
+
+# ==================== 开票充值 ====================
+
+class InvoiceRechargeRequest(BaseModel):
+    """开票充值请求"""
+    amount: float = Field(..., description="充值金额", ge=100, le=500000)
+    invoice_title: str = Field(..., description="发票抬头", max_length=200)
+    invoice_tax_no: Optional[str] = Field(None, description="税号", max_length=50)
+    invoice_type: str = Field("normal", description="发票类型: normal/special")
+    invoice_email: Optional[str] = Field(None, description="发票接收邮箱")
+    invoice_remark: Optional[str] = Field(None, description="发票备注")
+    bank_name: Optional[str] = Field(None, description="汇款银行")
+    bank_account: Optional[str] = Field(None, description="汇款账号后四位")
+    transfer_date: Optional[str] = Field(None, description="汇款日期 YYYY-MM-DD")
+    transfer_voucher: Optional[str] = Field(None, description="汇款凭证图片URL")
+
+
+@router.post("/invoice/apply", summary="申请开票充值")
+async def apply_invoice_recharge(
+    data: InvoiceRechargeRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    申请开票充值
+    用户提交发票信息和汇款凭证，等待管理员确认到账后充值
+    """
+    try:
+        amount = Decimal(str(data.amount))
+        bonus_amount = calculate_bonus(amount)
+
+        # 解析汇款日期
+        transfer_date = None
+        if data.transfer_date:
+            try:
+                transfer_date = datetime.strptime(data.transfer_date, "%Y-%m-%d")
+            except ValueError:
+                pass
+
+        record = InvoiceRechargeRecord(
+            user_id=current_user.id,
+            amount=amount,
+            bonus_amount=bonus_amount,
+            invoice_title=data.invoice_title,
+            invoice_tax_no=data.invoice_tax_no,
+            invoice_type=data.invoice_type,
+            invoice_email=data.invoice_email,
+            invoice_remark=data.invoice_remark,
+            bank_name=data.bank_name,
+            bank_account=data.bank_account,
+            transfer_date=transfer_date,
+            transfer_voucher=data.transfer_voucher,
+            status=InvoiceRechargeStatus.PENDING
+        )
+        db.add(record)
+        db.commit()
+        db.refresh(record)
+
+        return Response.success(data={
+            "id": record.id,
+            "amount": float(amount),
+            "bonus_amount": float(bonus_amount),
+            "total_amount": float(amount + bonus_amount),
+            "status": "pending"
+        }, message="开票充值申请已提交，请等待确认")
+
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"提交申请失败: {str(e)}")
+
+
+@router.get("/invoice/records", summary="获取开票充值记录")
+async def get_invoice_recharge_records(
+    page: int = 1,
+    page_size: int = 10,
+    status: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """获取用户的开票充值记录"""
+    query = db.query(InvoiceRechargeRecord).filter(
+        InvoiceRechargeRecord.user_id == current_user.id
+    )
+
+    if status:
+        try:
+            status_enum = InvoiceRechargeStatus(status)
+            query = query.filter(InvoiceRechargeRecord.status == status_enum)
+        except ValueError:
+            pass
+
+    total = query.count()
+    records = query.order_by(
+        InvoiceRechargeRecord.created_at.desc()
+    ).offset((page - 1) * page_size).limit(page_size).all()
+
+    return Response.success(data={
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "items": [
+            {
+                "id": r.id,
+                "amount": float(r.amount),
+                "bonus_amount": float(r.bonus_amount or 0),
+                "total_amount": float(r.amount + (r.bonus_amount or 0)),
+                "invoice_title": r.invoice_title,
+                "invoice_type": r.invoice_type,
+                "status": r.status.value if r.status else "pending",
+                "reject_reason": r.reject_reason,
+                "created_at": r.created_at.isoformat() if r.created_at else None,
+                "confirmed_at": r.confirmed_at.isoformat() if r.confirmed_at else None
+            }
+            for r in records
+        ]
+    })
+
+
+@router.get("/invoice/{record_id}", summary="获取开票充值详情")
+async def get_invoice_recharge_detail(
+    record_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """获取开票充值详情"""
+    record = db.query(InvoiceRechargeRecord).filter(
+        InvoiceRechargeRecord.id == record_id,
+        InvoiceRechargeRecord.user_id == current_user.id
+    ).first()
+
+    if not record:
+        raise HTTPException(status_code=404, detail="记录不存在")
+
+    return Response.success(data={
+        "id": record.id,
+        "amount": float(record.amount),
+        "bonus_amount": float(record.bonus_amount or 0),
+        "total_amount": float(record.amount + (record.bonus_amount or 0)),
+        "invoice_title": record.invoice_title,
+        "invoice_tax_no": record.invoice_tax_no,
+        "invoice_type": record.invoice_type,
+        "invoice_email": record.invoice_email,
+        "invoice_remark": record.invoice_remark,
+        "bank_name": record.bank_name,
+        "bank_account": record.bank_account,
+        "transfer_date": record.transfer_date.isoformat() if record.transfer_date else None,
+        "transfer_voucher": record.transfer_voucher,
+        "status": record.status.value if record.status else "pending",
+        "reject_reason": record.reject_reason,
+        "remark": record.remark,
+        "created_at": record.created_at.isoformat() if record.created_at else None,
+        "confirmed_at": record.confirmed_at.isoformat() if record.confirmed_at else None
+    })
 

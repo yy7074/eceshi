@@ -11,7 +11,7 @@ from app.models.laboratory import (
 )
 from app.models.project import ProjectCategory, Project, ProjectReview
 from app.models.coupon import Coupon, UserCoupon, CouponType, CouponStatus, UserCouponStatus
-from app.models.recharge import RechargeRecord, RechargeStatus, RechargeMethod
+from app.models.recharge import RechargeRecord, RechargeStatus, RechargeMethod, InvoiceRechargeRecord, InvoiceRechargeStatus
 from app.models.points import PointsGoods, PointsRecord, PointsExchangeRecord
 from app.models.group import UserGroup, GroupMember, GroupRole, GroupStatus
 from app.models.invite import InviteRecord, WithdrawRecord, InviteConfig, InviteStatus, WithdrawStatus
@@ -37,6 +37,8 @@ from app.models.role import (
 from app.models.project_option import (
     ProjectOption, OrderOptionSelection, OptionType, PriceType
 )
+from app.models.sample_group import SampleGroup, SampleItem
+from app.models.commission import UserCommissionSetting, CommissionRecord
 
 __all__ = [
     "User",
@@ -61,6 +63,8 @@ __all__ = [
     "RechargeRecord",
     "RechargeStatus",
     "RechargeMethod",
+    "InvoiceRechargeRecord",
+    "InvoiceRechargeStatus",
     "PointsGoods",
     "PointsRecord",
     "PointsExchangeRecord",
@@ -122,6 +126,12 @@ __all__ = [
     "ProjectOption",
     "OrderOptionSelection",
     "OptionType",
-    "PriceType"
+    "PriceType",
+    # 样品组管理
+    "SampleGroup",
+    "SampleItem",
+    # 佣金系统
+    "UserCommissionSetting",
+    "CommissionRecord"
 ]
 

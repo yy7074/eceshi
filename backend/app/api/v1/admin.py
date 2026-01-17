@@ -5617,3 +5617,456 @@ async def admin_batch_sort_options(
 
     return Response.success(message="排序更新成功")
 
+
+# ==================== 佣金设置管理 ====================
+
+from app.models.commission import UserCommissionSetting, CommissionRecord
+from app.schemas.commission import (
+    CommissionSettingCreate, CommissionSettingUpdate, CommissionSettingResponse,
+    BatchSetCommissionRequest, SettleCommissionRequest
+)
+from app.models.recharge import InvoiceRechargeRecord, InvoiceRechargeStatus
+
+
+@router.get("/commission/settings", summary="获取佣金设置列表（管理员）")
+async def get_commission_settings_admin(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    search: Optional[str] = Query(None, description="搜索用户手机号/姓名"),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """管理员获取用户佣金设置列表"""
+    query = db.query(UserCommissionSetting).join(User, UserCommissionSetting.user_id == User.id)
+
+    if search:
+        query = query.filter(
+            or_(
+                User.phone.contains(search),
+                User.nickname.contains(search),
+                User.real_name.contains(search)
+            )
+        )
+
+    total = query.count()
+    settings = query.order_by(desc(UserCommissionSetting.created_at)).offset((page - 1) * page_size).limit(page_size).all()
+
+    return Response.success(data={
+        "items": [
+            {
+                "id": s.id,
+                "user_id": s.user_id,
+                "commission_rate": float(s.commission_rate) if s.commission_rate else 0,
+                "max_rate": float(s.max_rate) if s.max_rate else 12,
+                "effective_from": s.effective_from.isoformat() if s.effective_from else None,
+                "effective_to": s.effective_to.isoformat() if s.effective_to else None,
+                "created_at": s.created_at.isoformat() if s.created_at else None,
+                "user_name": s.user.real_name or s.user.nickname,
+                "user_phone": s.user.phone
+            }
+            for s in settings
+        ],
+        "total": total,
+        "page": page,
+        "page_size": page_size
+    })
+
+
+@router.get("/commission/settings/{user_id}", summary="获取用户佣金设置详情")
+async def get_user_commission_setting(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """获取指定用户的佣金设置"""
+    setting = db.query(UserCommissionSetting).filter(UserCommissionSetting.user_id == user_id).first()
+
+    if not setting:
+        return Response.success(data=None, message="该用户暂无佣金设置")
+
+    user = db.query(User).filter(User.id == user_id).first()
+
+    return Response.success(data={
+        "id": setting.id,
+        "user_id": setting.user_id,
+        "commission_rate": float(setting.commission_rate) if setting.commission_rate else 0,
+        "max_rate": float(setting.max_rate) if setting.max_rate else 12,
+        "effective_from": setting.effective_from.isoformat() if setting.effective_from else None,
+        "effective_to": setting.effective_to.isoformat() if setting.effective_to else None,
+        "created_at": setting.created_at.isoformat() if setting.created_at else None,
+        "user_name": user.real_name or user.nickname if user else None,
+        "user_phone": user.phone if user else None
+    })
+
+
+@router.post("/commission/settings", summary="创建/更新用户佣金设置")
+async def create_commission_setting(
+    data: CommissionSettingCreate,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """创建或更新用户佣金设置"""
+    # 检查用户是否存在
+    user = db.query(User).filter(User.id == data.user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="用户不存在")
+
+    # 验证佣金比例
+    if data.commission_rate > Decimal("12"):
+        raise HTTPException(status_code=400, detail="佣金比例不能超过12%")
+
+    # 查找已有设置
+    existing = db.query(UserCommissionSetting).filter(UserCommissionSetting.user_id == data.user_id).first()
+
+    if existing:
+        # 更新
+        existing.commission_rate = data.commission_rate
+        existing.effective_from = data.effective_from
+        existing.effective_to = data.effective_to
+        db.commit()
+        return Response.success(data={"id": existing.id}, message="佣金设置更新成功")
+    else:
+        # 创建
+        setting = UserCommissionSetting(
+            user_id=data.user_id,
+            commission_rate=data.commission_rate,
+            effective_from=data.effective_from,
+            effective_to=data.effective_to,
+            created_by=current_admin.id
+        )
+        db.add(setting)
+        db.commit()
+        db.refresh(setting)
+        return Response.success(data={"id": setting.id}, message="佣金设置创建成功")
+
+
+@router.put("/commission/settings/{setting_id}", summary="更新佣金设置")
+async def update_commission_setting(
+    setting_id: int,
+    data: CommissionSettingUpdate,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """更新佣金设置"""
+    setting = db.query(UserCommissionSetting).filter(UserCommissionSetting.id == setting_id).first()
+    if not setting:
+        raise HTTPException(status_code=404, detail="佣金设置不存在")
+
+    update_data = data.model_dump(exclude_unset=True)
+
+    if 'commission_rate' in update_data and update_data['commission_rate'] > Decimal("12"):
+        raise HTTPException(status_code=400, detail="佣金比例不能超过12%")
+
+    for key, value in update_data.items():
+        setattr(setting, key, value)
+
+    db.commit()
+    return Response.success(message="佣金设置更新成功")
+
+
+@router.delete("/commission/settings/{setting_id}", summary="删除佣金设置")
+async def delete_commission_setting(
+    setting_id: int,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """删除佣金设置"""
+    setting = db.query(UserCommissionSetting).filter(UserCommissionSetting.id == setting_id).first()
+    if not setting:
+        raise HTTPException(status_code=404, detail="佣金设置不存在")
+
+    db.delete(setting)
+    db.commit()
+    return Response.success(message="佣金设置已删除")
+
+
+@router.post("/commission/batch-set", summary="批量设置佣金比例")
+async def batch_set_commission(
+    data: BatchSetCommissionRequest,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """批量为多个用户设置佣金比例"""
+    if data.commission_rate > Decimal("12"):
+        raise HTTPException(status_code=400, detail="佣金比例不能超过12%")
+
+    success_count = 0
+    for user_id in data.user_ids:
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            continue
+
+        existing = db.query(UserCommissionSetting).filter(UserCommissionSetting.user_id == user_id).first()
+        if existing:
+            existing.commission_rate = data.commission_rate
+            existing.effective_from = data.effective_from
+            existing.effective_to = data.effective_to
+        else:
+            setting = UserCommissionSetting(
+                user_id=user_id,
+                commission_rate=data.commission_rate,
+                effective_from=data.effective_from,
+                effective_to=data.effective_to,
+                created_by=current_admin.id
+            )
+            db.add(setting)
+        success_count += 1
+
+    db.commit()
+    return Response.success(message=f"成功设置 {success_count} 个用户的佣金比例")
+
+
+@router.get("/commission/records", summary="获取佣金记录列表（管理员）")
+async def get_commission_records_admin(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    user_id: Optional[int] = Query(None, description="用户ID"),
+    status: Optional[str] = Query(None, description="状态: pending/settled/cancelled"),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """管理员获取佣金记录列表"""
+    query = db.query(CommissionRecord)
+
+    if user_id:
+        query = query.filter(CommissionRecord.user_id == user_id)
+    if status:
+        query = query.filter(CommissionRecord.status == status)
+
+    total = query.count()
+    records = query.order_by(desc(CommissionRecord.created_at)).offset((page - 1) * page_size).limit(page_size).all()
+
+    result = []
+    for r in records:
+        user = db.query(User).filter(User.id == r.user_id).first()
+        from_user = db.query(User).filter(User.id == r.from_user_id).first() if r.from_user_id else None
+        order = db.query(Order).filter(Order.id == r.order_id).first() if r.order_id else None
+
+        result.append({
+            "id": r.id,
+            "user_id": r.user_id,
+            "user_name": user.real_name or user.nickname if user else None,
+            "order_id": r.order_id,
+            "order_no": order.order_no if order else None,
+            "from_user_id": r.from_user_id,
+            "from_user_name": from_user.real_name or from_user.nickname if from_user else None,
+            "order_amount": float(r.order_amount) if r.order_amount else 0,
+            "commission_rate": float(r.commission_rate) if r.commission_rate else 0,
+            "commission_amount": float(r.commission_amount) if r.commission_amount else 0,
+            "status": r.status,
+            "settled_at": r.settled_at.isoformat() if r.settled_at else None,
+            "created_at": r.created_at.isoformat() if r.created_at else None
+        })
+
+    return Response.success(data={
+        "items": result,
+        "total": total,
+        "page": page,
+        "page_size": page_size
+    })
+
+
+@router.post("/commission/settle", summary="结算佣金")
+async def settle_commission(
+    data: SettleCommissionRequest,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """批量结算佣金记录"""
+    total_amount = Decimal("0")
+    settled_count = 0
+
+    for record_id in data.record_ids:
+        record = db.query(CommissionRecord).filter(
+            CommissionRecord.id == record_id,
+            CommissionRecord.status == "pending"
+        ).first()
+
+        if not record:
+            continue
+
+        record.status = "settled"
+        record.settled_at = datetime.now()
+        total_amount += record.commission_amount or Decimal("0")
+        settled_count += 1
+
+        # 将佣金添加到用户余额
+        user = db.query(User).filter(User.id == record.user_id).first()
+        if user:
+            user.reward_balance = (user.reward_balance or Decimal("0")) + (record.commission_amount or Decimal("0"))
+
+    db.commit()
+
+    return Response.success(data={
+        "settled_count": settled_count,
+        "total_amount": float(total_amount)
+    }, message=f"成功结算 {settled_count} 条记录，共 ¥{total_amount}")
+
+
+# ==================== 开票充值管理 ====================
+
+class InvoiceRechargeConfirmRequest(BaseModel):
+    """确认开票充值请求"""
+    remark: Optional[str] = None
+
+
+class InvoiceRechargeRejectRequest(BaseModel):
+    """拒绝开票充值请求"""
+    reject_reason: str
+
+
+@router.get("/invoice-recharges", summary="获取开票充值列表（管理员）")
+async def get_invoice_recharges_admin(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    search: Optional[str] = Query(None, description="搜索用户手机号"),
+    status: Optional[str] = Query(None, description="状态: pending/confirmed/rejected"),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """管理员获取开票充值申请列表"""
+    query = db.query(InvoiceRechargeRecord).join(User, InvoiceRechargeRecord.user_id == User.id)
+
+    if search:
+        query = query.filter(User.phone.contains(search))
+    if status:
+        try:
+            status_enum = InvoiceRechargeStatus(status)
+            query = query.filter(InvoiceRechargeRecord.status == status_enum)
+        except ValueError:
+            pass
+
+    total = query.count()
+    records = query.order_by(desc(InvoiceRechargeRecord.created_at)).offset((page - 1) * page_size).limit(page_size).all()
+
+    result = []
+    for r in records:
+        user = db.query(User).filter(User.id == r.user_id).first()
+        result.append({
+            "id": r.id,
+            "user_id": r.user_id,
+            "user_name": user.real_name or user.nickname if user else None,
+            "user_phone": user.phone if user else None,
+            "amount": float(r.amount),
+            "bonus_amount": float(r.bonus_amount or 0),
+            "total_amount": float(r.amount + (r.bonus_amount or 0)),
+            "invoice_title": r.invoice_title,
+            "invoice_tax_no": r.invoice_tax_no,
+            "invoice_type": r.invoice_type,
+            "invoice_email": r.invoice_email,
+            "bank_name": r.bank_name,
+            "bank_account": r.bank_account,
+            "transfer_date": r.transfer_date.isoformat() if r.transfer_date else None,
+            "transfer_voucher": r.transfer_voucher,
+            "status": r.status.value if r.status else "pending",
+            "reject_reason": r.reject_reason,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+            "confirmed_at": r.confirmed_at.isoformat() if r.confirmed_at else None
+        })
+
+    return Response.success(data={
+        "items": result,
+        "total": total,
+        "page": page,
+        "page_size": page_size
+    })
+
+
+@router.get("/invoice-recharges/{record_id}", summary="获取开票充值详情（管理员）")
+async def get_invoice_recharge_detail_admin(
+    record_id: int,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """管理员获取开票充值详情"""
+    record = db.query(InvoiceRechargeRecord).filter(InvoiceRechargeRecord.id == record_id).first()
+    if not record:
+        raise HTTPException(status_code=404, detail="记录不存在")
+
+    user = db.query(User).filter(User.id == record.user_id).first()
+    admin = db.query(User).filter(User.id == record.admin_id).first() if record.admin_id else None
+
+    return Response.success(data={
+        "id": record.id,
+        "user_id": record.user_id,
+        "user_name": user.real_name or user.nickname if user else None,
+        "user_phone": user.phone if user else None,
+        "amount": float(record.amount),
+        "bonus_amount": float(record.bonus_amount or 0),
+        "total_amount": float(record.amount + (record.bonus_amount or 0)),
+        "invoice_title": record.invoice_title,
+        "invoice_tax_no": record.invoice_tax_no,
+        "invoice_type": record.invoice_type,
+        "invoice_email": record.invoice_email,
+        "invoice_remark": record.invoice_remark,
+        "bank_name": record.bank_name,
+        "bank_account": record.bank_account,
+        "transfer_date": record.transfer_date.isoformat() if record.transfer_date else None,
+        "transfer_voucher": record.transfer_voucher,
+        "status": record.status.value if record.status else "pending",
+        "reject_reason": record.reject_reason,
+        "remark": record.remark,
+        "admin_id": record.admin_id,
+        "admin_name": admin.nickname if admin else None,
+        "created_at": record.created_at.isoformat() if record.created_at else None,
+        "confirmed_at": record.confirmed_at.isoformat() if record.confirmed_at else None
+    })
+
+
+@router.post("/invoice-recharges/{record_id}/confirm", summary="确认开票充值")
+async def confirm_invoice_recharge(
+    record_id: int,
+    data: InvoiceRechargeConfirmRequest = Body(default=InvoiceRechargeConfirmRequest()),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """确认开票充值，将金额充入用户账户"""
+    record = db.query(InvoiceRechargeRecord).filter(
+        InvoiceRechargeRecord.id == record_id,
+        InvoiceRechargeRecord.status == InvoiceRechargeStatus.PENDING
+    ).first()
+
+    if not record:
+        raise HTTPException(status_code=404, detail="记录不存在或已处理")
+
+    # 更新记录状态
+    record.status = InvoiceRechargeStatus.CONFIRMED
+    record.admin_id = current_admin.id
+    record.confirmed_at = datetime.now()
+    record.remark = data.remark
+
+    # 将金额充入用户账户
+    user = db.query(User).filter(User.id == record.user_id).first()
+    if user:
+        total_amount = record.amount + (record.bonus_amount or Decimal("0"))
+        user.balance = (user.balance or Decimal("0")) + total_amount
+
+    db.commit()
+
+    return Response.success(message="开票充值已确认，金额已到账")
+
+
+@router.post("/invoice-recharges/{record_id}/reject", summary="拒绝开票充值")
+async def reject_invoice_recharge(
+    record_id: int,
+    data: InvoiceRechargeRejectRequest,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """拒绝开票充值申请"""
+    record = db.query(InvoiceRechargeRecord).filter(
+        InvoiceRechargeRecord.id == record_id,
+        InvoiceRechargeRecord.status == InvoiceRechargeStatus.PENDING
+    ).first()
+
+    if not record:
+        raise HTTPException(status_code=404, detail="记录不存在或已处理")
+
+    record.status = InvoiceRechargeStatus.REJECTED
+    record.admin_id = current_admin.id
+    record.reject_reason = data.reject_reason
+
+    db.commit()
+
+    return Response.success(message="开票充值申请已拒绝")
+
