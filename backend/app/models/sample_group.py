@@ -17,9 +17,9 @@ class SampleGroup(Base):
 
     id = Column(BigInteger, primary_key=True, index=True, autoincrement=True)
 
-    # 关联
+    # 关联 (注意: users.id 是 Integer, orders.id 和 projects.id 是 BigInteger)
     order_id = Column(BigInteger, ForeignKey("orders.id"), index=True, comment="关联订单（提交后）")
-    user_id = Column(BigInteger, ForeignKey("users.id"), nullable=False, index=True, comment="用户ID")
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True, comment="用户ID")
     project_id = Column(BigInteger, ForeignKey("projects.id"), nullable=False, index=True, comment="项目ID")
 
     # 分组信息

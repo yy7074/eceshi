@@ -43,6 +43,18 @@
 			<text class="bonus-text">充{{ finalAmount }}元，赠送{{ bonusAmount }}元，到账{{ actualAmount }}元</text>
 		</view>
 		
+		<!-- 赠送示例展示 -->
+		<view class="bonus-examples-section">
+			<view class="section-title">充值赠送示例</view>
+			<view class="examples-grid">
+				<view class="example-card" v-for="(item, index) in bonusExamples" :key="index">
+					<view class="example-amount">充{{ item.amount }}元</view>
+					<view class="example-bonus">送{{ item.bonus }}元</view>
+					<view class="example-total">到账{{ item.total }}元</view>
+				</view>
+			</view>
+		</view>
+
 		<!-- 充值规则 -->
 		<view class="rules-section">
 			<view class="section-title">充值优惠规则</view>
@@ -52,6 +64,18 @@
 					<text class="rule-text">{{ rule.description }}</text>
 				</view>
 			</view>
+		</view>
+
+		<!-- 开票充值入口 -->
+		<view class="invoice-recharge-entry" @click="goToInvoiceRecharge">
+			<view class="entry-left">
+				<text class="entry-icon">📄</text>
+				<view class="entry-info">
+					<view class="entry-title">开票充值</view>
+					<view class="entry-desc">大额充值可开发票，享受同等优惠</view>
+				</view>
+			</view>
+			<text class="arrow">→</text>
 		</view>
 		
 		<!-- 支付方式 -->
@@ -109,6 +133,12 @@ export default {
 				{ value: 1000, label: '1000元', bonus: 150 },
 				{ value: 2000, label: '2000元', bonus: 300 },
 				{ value: 5000, label: '5000元', bonus: 1000 }
+			],
+			bonusExamples: [
+				{ amount: 1000, bonus: 150, total: 1150 },
+				{ amount: 5000, bonus: 1000, total: 6000 },
+				{ amount: 10000, bonus: 2000, total: 12000 },
+				{ amount: 50000, bonus: 10000, total: 60000 }
 			]
 		}
 	},
@@ -278,6 +308,12 @@ export default {
 		goToRecords() {
 			uni.navigateTo({
 				url: '/pagesA/recharge-records/recharge-records'
+			})
+		},
+
+		goToInvoiceRecharge() {
+			uni.navigateTo({
+				url: '/pagesA/invoice-recharge/invoice-recharge'
 			})
 		}
 	}
@@ -550,6 +586,85 @@ export default {
 .arrow {
 	color: #999;
 	font-size: 36rpx;
+}
+
+/* 赠送示例 */
+.bonus-examples-section {
+	background: linear-gradient(135deg, #fff5eb 0%, #ffe9d6 100%);
+	margin: 24rpx;
+	padding: 32rpx;
+	border-radius: 16rpx;
+}
+
+.examples-grid {
+	display: grid;
+	grid-template-columns: repeat(2, 1fr);
+	gap: 20rpx;
+}
+
+.example-card {
+	background: white;
+	padding: 24rpx;
+	border-radius: 12rpx;
+	text-align: center;
+	box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.05);
+}
+
+.example-amount {
+	font-size: 28rpx;
+	color: #333;
+	font-weight: bold;
+	margin-bottom: 8rpx;
+}
+
+.example-bonus {
+	font-size: 32rpx;
+	color: #ff6b00;
+	font-weight: bold;
+	margin-bottom: 8rpx;
+}
+
+.example-total {
+	font-size: 24rpx;
+	color: #999;
+}
+
+/* 开票充值入口 */
+.invoice-recharge-entry {
+	background: white;
+	margin: 24rpx;
+	padding: 32rpx;
+	border-radius: 16rpx;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+}
+
+.entry-left {
+	display: flex;
+	align-items: center;
+}
+
+.entry-icon {
+	font-size: 48rpx;
+	margin-right: 20rpx;
+}
+
+.entry-info {
+	display: flex;
+	flex-direction: column;
+}
+
+.entry-title {
+	font-size: 30rpx;
+	font-weight: bold;
+	color: #333;
+	margin-bottom: 4rpx;
+}
+
+.entry-desc {
+	font-size: 24rpx;
+	color: #999;
 }
 </style>
 

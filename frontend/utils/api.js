@@ -412,6 +412,21 @@ export default {
 	getBonusRules() {
 		return request.get('/api/v1/recharge/bonus/rules')
 	},
+
+	// 申请开票充值
+	applyInvoiceRecharge(data) {
+		return request.post('/api/v1/recharge/invoice/apply', data)
+	},
+
+	// 获取开票充值记录
+	getInvoiceRechargeRecords(params) {
+		return request.get('/api/v1/recharge/invoice/records', params)
+	},
+
+	// 获取开票充值详情
+	getInvoiceRechargeDetail(recordId) {
+		return request.get(`/api/v1/recharge/invoice/${recordId}`)
+	},
 	
 	// ========== 发票相关 ==========
 	

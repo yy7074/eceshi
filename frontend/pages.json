@@ -209,6 +209,12 @@
 			}
 		},
 		{
+			"path": "invoice-recharge/invoice-recharge",
+			"style": {
+				"navigationBarTitleText": "开票充值"
+			}
+		},
+		{
 			"path": "help/help",
 			"style": {
 				"navigationBarTitleText": "帮助中心"

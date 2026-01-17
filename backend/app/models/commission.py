@@ -2,7 +2,7 @@
 佣金设置相关模型
 支持根据不同客户设置佣金比例
 """
-from sqlalchemy import Column, BigInteger, String, Date, DateTime, Numeric, ForeignKey
+from sqlalchemy import Column, BigInteger, String, Integer, Date, DateTime, Numeric, ForeignKey
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.core.database import Base
@@ -17,8 +17,8 @@ class UserCommissionSetting(Base):
 
     id = Column(BigInteger, primary_key=True, index=True, autoincrement=True)
 
-    # 用户关联
-    user_id = Column(BigInteger, ForeignKey("users.id"), nullable=False, unique=True, index=True, comment="用户ID")
+    # 用户关联 (注意: users.id 是 Integer)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, unique=True, index=True, comment="用户ID")
 
     # 佣金配置
     commission_rate = Column(Numeric(5, 2), default=0, comment="佣金比例（%）")
@@ -29,7 +29,7 @@ class UserCommissionSetting(Base):
     effective_to = Column(Date, comment="失效日期")
 
     # 审核信息
-    created_by = Column(BigInteger, ForeignKey("users.id"), comment="设置人")
+    created_by = Column(Integer, ForeignKey("users.id"), comment="设置人")
     created_at = Column(DateTime, server_default=func.now(), comment="创建时间")
     updated_at = Column(DateTime, onupdate=func.now(), comment="更新时间")
 
@@ -47,10 +47,10 @@ class CommissionRecord(Base):
 
     id = Column(BigInteger, primary_key=True, index=True, autoincrement=True)
 
-    # 关联
-    user_id = Column(BigInteger, ForeignKey("users.id"), nullable=False, index=True, comment="获得佣金的用户ID")
+    # 关联 (注意: users.id 是 Integer, orders.id 是 BigInteger)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True, comment="获得佣金的用户ID")
     order_id = Column(BigInteger, ForeignKey("orders.id"), nullable=False, index=True, comment="订单ID")
-    from_user_id = Column(BigInteger, ForeignKey("users.id"), comment="下单用户ID（被邀请人）")
+    from_user_id = Column(Integer, ForeignKey("users.id"), comment="下单用户ID（被邀请人）")
 
     # 金额信息
     order_amount = Column(Numeric(10, 2), comment="订单金额")

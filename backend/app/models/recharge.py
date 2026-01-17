@@ -76,7 +76,8 @@ class InvoiceRechargeRecord(Base):
     __tablename__ = "invoice_recharge_records"
 
     id = Column(BigInteger, primary_key=True, index=True, autoincrement=True)
-    user_id = Column(BigInteger, ForeignKey("users.id"), nullable=False, index=True, comment="用户ID")
+    # 注意: users.id 是 Integer
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True, comment="用户ID")
 
     # 充值金额
     amount = Column(Numeric(10, 2), nullable=False, comment="充值金额")
@@ -102,8 +103,8 @@ class InvoiceRechargeRecord(Base):
         comment="状态"
     )
 
-    # 审核信息
-    admin_id = Column(BigInteger, ForeignKey("users.id"), comment="确认的管理员")
+    # 审核信息 (注意: users.id 是 Integer)
+    admin_id = Column(Integer, ForeignKey("users.id"), comment="确认的管理员")
     confirmed_at = Column(DateTime, comment="确认时间")
     reject_reason = Column(String(500), comment="拒绝原因")
     remark = Column(Text, comment="管理员备注")
