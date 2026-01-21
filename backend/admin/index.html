@@ -265,6 +265,10 @@
                             <el-icon><picture /></el-icon>
                             <span>项目管理</span>
                         </el-menu-item>
+                        <el-menu-item index="project_options">
+                            <el-icon><operation /></el-icon>
+                            <span>选项管理</span>
+                        </el-menu-item>
                         <el-menu-item index="categories">
                             <el-icon><folder /></el-icon>
                             <span>分类管理</span>
@@ -830,6 +834,163 @@
                                 <template #footer>
                                     <el-button @click="projectDialogVisible = false">取消</el-button>
                                     <el-button type="primary" @click="saveProject" :loading="loading">保存</el-button>
+                                </template>
+                            </el-dialog>
+                        </div>
+                    </div>
+
+                    <!-- 选项管理 -->
+                    <div v-show="activeMenu === 'project_options'">
+                        <div class="page-header">
+                            <h3>⚙️ 选项管理</h3>
+                        </div>
+
+                        <div class="content-card">
+                            <div style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
+                                <div>
+                                    <el-select v-model="optionProjectFilter" placeholder="选择项目" style="width: 200px; margin-right: 10px;" @change="loadProjectOptions" clearable>
+                                        <el-option v-for="p in projects" :key="p.id" :label="p.name" :value="p.id"></el-option>
+                                    </el-select>
+                                    <el-select v-model="optionCategoryFilter" placeholder="选择分类" style="width: 150px; margin-right: 10px;" @change="loadProjectOptions" clearable>
+                                        <el-option v-for="cat in categories" :key="cat.id" :label="cat.name" :value="cat.id"></el-option>
+                                    </el-select>
+                                    <el-button type="primary" @click="loadProjectOptions">刷新</el-button>
+                                </div>
+                                <el-button type="primary" @click="showOptionDialog()">
+                                    <el-icon><plus /></el-icon> 添加选项
+                                </el-button>
+                            </div>
+
+                            <el-table :data="projectOptions" style="width: 100%" v-loading="optionsLoading" row-key="id" default-expand-all>
+                                <el-table-column prop="id" label="ID" width="60"></el-table-column>
+                                <el-table-column prop="name" label="选项名称" width="200">
+                                    <template #default="scope">
+                                        <span :style="{ paddingLeft: (scope.row.level - 1) * 20 + 'px' }">
+                                            {{ scope.row.name }}
+                                        </span>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column label="类型" width="100">
+                                    <template #default="scope">
+                                        <el-tag :type="scope.row.option_type === 'single' ? 'primary' : scope.row.option_type === 'multi' ? 'success' : 'warning'" size="small">
+                                            {{ scope.row.option_type === 'single' ? '单选' : scope.row.option_type === 'multi' ? '多选' : '输入' }}
+                                        </el-tag>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column label="价格" width="120">
+                                    <template #default="scope">
+                                        <span v-if="scope.row.price > 0">
+                                            ¥{{ scope.row.price }}
+                                            <span style="font-size: 12px; color: #999;">
+                                                ({{ scope.row.price_type === 'fixed' ? '固定' : scope.row.price_type === 'per_sample' ? '每样品' : '百分比' }})
+                                            </span>
+                                        </span>
+                                        <span v-else style="color: #999;">-</span>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column prop="hint_text" label="红色提示文字" width="200" show-overflow-tooltip>
+                                    <template #default="scope">
+                                        <span v-if="scope.row.hint_text" style="color: #ff6b6b;">{{ scope.row.hint_text }}</span>
+                                        <span v-else style="color: #ccc;">未设置</span>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column label="排序" width="80" prop="sort_order"></el-table-column>
+                                <el-table-column label="状态" width="80">
+                                    <template #default="scope">
+                                        <el-tag :type="scope.row.is_active ? 'success' : 'info'" size="small">
+                                            {{ scope.row.is_active ? '启用' : '禁用' }}
+                                        </el-tag>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column label="操作" width="200" fixed="right">
+                                    <template #default="scope">
+                                        <el-button type="primary" size="small" @click="showOptionDialog(scope.row)">编辑</el-button>
+                                        <el-button type="warning" size="small" @click="toggleOptionStatus(scope.row)">
+                                            {{ scope.row.is_active ? '禁用' : '启用' }}
+                                        </el-button>
+                                        <el-button type="danger" size="small" @click="deleteOption(scope.row.id)">删除</el-button>
+                                    </template>
+                                </el-table-column>
+                            </el-table>
+
+                            <el-pagination
+                                v-model:current-page="optionPage"
+                                v-model:page-size="optionPageSize"
+                                :page-sizes="[20, 50, 100]"
+                                :total="optionTotal"
+                                layout="total, sizes, prev, pager, next"
+                                @size-change="loadProjectOptions"
+                                @current-change="loadProjectOptions"
+                                style="margin-top: 20px; justify-content: center;">
+                            </el-pagination>
+
+                            <!-- 添加/编辑选项对话框 -->
+                            <el-dialog
+                                v-model="optionDialogVisible"
+                                :title="optionForm.id ? '编辑选项' : '添加选项'"
+                                width="600px">
+                                <el-form :model="optionForm" label-width="120px">
+                                    <el-form-item label="关联项目">
+                                        <el-select v-model="optionForm.project_id" placeholder="选择项目" style="width: 100%;" clearable>
+                                            <el-option v-for="p in projects" :key="p.id" :label="p.name" :value="p.id"></el-option>
+                                        </el-select>
+                                        <div style="font-size: 12px; color: #999; margin-top: 4px;">或选择分类（二选一）</div>
+                                    </el-form-item>
+                                    <el-form-item label="关联分类">
+                                        <el-select v-model="optionForm.category_id" placeholder="选择分类" style="width: 100%;" clearable>
+                                            <el-option v-for="cat in categories" :key="cat.id" :label="cat.name" :value="cat.id"></el-option>
+                                        </el-select>
+                                    </el-form-item>
+                                    <el-form-item label="父选项">
+                                        <el-select v-model="optionForm.parent_id" placeholder="选择父选项（可选）" style="width: 100%;" clearable>
+                                            <el-option v-for="opt in parentOptionList" :key="opt.id" :label="opt.name" :value="opt.id"></el-option>
+                                        </el-select>
+                                    </el-form-item>
+                                    <el-form-item label="选项名称" required>
+                                        <el-input v-model="optionForm.name" placeholder="请输入选项名称"></el-input>
+                                    </el-form-item>
+                                    <el-form-item label="选项类型" required>
+                                        <el-select v-model="optionForm.option_type" style="width: 100%;">
+                                            <el-option label="单选" value="single"></el-option>
+                                            <el-option label="多选" value="multi"></el-option>
+                                            <el-option label="输入" value="input"></el-option>
+                                        </el-select>
+                                    </el-form-item>
+                                    <el-form-item label="价格调整">
+                                        <el-input-number v-model="optionForm.price" :min="0" :precision="2" style="width: 60%;"></el-input-number>
+                                        <el-select v-model="optionForm.price_type" style="width: 38%; margin-left: 2%;">
+                                            <el-option label="固定价格" value="fixed"></el-option>
+                                            <el-option label="按样品数" value="per_sample"></el-option>
+                                            <el-option label="百分比" value="percentage"></el-option>
+                                        </el-select>
+                                    </el-form-item>
+                                    <el-form-item label="红色提示文字">
+                                        <el-input
+                                            v-model="optionForm.hint_text"
+                                            type="textarea"
+                                            :rows="2"
+                                            placeholder="选中后显示的红色提示文字（可选）">
+                                        </el-input>
+                                        <div style="font-size: 12px; color: #ff6b6b; margin-top: 4px;">
+                                            此文字将在用户选中该选项后以红色显示
+                                        </div>
+                                    </el-form-item>
+                                    <el-form-item label="占位符" v-if="optionForm.option_type === 'input'">
+                                        <el-input v-model="optionForm.placeholder" placeholder="输入框占位符文字"></el-input>
+                                    </el-form-item>
+                                    <el-form-item label="是否必填">
+                                        <el-switch v-model="optionForm.is_required"></el-switch>
+                                    </el-form-item>
+                                    <el-form-item label="排序">
+                                        <el-input-number v-model="optionForm.sort_order" :min="0"></el-input-number>
+                                    </el-form-item>
+                                    <el-form-item label="状态">
+                                        <el-switch v-model="optionForm.is_active" active-text="启用" inactive-text="禁用"></el-switch>
+                                    </el-form-item>
+                                </el-form>
+                                <template #footer>
+                                    <el-button @click="optionDialogVisible = false">取消</el-button>
+                                    <el-button type="primary" @click="saveOption" :loading="loading">保存</el-button>
                                 </template>
                             </el-dialog>
                         </div>
@@ -2858,6 +3019,17 @@
                     categoryTotal: 0,
                     categoryDialogVisible: false,
                     categoryForm: { id: null, name: '', code: '', icon: '', description: '', sort_order: 0, is_hot: false },
+                    // 项目选项管理
+                    projectOptions: [],
+                    optionsLoading: false,
+                    optionProjectFilter: null,
+                    optionCategoryFilter: null,
+                    optionPage: 1,
+                    optionPageSize: 50,
+                    optionTotal: 0,
+                    optionDialogVisible: false,
+                    optionForm: { id: null, project_id: null, category_id: null, parent_id: null, name: '', option_type: 'single', price: 0, price_type: 'fixed', hint_text: '', placeholder: '', is_required: false, sort_order: 0, is_active: true },
+                    parentOptionList: [],
                     // 优惠券管理
                     couponList: [],
                     couponLoading: false,
@@ -3149,6 +3321,7 @@
                     if (index === 'dashboard') this.loadDashboard()
                     else if (index === 'users' && this.users.length === 0) this.loadUsers()
                     else if (index === 'projects') this.loadProjects()
+                    else if (index === 'project_options') { this.loadProjects(); this.loadCategories(); this.loadProjectOptions() }
                     else if (index === 'orders') this.loadOrders()
                     else if (index === 'order_assign') { this.loadPendingAssignOrders(); this.loadAssignStats(); this.loadProjectCategories() }
                     else if (index === 'categories') this.loadCategories()
@@ -3879,7 +4052,111 @@
                         ElMessage.success('封面图片上传成功')
                     }
                 },
-                
+
+                // ==================== 项目选项管理 ====================
+                async loadProjectOptions() {
+                    this.optionsLoading = true
+                    try {
+                        const res = await axios.get(`${this.baseUrl}/api/v1/admin/options`, {
+                            headers: this.uploadHeaders,
+                            params: {
+                                page: this.optionPage,
+                                page_size: this.optionPageSize,
+                                project_id: this.optionProjectFilter || undefined,
+                                category_id: this.optionCategoryFilter || undefined
+                            }
+                        })
+                        this.projectOptions = res.data.data.items || []
+                        this.optionTotal = res.data.data.total || 0
+                        // 加载父选项列表
+                        this.parentOptionList = this.projectOptions.filter(o => o.option_type !== 'input')
+                    } catch (error) {
+                        console.error('加载选项失败', error)
+                        ElMessage.error(error.response?.data?.detail || '加载选项失败')
+                    } finally {
+                        this.optionsLoading = false
+                    }
+                },
+                showOptionDialog(option = null) {
+                    if (option) {
+                        this.optionForm = { ...option }
+                    } else {
+                        this.optionForm = {
+                            id: null,
+                            project_id: this.optionProjectFilter || null,
+                            category_id: this.optionCategoryFilter || null,
+                            parent_id: null,
+                            name: '',
+                            option_type: 'single',
+                            price: 0,
+                            price_type: 'fixed',
+                            hint_text: '',
+                            placeholder: '',
+                            is_required: false,
+                            sort_order: 0,
+                            is_active: true
+                        }
+                    }
+                    this.optionDialogVisible = true
+                },
+                async saveOption() {
+                    if (!this.optionForm.name) {
+                        ElMessage.warning('请输入选项名称')
+                        return
+                    }
+                    if (!this.optionForm.project_id && !this.optionForm.category_id) {
+                        ElMessage.warning('请选择关联项目或分类')
+                        return
+                    }
+                    this.loading = true
+                    try {
+                        if (this.optionForm.id) {
+                            await axios.put(`${this.baseUrl}/api/v1/admin/options/${this.optionForm.id}`, this.optionForm, {
+                                headers: this.uploadHeaders
+                            })
+                            ElMessage.success('更新成功')
+                        } else {
+                            await axios.post(`${this.baseUrl}/api/v1/admin/options`, this.optionForm, {
+                                headers: this.uploadHeaders
+                            })
+                            ElMessage.success('创建成功')
+                        }
+                        this.optionDialogVisible = false
+                        this.loadProjectOptions()
+                    } catch (error) {
+                        ElMessage.error(error.response?.data?.detail || '保存失败')
+                    } finally {
+                        this.loading = false
+                    }
+                },
+                async toggleOptionStatus(option) {
+                    try {
+                        await axios.post(`${this.baseUrl}/api/v1/admin/options/${option.id}/toggle`, {}, {
+                            headers: this.uploadHeaders
+                        })
+                        ElMessage.success(option.is_active ? '已禁用' : '已启用')
+                        this.loadProjectOptions()
+                    } catch (error) {
+                        ElMessage.error(error.response?.data?.detail || '操作失败')
+                    }
+                },
+                async deleteOption(optionId) {
+                    try {
+                        await ElMessageBox.confirm('确定要删除该选项吗？', '提示', {
+                            type: 'warning'
+                        })
+                        await axios.delete(`${this.baseUrl}/api/v1/admin/options/${optionId}`, {
+                            headers: this.uploadHeaders
+                        })
+                        ElMessage.success('删除成功')
+                        this.loadProjectOptions()
+                    } catch (error) {
+                        if (error !== 'cancel') {
+                            ElMessage.error(error.response?.data?.detail || '删除失败')
+                        }
+                    }
+                },
+
                 // ==================== 订单管理 ====================
                 async loadOrders() {
                     this.ordersLoading = true

@@ -133,6 +133,15 @@ class BatchAddSamplesRequest(BaseModel):
     prefix: Optional[str] = Field(None, max_length=50, description="编号前缀")
     start_number: int = Field(default=1, ge=1, description="起始编号")
 
+    @field_validator('prefix')
+    @classmethod
+    def validate_prefix(cls, v):
+        """验证编号前缀只能包含英文、数字、下划线"""
+        if v is not None and v != '':
+            if not re.match(r'^[a-zA-Z0-9_]*$', v):
+                raise ValueError('编号前缀只能包含英文字母、数字和下划线')
+        return v
+
 
 class BatchAddSamplesResponse(BaseModel):
     """批量添加样品响应"""

@@ -14,13 +14,17 @@
 		
 		<!-- 上传类型选择 -->
 		<view class="upload-types">
-			<view class="type-item" :class="{ active: uploadType === 'sample' }" @click="uploadType = 'sample'">
-				<text class="type-icon">📦</text>
-				<text class="type-name">样品图片</text>
-			</view>
 			<view class="type-item" :class="{ active: uploadType === 'data' }" @click="uploadType = 'data'">
 				<text class="type-icon">📊</text>
 				<text class="type-name">原始数据</text>
+			</view>
+			<view class="type-item" :class="{ active: uploadType === 'report' }" @click="uploadType = 'report'">
+				<text class="type-icon">📋</text>
+				<text class="type-name">检测报告</text>
+			</view>
+			<view class="type-item" :class="{ active: uploadType === 'sample' }" @click="uploadType = 'sample'">
+				<text class="type-icon">📦</text>
+				<text class="type-name">样品图片</text>
 			</view>
 			<view class="type-item" :class="{ active: uploadType === 'other' }" @click="uploadType = 'other'">
 				<text class="type-icon">📎</text>
@@ -75,15 +79,18 @@
 </template>
 
 <script>
+import request from '@/utils/request'
+
 export default {
 	data() {
 		return {
 			orderId: '',
 			orderInfo: {},
-			uploadType: 'sample',
+			uploadType: 'data',
 			uploadedFiles: [],
 			remark: '',
-			submitting: false
+			submitting: false,
+			uploading: false
 		}
 	},
 	computed: {
@@ -91,9 +98,20 @@ export default {
 			const texts = {
 				sample: '样品图片',
 				data: '原始数据',
+				report: '检测报告',
 				other: '其他文件'
 			}
 			return texts[this.uploadType] || '文件'
+		},
+		reportType() {
+			// 映射到后端report_type
+			const typeMap = {
+				sample: 'sample_photo',
+				data: 'raw_data',
+				report: 'test_report',
+				other: 'other'
+			}
+			return typeMap[this.uploadType] || 'raw_data'
 		}
 	},
 	onLoad(options) {
@@ -101,17 +119,44 @@ export default {
 			this.orderId = options.orderId
 			this.loadOrderInfo()
 		}
+		// 支持指定上传类型
+		if (options.type) {
+			this.uploadType = options.type
+		}
 	},
 	methods: {
 		async loadOrderInfo() {
-			// 模拟加载订单信息
-			this.orderInfo = {
-				id: this.orderId,
-				order_no: 'ORD2025120100001',
-				project_name: 'X射线衍射分析(XRD)',
-				sample_name: 'XRD测试样品',
-				status_text: '检测中'
+			try {
+				uni.showLoading({ title: '加载中...' })
+				const res = await request.get(`/api/v1/laboratory/my/orders/${this.orderId}`)
+				if (res.code === 200 && res.data) {
+					this.orderInfo = {
+						id: res.data.id,
+						order_no: res.data.order_no,
+						project_name: res.data.project_name,
+						sample_name: res.data.samples && res.data.samples[0] ? res.data.samples[0].sample_name : '',
+						status: res.data.status,
+						status_text: this.getStatusText(res.data.status)
+					}
+				}
+			} catch (error) {
+				console.error('加载订单失败', error)
+				uni.showToast({ title: '加载订单失败', icon: 'none' })
+			} finally {
+				uni.hideLoading()
 			}
+		},
+
+		getStatusText(status) {
+			const statusMap = {
+				'assigned': '已指派',
+				'accepted': '已接单',
+				'sample_received': '已收样',
+				'testing': '检测中',
+				'data_uploaded': '数据已上传',
+				'completed': '已完成'
+			}
+			return statusMap[status] || status
 		},
 		
 		chooseFile() {
@@ -224,17 +269,43 @@ export default {
 			})
 		},
 		
-		submitUpload() {
+		async submitUpload() {
 			if (this.uploadedFiles.length === 0) {
 				uni.showToast({ title: '请先上传文件', icon: 'none' })
 				return
 			}
-			
+
 			this.submitting = true
-			
-			// 模拟上传
-			setTimeout(() => {
-				this.submitting = false
+
+			try {
+				// 先上传文件到OSS
+				const uploadedUrls = []
+				for (const file of this.uploadedFiles) {
+					if (!file.url) {
+						// 需要上传到服务器
+						const fileUrl = await this.uploadFileToServer(file.path)
+						uploadedUrls.push({
+							url: fileUrl,
+							name: file.name
+						})
+					} else {
+						uploadedUrls.push({
+							url: file.url,
+							name: file.name
+						})
+					}
+				}
+
+				// 提交到订单报告
+				for (const fileInfo of uploadedUrls) {
+					await request.post(`/api/v1/laboratory/my/orders/${this.orderId}/upload-report`, {
+						report_type: this.reportType,
+						file_url: fileInfo.url,
+						file_name: fileInfo.name,
+						remark: this.remark
+					})
+				}
+
 				uni.showModal({
 					title: '上传成功',
 					content: '文件已成功上传，工作人员将尽快处理。',
@@ -243,7 +314,41 @@ export default {
 						uni.navigateBack()
 					}
 				})
-			}, 2000)
+			} catch (error) {
+				console.error('上传失败', error)
+				uni.showToast({ title: error.message || '上传失败', icon: 'none' })
+			} finally {
+				this.submitting = false
+			}
+		},
+
+		async uploadFileToServer(filePath) {
+			return new Promise((resolve, reject) => {
+				const token = uni.getStorageSync('token')
+				uni.uploadFile({
+					url: request.baseUrl + '/api/v1/upload/file',
+					filePath: filePath,
+					name: 'file',
+					header: {
+						'Authorization': `Bearer ${token}`
+					},
+					success: (res) => {
+						try {
+							const data = JSON.parse(res.data)
+							if (data.code === 200 && data.data && data.data.url) {
+								resolve(data.data.url)
+							} else {
+								reject(new Error(data.message || '上传失败'))
+							}
+						} catch (e) {
+							reject(new Error('上传响应解析失败'))
+						}
+					},
+					fail: (err) => {
+						reject(new Error('上传请求失败'))
+					}
+				})
+			})
 		}
 	}
 }

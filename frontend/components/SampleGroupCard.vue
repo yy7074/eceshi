@@ -351,6 +351,15 @@ export default {
         return
       }
 
+      // 验证编号前缀格式
+      if (this.batchForm.prefix && !/^[a-zA-Z0-9_]*$/.test(this.batchForm.prefix)) {
+        uni.showToast({
+          title: '编号前缀只能包含英文、数字和下划线',
+          icon: 'none'
+        })
+        return
+      }
+
       this.$emit('batch-add', this.group.id, this.batchForm)
       this.showBatchAdd = false
       this.batchForm = {

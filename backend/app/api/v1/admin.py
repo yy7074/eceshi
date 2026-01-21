@@ -840,48 +840,6 @@ class BatchAssignRequest(BaseModel):
     remark: Optional[str] = None
 
 
-@router.get("/orders/pending-assign", summary="获取待指派订单列表")
-async def get_pending_assign_orders(
-    page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100),
-    search: Optional[str] = Query(None, description="搜索订单号"),
-    db: Session = Depends(get_db),
-    current_admin: User = Depends(get_current_admin_user)
-):
-    """获取待指派的订单列表（已支付但未指派的订单）"""
-    query = db.query(Order).filter(
-        Order.is_draft == False,
-        Order.status.in_(["paid", "pending_assign"]),
-        Order.assigned_lab_id.is_(None)
-    )
-
-    if search:
-        query = query.filter(Order.order_no.like(f"%{search}%"))
-
-    total = query.count()
-    orders = query.order_by(desc(Order.created_at)).offset((page - 1) * page_size).limit(page_size).all()
-
-    return Response.success(data={
-        "items": [
-            {
-                "id": o.id,
-                "order_no": o.order_no,
-                "project_name": o.project_name,
-                "sample_count": o.sample_count,
-                "total_fee": float(o.total_fee or 0),
-                "is_urgent": o.is_urgent,
-                "status": o.status,
-                "created_at": o.created_at.isoformat() if o.created_at else None,
-                "paid_at": o.paid_at.isoformat() if o.paid_at else None
-            }
-            for o in orders
-        ],
-        "total": total,
-        "page": page,
-        "page_size": page_size
-    })
-
-
 @router.get("/orders/{order_id}/suitable-labs", summary="获取适合的实验室列表")
 async def get_suitable_labs_for_order(
     order_id: int,

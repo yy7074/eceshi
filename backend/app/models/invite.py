@@ -99,28 +99,56 @@ class WithdrawRecord(Base):
 class InviteConfig(Base):
     """邀请配置表"""
     __tablename__ = "invite_config"
-    
+
     id = Column(Integer, primary_key=True, index=True, comment="配置ID")
-    
+
     # 奖励配置
     inviter_reward = Column(Numeric(10, 2), default=10, comment="邀请人奖励金额")
     invitee_reward = Column(Numeric(10, 2), default=5, comment="被邀请人奖励金额")
     reward_type = Column(String(20), default="balance", comment="奖励类型")
-    
+
     # 条件配置
     min_order_amount = Column(Numeric(10, 2), default=0, comment="最低订单金额要求")
     reward_delay_days = Column(Integer, default=0, comment="奖励延迟天数")
-    
+
     # 提现配置
     min_withdraw_amount = Column(Numeric(10, 2), default=10, comment="最低提现金额")
     withdraw_fee_rate = Column(Numeric(5, 4), default=0, comment="提现手续费率")
-    
+
     # 状态
     is_active = Column(Integer, default=1, comment="是否启用")
-    
+
     # 时间
     created_at = Column(DateTime(timezone=True), server_default=func.now(), comment="创建时间")
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), comment="更新时间")
-    
+
     def __repr__(self):
         return f"<InviteConfig id={self.id}>"
+
+
+class InviteQRCodeRecord(Base):
+    """邀请二维码记录表"""
+    __tablename__ = "invite_qrcode_records"
+
+    id = Column(Integer, primary_key=True, index=True, comment="二维码ID")
+    user_id = Column(Integer, nullable=False, index=True, comment="用户ID")
+
+    # 二维码信息
+    name = Column(String(100), nullable=False, comment="二维码名称")
+    scene = Column(String(50), default="personal", comment="场景: personal/company/activity")
+    invite_code = Column(String(32), unique=True, index=True, comment="邀请码")
+    qrcode_url = Column(String(500), comment="二维码图片URL")
+
+    # 统计信息
+    scan_count = Column(Integer, default=0, comment="扫描次数")
+    register_count = Column(Integer, default=0, comment="注册人数")
+
+    # 状态
+    is_active = Column(Integer, default=1, comment="是否启用")
+
+    # 时间
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), comment="创建时间")
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), comment="更新时间")
+
+    def __repr__(self):
+        return f"<InviteQRCodeRecord id={self.id} invite_code={self.invite_code}>"

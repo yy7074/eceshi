@@ -536,13 +536,33 @@ async def get_lab_orders(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """获取当前实验室的订单列表"""
+    """获取当前实验室的订单列表
+
+    - 实验室管理员: 查看该实验室所有订单
+    - 实验室技术人员: 仅查看指派给自己的订单
+    """
+    # 首先检查是否为实验室管理员
     lab = db.query(Laboratory).filter(
         Laboratory.admin_user_id == current_user.id
     ).first()
 
+    is_lab_admin = lab is not None
+
+    # 如果不是管理员，检查是否为实验室技术人员
+    staff = None
+    if not is_lab_admin:
+        staff = db.query(LabStaff).filter(
+            LabStaff.user_id == current_user.id,
+            LabStaff.is_active == True
+        ).first()
+
+        if staff:
+            lab = db.query(Laboratory).filter(
+                Laboratory.id == staff.laboratory_id
+            ).first()
+
     if not lab:
-        raise HTTPException(status_code=404, detail="您暂无管理的实验室")
+        raise HTTPException(status_code=404, detail="您暂无管理的实验室或非实验室人员")
 
     # 查询指派给该实验室的订单
     query = db.query(Order).filter(
@@ -551,6 +571,10 @@ async def get_lab_orders(
             Order.lab_id == lab.id
         )
     )
+
+    # 如果是技术人员（非管理员），仅查看指派给自己的订单
+    if not is_lab_admin and staff:
+        query = query.filter(Order.assigned_staff_id == staff.id)
 
     if status:
         query = query.filter(Order.status == status)
@@ -596,21 +620,48 @@ async def get_lab_order_detail(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """获取订单详情"""
+    """获取订单详情
+
+    - 实验室管理员: 可查看该实验室所有订单
+    - 实验室技术人员: 仅可查看指派给自己的订单
+    """
+    # 首先检查是否为实验室管理员
     lab = db.query(Laboratory).filter(
         Laboratory.admin_user_id == current_user.id
     ).first()
 
-    if not lab:
-        raise HTTPException(status_code=404, detail="您暂无管理的实验室")
+    is_lab_admin = lab is not None
+    staff = None
 
-    order = db.query(Order).filter(
+    # 如果不是管理员，检查是否为实验室技术人员
+    if not is_lab_admin:
+        staff = db.query(LabStaff).filter(
+            LabStaff.user_id == current_user.id,
+            LabStaff.is_active == True
+        ).first()
+
+        if staff:
+            lab = db.query(Laboratory).filter(
+                Laboratory.id == staff.laboratory_id
+            ).first()
+
+    if not lab:
+        raise HTTPException(status_code=404, detail="您暂无管理的实验室或非实验室人员")
+
+    # 构建查询
+    query = db.query(Order).filter(
         Order.id == order_id,
         or_(
             Order.assigned_lab_id == lab.id,
             Order.lab_id == lab.id
         )
-    ).first()
+    )
+
+    # 如果是技术人员（非管理员），仅可查看指派给自己的订单
+    if not is_lab_admin and staff:
+        query = query.filter(Order.assigned_staff_id == staff.id)
+
+    order = query.first()
 
     if not order:
         raise HTTPException(status_code=404, detail="订单不存在")
