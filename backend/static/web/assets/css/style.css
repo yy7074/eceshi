@@ -153,6 +153,16 @@ html, body, #app {
     color: #8c8c8c;
 }
 
+.footer-copyright .icp-link {
+    color: #8c8c8c;
+    text-decoration: none;
+    font-size: 13px;
+}
+
+.footer-copyright .icp-link:hover {
+    color: #bfbfbf;
+}
+
 /* ==================== 首页样式 ==================== */
 .home-view {
     padding: 24px;
