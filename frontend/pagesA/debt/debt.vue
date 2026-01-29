@@ -218,8 +218,7 @@ export default {
 
 			paymentMethods: [
 				{ value: 'balance', label: '余额支付', icon: '💰' },
-				{ value: 'wechat', label: '微信支付', icon: '💚' },
-				{ value: 'alipay', label: '支付宝', icon: '💙' }
+				{ value: 'wechat', label: '微信支付', icon: '💚' }
 			],
 
 			// 提额申请

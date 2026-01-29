@@ -87,18 +87,10 @@
 						icon: '💰' 
 					},
 					{ 
-						value: 'alipay', 
-						name: '支付宝支付',
-						desc: '',
-						icon: '💳',
-						disabled: true  // 暂未开通
-					},
-					{ 
 						value: 'wechat', 
 						name: '微信支付',
 						desc: '',
-						icon: '💚',
-						disabled: true  // 暂未开通
+						icon: '💚'
 					}
 				],
 				

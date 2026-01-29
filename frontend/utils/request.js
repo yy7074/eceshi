@@ -21,15 +21,20 @@ function request(options) {
 		// 获取token
 		const token = uni.getStorageSync('token')
 		
+		// 构建请求头：只有 token 存在时才加 Authorization
+		const headers = {
+			'Content-Type': 'application/json',
+			...options.header
+		}
+		if (token) {
+			headers['Authorization'] = `Bearer ${token}`
+		}
+		
 		uni.request({
 			url: BASE_URL + options.url,
 			method: options.method || 'GET',
 			data: options.data || {},
-			header: {
-				'Content-Type': 'application/json',
-				'Authorization': token ? `Bearer ${token}` : '',
-				...options.header
-			},
+			header: headers,
 			success: (res) => {
 				if (res.statusCode === 200) {
 					// 业务逻辑处理
@@ -43,8 +48,8 @@ function request(options) {
 						})
 						reject(res.data)
 					}
-				} else if (res.statusCode === 401) {
-					// 未授权，跳转登录
+				} else if (res.statusCode === 401 || (res.statusCode === 403 && res.data && res.data.detail === 'Not authenticated')) {
+					// 未授权或未登录，跳转登录
 					uni.showToast({
 						title: '请先登录',
 						icon: 'none'
@@ -58,7 +63,7 @@ function request(options) {
 				} else {
 					// HTTP错误
 					uni.showToast({
-						title: '网络错误',
+						title: res.data.message || res.data.detail || '网络错误',
 						icon: 'none'
 					})
 					reject(res.data)

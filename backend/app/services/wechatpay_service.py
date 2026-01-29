@@ -25,7 +25,7 @@ class WeChatPayService:
         self.app_id = getattr(settings, 'WECHAT_APPID', 'wx2ef4744e64c7bc45')
         self.mch_id = getattr(settings, 'WECHAT_MCH_ID', '')  # 商户号
         self.api_key = getattr(settings, 'WECHAT_PAY_KEY', '')  # API密钥
-        self.notify_url = getattr(settings, 'WECHAT_PAY_NOTIFY_URL', 'https://3000.dachaonet.com/api/v1/payments/wechat/notify')
+        self.notify_url = getattr(settings, 'WECHAT_PAY_NOTIFY_URL', 'https://www.keyanbaice.com/api/v1/payments/wechat/notify')
     
     def generate_nonce_str(self, length: int = 32) -> str:
         """生成随机字符串"""

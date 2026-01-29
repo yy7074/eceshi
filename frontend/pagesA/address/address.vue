@@ -290,10 +290,20 @@ export default {
 		
 		// 选择地址（选择模式）
 		selectAddress(address) {
+			// 统一格式返回地址
+			const formattedAddress = {
+				id: address.id,
+				name: address.receiver_name || address.name,
+				phone: address.phone,
+				province: address.province,
+				city: address.city,
+				district: address.district || '',
+				detail: address.detail_address || address.detail
+			}
 			// 通过事件返回选中的地址
 			const eventChannel = this.getOpenerEventChannel()
 			if (eventChannel) {
-				eventChannel.emit('selectAddress', address)
+				eventChannel.emit('selectAddress', formattedAddress)
 			}
 			uni.navigateBack()
 		},

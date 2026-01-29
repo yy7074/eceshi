@@ -186,14 +186,64 @@ async def create_payment(
                 print(traceback.format_exc())
                 raise HTTPException(status_code=500, detail=f"创建支付宝支付失败: {str(e)}")
         
-        # 微信支付
+        # 微信支付（仅小程序：需已微信登录有 openid）
         elif data.payment_method == "wechat":
-            # Web端不支持微信支付
-            raise HTTPException(
-                status_code=400, 
-                detail="Web端暂不支持微信支付，请使用余额或支付宝支付"
-            )
-        
+            if not current_user.wechat_openid:
+                raise HTTPException(
+                    status_code=400,
+                    detail="请使用微信小程序登录后再使用微信支付"
+                )
+            try:
+                # 先创建待支付记录（不 commit，等微信下单成功后再 commit）
+                payment = Payment(
+                    payment_no=generate_payment_no(),
+                    order_id=order.id,
+                    order_no=order.order_no,
+                    user_id=current_user.id,
+                    payment_method="wechat",
+                    payment_channel="wechat",
+                    amount=amount_to_pay,
+                    status="pending",
+                )
+                db.add(payment)
+                db.flush()  # 获取 payment.id，不提交事务
+
+                pay_params = await wechatpay_service.create_jsapi_payment(
+                    db=db,
+                    order=order,
+                    user_id=current_user.id,
+                    openid=current_user.wechat_openid,
+                )
+                db.commit()
+                db.refresh(payment)
+
+                return SuccessResponse(
+                    data={
+                        "payment_id": payment.id,
+                        "payment_no": payment.payment_no,
+                        "status": "pending",
+                        "timeStamp": pay_params.get("timeStamp"),
+                        "nonceStr": pay_params.get("nonceStr"),
+                        "package": pay_params.get("package"),
+                        "signType": pay_params.get("signType"),
+                        "paySign": pay_params.get("paySign"),
+                    },
+                    message="请完成微信支付",
+                )
+            except HTTPException:
+                db.rollback()
+                raise
+            except ValueError as e:
+                db.rollback()
+                raise HTTPException(status_code=400, detail=str(e))
+            except Exception as e:
+                db.rollback()
+                print(f"[微信支付] 创建支付失败: {str(e)}")
+                print(traceback.format_exc())
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"创建微信支付失败: {str(e)}",
+                )
         else:
             raise HTTPException(status_code=400, detail="不支持的支付方式")
     except HTTPException:

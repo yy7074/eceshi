@@ -350,8 +350,7 @@ export default {
 				{ value: 'self', label: '自送', desc: '自行送达实验室' }
 			],
 			paymentMethods: [
-				{ value: 'wechat', name: '微信支付', icon: '/static/wechat-pay.png' },
-				{ value: 'alipay', name: '支付宝', icon: '/static/alipay.png' }
+				{ value: 'wechat', name: '微信支付', icon: '/static/wechat-pay.svg' }
 			],
 			
 			// 选中的地址
@@ -408,6 +407,11 @@ export default {
 		
 		// 尝试加载草稿
 		this.loadDraft()
+		
+		// 加载默认地址（如果草稿中没有地址）
+		if (!this.selectedAddress) {
+			this.loadDefaultAddress()
+		}
 	},
 	methods: {
 	// 加载项目信息
@@ -469,6 +473,29 @@ export default {
 		},
 		increaseSampleCount() {
 			this.formData.sampleCount++
+		},
+		
+		// 加载默认地址
+		async loadDefaultAddress() {
+			try {
+				const res = await api.getAddresses()
+				if (res.data && res.data.length > 0) {
+					// 优先使用默认地址，否则用第一个
+					const defaultAddr = res.data.find(a => a.is_default) || res.data[0]
+					this.selectedAddress = {
+						id: defaultAddr.id,
+						name: defaultAddr.receiver_name || defaultAddr.name,
+						phone: defaultAddr.phone,
+						province: defaultAddr.province,
+						city: defaultAddr.city,
+						district: defaultAddr.district || '',
+						detail: defaultAddr.detail_address || defaultAddr.detail
+					}
+					this.formData.addressId = defaultAddr.id
+				}
+			} catch (error) {
+				console.error('加载默认地址失败', error)
+			}
 		},
 		
 		// 选择地址
