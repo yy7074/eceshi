@@ -131,7 +131,7 @@ class AlipayService:
             request.notify_url = notify_url
         else:
             # 默认回调地址
-            request.notify_url = f"https://your-domain.com/api/v1/payments/{payment.id}/alipay/notify"
+            request.notify_url = f"{settings.SITE_BASE_URL}/api/v1/payments/{payment.id}/alipay/notify"
         
         # 执行请求，获取支付表单HTML
         response = self.alipay_client.page_execute(request, "GET")
@@ -216,7 +216,7 @@ class AlipayService:
         if notify_url:
             request.notify_url = notify_url
         else:
-            request.notify_url = f"https://your-domain.com/api/v1/payments/{payment.id}/alipay/notify"
+            request.notify_url = f"{settings.SITE_BASE_URL}/api/v1/payments/{payment.id}/alipay/notify"
         
         # 执行请求
         order_string = self.alipay_client.sdk_execute(request)

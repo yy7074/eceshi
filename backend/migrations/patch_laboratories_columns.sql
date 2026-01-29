@@ -1,0 +1,42 @@
+-- 为 laboratories 表补齐可能缺失的列（与 app/models/laboratory.py 一致）
+-- 执行: mysql -u root -p123456 eceshi --force < migrations/patch_laboratories_columns.sql
+
+ALTER TABLE laboratories ADD COLUMN lab_no VARCHAR(32) COMMENT '实验室编号(旧)';
+ALTER TABLE laboratories ADD COLUMN code VARCHAR(50) COMMENT '实验室编号';
+ALTER TABLE laboratories ADD COLUMN short_name VARCHAR(100) COMMENT '简称';
+ALTER TABLE laboratories ADD COLUMN logo VARCHAR(255) COMMENT '实验室Logo';
+ALTER TABLE laboratories ADD COLUMN cover_image VARCHAR(255) COMMENT '封面图片';
+ALTER TABLE laboratories ADD COLUMN lab_type VARCHAR(50) DEFAULT 'university' COMMENT '实验室类型';
+ALTER TABLE laboratories ADD COLUMN type VARCHAR(50) COMMENT '类型(旧)';
+ALTER TABLE laboratories ADD COLUMN level VARCHAR(50) COMMENT '级别';
+ALTER TABLE laboratories ADD COLUMN status VARCHAR(50) DEFAULT 'pending' COMMENT '状态';
+ALTER TABLE laboratories ADD COLUMN is_verified TINYINT(1) DEFAULT 0 COMMENT '是否认证';
+ALTER TABLE laboratories ADD COLUMN institution VARCHAR(200) COMMENT '所属机构';
+ALTER TABLE laboratories ADD COLUMN department VARCHAR(200) COMMENT '所属院系/部门';
+ALTER TABLE laboratories ADD COLUMN province VARCHAR(50) COMMENT '省份';
+ALTER TABLE laboratories ADD COLUMN city VARCHAR(50) COMMENT '城市';
+ALTER TABLE laboratories ADD COLUMN address VARCHAR(500) COMMENT '详细地址';
+ALTER TABLE laboratories ADD COLUMN contact_name VARCHAR(50) COMMENT '联系人姓名';
+ALTER TABLE laboratories ADD COLUMN contact_person VARCHAR(50) COMMENT '联系人(旧)';
+ALTER TABLE laboratories ADD COLUMN contact_phone VARCHAR(20) COMMENT '联系电话';
+ALTER TABLE laboratories ADD COLUMN contact_email VARCHAR(100) COMMENT '联系邮箱';
+ALTER TABLE laboratories ADD COLUMN qualification TEXT COMMENT '资质描述';
+ALTER TABLE laboratories ADD COLUMN certification JSON COMMENT '资质证书列表';
+ALTER TABLE laboratories ADD COLUMN business_license VARCHAR(255) COMMENT '营业执照';
+ALTER TABLE laboratories ADD COLUMN description TEXT COMMENT '实验室介绍';
+ALTER TABLE laboratories ADD COLUMN specialties JSON COMMENT '专业领域';
+ALTER TABLE laboratories ADD COLUMN equipments_summary TEXT COMMENT '设备概况';
+ALTER TABLE laboratories ADD COLUMN service_areas JSON COMMENT '服务区域';
+ALTER TABLE laboratories ADD COLUMN service_categories JSON COMMENT '服务分类ID列表';
+ALTER TABLE laboratories ADD COLUMN min_order_amount DECIMAL(10,2) DEFAULT 0 COMMENT '起订金额';
+ALTER TABLE laboratories ADD COLUMN rating DECIMAL(3,1) DEFAULT 5.0 COMMENT '评分';
+ALTER TABLE laboratories ADD COLUMN order_count INT DEFAULT 0 COMMENT '订单数(旧)';
+ALTER TABLE laboratories ADD COLUMN total_orders INT DEFAULT 0 COMMENT '总订单数';
+ALTER TABLE laboratories ADD COLUMN completed_orders INT DEFAULT 0 COMMENT '完成订单数';
+ALTER TABLE laboratories ADD COLUMN introduction TEXT COMMENT '介绍(旧)';
+ALTER TABLE laboratories ADD COLUMN equipment_list JSON COMMENT '设备列表(旧)';
+ALTER TABLE laboratories ADD COLUMN commission_rate DECIMAL(5,2) DEFAULT 20.0 COMMENT '平台佣金比例(%)';
+ALTER TABLE laboratories ADD COLUMN admin_user_id BIGINT COMMENT '管理员用户ID';
+ALTER TABLE laboratories ADD COLUMN created_at DATETIME COMMENT '创建时间';
+ALTER TABLE laboratories ADD COLUMN updated_at DATETIME COMMENT '更新时间';
+ALTER TABLE laboratories ADD COLUMN approved_at DATETIME COMMENT '审核通过时间';

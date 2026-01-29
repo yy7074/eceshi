@@ -51,7 +51,7 @@ class Settings(BaseSettings):
     # 微信支付配置
     WECHAT_MCH_ID: str = ""  # 微信商户号
     WECHAT_PAY_KEY: str = ""  # API密钥
-    WECHAT_PAY_NOTIFY_URL: str = "https://3000.dachaonet.com/api/v1/payments/wechat/notify"
+    WECHAT_PAY_NOTIFY_URL: str = "https://www.keyanbaice.com/api/v1/payments/wechat/notify"
     
     # 阿里云短信配置
     SMS_ACCESS_KEY: str = ""
@@ -72,8 +72,12 @@ class Settings(BaseSettings):
     MAX_FILE_SIZE: int = 10485760  # 10MB
     ALLOWED_EXTENSIONS: str = ".jpg,.jpeg,.png,.gif,.webp"
     
+    # 站点域名（支付回调、邀请落地页等）
+    SITE_BASE_URL: str = "https://www.keyanbaice.com"
+    H5_BASE_URL: str = "https://www.keyanbaice.com"  # 邀请/ H5 落地页
+
     # CORS配置
-    CORS_ORIGINS: List[str] = ["http://localhost:3000", "https://3000.dachaonet.com", "*"]
+    CORS_ORIGINS: List[str] = ["http://localhost:3000", "https://www.keyanbaice.com", "*"]
     
     class Config:
         env_file = ".env"

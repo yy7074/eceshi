@@ -3,7 +3,7 @@ const { createApp } = Vue
 const { ElMessage, ElMessageBox } = ElementPlus
 
 // API基础URL
-const API_BASE_URL = 'https://3000.dachaonet.com'
+const API_BASE_URL = 'https://www.keyanbaice.com'
 
 // Axios配置
 axios.defaults.baseURL = API_BASE_URL
@@ -1823,37 +1823,52 @@ const ChatView = {
     `,
     data() {
         return {
-            messages: [
-                { id: 1, content: '您好！欢迎咨询科研检测服务平台，请问有什么可以帮助您的？', is_user: false, created_at: '刚刚' }
-            ],
+            messages: [],
             inputMessage: '',
             sending: false,
-            quickQuestions: ['如何下单？', '检测周期多久？', '如何获取报告？', '发票问题']
+            quickQuestions: ['如何下单？', '检测周期多久？', '如何获取报告？', '发票问题'],
+            chatPollTimer: null
         }
     },
-    mounted() { this.loadHistory() },
+    mounted() {
+        this.loadHistory()
+        this.chatPollTimer = setInterval(() => { this.loadHistory() }, 5000)
+    },
+    beforeUnmount() {
+        if (this.chatPollTimer) clearInterval(this.chatPollTimer)
+    },
     methods: {
         async loadHistory() {
             try {
                 const res = await api.getChatHistory()
-                if (res.data?.length) this.messages = res.data
-            } catch (error) {}
+                const items = res.data?.items || res.data?.data?.items || []
+                if (Array.isArray(items) && items.length) {
+                    this.messages = items.map(m => ({
+                        id: m.id,
+                        content: m.content,
+                        is_user: m.sender_type === 'user',
+                        created_at: m.created_at || '刚刚'
+                    }))
+                } else if (!this.messages.length) {
+                    this.messages = [{ id: 0, content: '您好！欢迎咨询科研检测服务平台，请问有什么可以帮助您的？', is_user: false, created_at: '刚刚' }]
+                }
+            } catch (error) {
+                if (!this.messages.length) this.messages = [{ id: 0, content: '您好！欢迎咨询，请问有什么可以帮助您的？', is_user: false, created_at: '刚刚' }]
+            }
         },
         async sendMessage() {
             if (!this.inputMessage.trim()) return
             const content = this.inputMessage
-            this.messages.push({ id: Date.now(), content, is_user: true, created_at: '刚刚' })
             this.inputMessage = ''
             this.sending = true
+            this.messages.push({ id: 't' + Date.now(), content, is_user: true, created_at: '刚刚' })
             this.scrollToBottom()
             try {
-                const res = await api.sendMessage({ content })
-                setTimeout(() => {
-                    this.messages.push({ id: Date.now() + 1, content: res.data?.reply || '感谢您的咨询，客服正在为您处理，请稍候...', is_user: false, created_at: '刚刚' })
-                    this.scrollToBottom()
-                }, 500)
+                await api.sendMessage({ content })
+                await this.loadHistory()
+                this.scrollToBottom()
             } catch (error) {
-                this.messages.push({ id: Date.now() + 1, content: '感谢您的咨询，我们会尽快为您处理。工作时间：9:00-18:00', is_user: false, created_at: '刚刚' })
+                this.messages.push({ id: Date.now() + 1, content: '发送失败，请稍后重试。工作时间：9:00-18:00', is_user: false, created_at: '刚刚' })
                 this.scrollToBottom()
             } finally { this.sending = false }
         },

@@ -2939,7 +2939,7 @@
         const app = createApp({
             data() {
                 return {
-                    baseUrl: 'https://3000.dachaonet.com',
+                    baseUrl: 'https://www.keyanbaice.com',
                     token: localStorage.getItem('admin_token') || '',
                     userInfo: JSON.parse(localStorage.getItem('admin_user') || '{}'),
                     loginType: 'admin',
@@ -4988,15 +4988,11 @@
                 async openChatDialog(chat) {
                     try {
                         const res = await axios.get(`${this.baseUrl}/api/v1/admin/chats/${chat.id}/messages`, { headers: this.uploadHeaders })
-                        this.currentChat = { ...chat, messages: res.data.data || [] }
+                        const items = res.data.data?.items || res.data.data || []
+                        this.currentChat = { ...chat, messages: Array.isArray(items) ? items : [] }
                         this.chatDialogVisible = true
                     } catch (error) {
-                        this.currentChat = {
-                            ...chat,
-                            messages: [
-                                { id: 1, content: '您好，请问有什么可以帮您？', is_staff: true, created_at: new Date().toISOString() }
-                            ]
-                        }
+                        this.currentChat = { ...chat, messages: [] }
                         this.chatDialogVisible = true
                     }
                 },
@@ -5015,14 +5011,25 @@
                 },
                 async sendReply() {
                     if (!this.replyContent) { ElMessage.error('请输入回复内容'); return }
-                    this.currentChat.messages.push({
-                        id: Date.now(),
-                        content: this.replyContent,
-                        is_staff: true,
-                        created_at: new Date().toISOString()
-                    })
+                    const content = this.replyContent
                     this.replyContent = ''
-                    ElMessage.success('发送成功')
+                    try {
+                        const res = await axios.post(`${this.baseUrl}/api/v1/admin/chats/${this.currentChat.id}/messages`, { content }, { headers: this.uploadHeaders })
+                        if (res.data && res.data.code === 200 && res.data.data) {
+                            const d = res.data.data
+                            this.currentChat.messages.push({
+                                id: d.id,
+                                content: d.content,
+                                is_staff: true,
+                                created_at: d.created_at || new Date().toISOString()
+                            })
+                            ElMessage.success('发送成功')
+                        } else {
+                            ElMessage.error(res.data?.message || '发送失败')
+                        }
+                    } catch (error) {
+                        ElMessage.error(error.response?.data?.message || error.response?.data?.detail || '发送失败')
+                    }
                 },
                 showPhraseDialog(phrase = null) {
                     if (phrase) this.phraseForm = { ...phrase }

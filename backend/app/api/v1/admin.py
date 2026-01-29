@@ -4839,9 +4839,49 @@ async def get_chat_messages(
             "id": m.id,
             "content": m.content,
             "sender_type": m.sender_type if hasattr(m, 'sender_type') else "user",
+            "is_staff": getattr(m, 'sender_type', '') in ('staff', 'system'),
             "created_at": m.created_at.isoformat() if m.created_at else None
         } for m in messages]
     })
+
+
+class AdminSendMessageRequest(BaseModel):
+    """管理员发送客服消息"""
+    content: str
+
+
+@router.post("/chats/{chat_id}/messages", summary="管理员发送客服回复")
+async def admin_send_chat_message(
+    chat_id: int,
+    body: AdminSendMessageRequest,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """管理员发送回复，写入数据库，用户端可见"""
+    from app.models.chat import ChatSession, ChatMessage
+
+    session = db.query(ChatSession).filter(ChatSession.id == chat_id).first()
+    if not session:
+        return Response.error(message="聊天会话不存在")
+
+    msg = ChatMessage(
+        session_id=chat_id,
+        sender_type="staff",
+        sender_id=current_admin.id,
+        content=body.content.strip(),
+        message_type="text"
+    )
+    db.add(msg)
+    db.commit()
+    db.refresh(msg)
+
+    return Response.success(data={
+        "id": msg.id,
+        "content": msg.content,
+        "sender_type": "staff",
+        "is_staff": True,
+        "created_at": msg.created_at.isoformat() if msg.created_at else None
+    }, message="发送成功")
 
 
 @router.put("/chats/{chat_id}/close", summary="关闭聊天")

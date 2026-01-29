@@ -562,7 +562,7 @@ export default {
 				const token = uni.getStorageSync('token')
 
 				uni.uploadFile({
-					url: 'https://3000.dachaonet.com/api/v1/upload/image',
+					url: 'https://www.keyanbaice.com/api/v1/upload/image',
 					filePath: filePath,
 					name: 'file',
 					header: {

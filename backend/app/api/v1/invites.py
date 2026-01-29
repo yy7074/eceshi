@@ -277,7 +277,7 @@ async def create_invite_qrcode(
         invite_code = generate_invite_code()
 
     # 生成落地页URL（H5页面，扫码后跳转小程序）
-    base_url = getattr(settings, 'H5_BASE_URL', 'https://eceshi.com/h5')
+    base_url = getattr(settings, 'H5_BASE_URL', 'https://www.keyanbaice.com')
     landing_url = f"{base_url}/invite?code={invite_code}"
 
     # 生成二维码图片
@@ -335,7 +335,7 @@ async def get_qrcode_image(
         raise HTTPException(status_code=404, detail="二维码不存在")
 
     # 生成落地页URL
-    base_url = getattr(settings, 'H5_BASE_URL', 'https://eceshi.com/h5')
+    base_url = getattr(settings, 'H5_BASE_URL', 'https://www.keyanbaice.com')
     landing_url = f"{base_url}/invite?code={qr_record.invite_code}"
 
     # 重新生成二维码图片

@@ -1,0 +1,38 @@
+-- 实验室入驻申请表（若启动报 errno 13 权限错误，用 root 执行此文件）
+-- 执行: mysql -u root -p eceshi < migrations/create_lab_applications.sql
+
+CREATE TABLE IF NOT EXISTS lab_applications (
+  id BIGINT NOT NULL AUTO_INCREMENT,
+  applicant_user_id INTEGER NOT NULL COMMENT '申请人用户ID',
+  applicant_name VARCHAR(50) COMMENT '申请人姓名',
+  applicant_phone VARCHAR(20) COMMENT '申请人电话',
+  applicant_email VARCHAR(100) COMMENT '申请人邮箱',
+  applicant_position VARCHAR(50) COMMENT '申请人职位',
+  lab_name VARCHAR(200) NOT NULL COMMENT '实验室名称',
+  lab_type VARCHAR(50) COMMENT '实验室类型',
+  institution VARCHAR(200) COMMENT '所属机构',
+  department VARCHAR(200) COMMENT '所属院系/部门',
+  province VARCHAR(50) COMMENT '省份',
+  city VARCHAR(50) COMMENT '城市',
+  address VARCHAR(500) COMMENT '详细地址',
+  qualification TEXT COMMENT '资质描述',
+  certification_files JSON COMMENT '资质证书文件列表',
+  business_license VARCHAR(255) COMMENT '营业执照',
+  description TEXT COMMENT '实验室介绍',
+  specialties JSON COMMENT '专业领域',
+  equipments_desc TEXT COMMENT '设备情况描述',
+  intended_services JSON COMMENT '意向服务类型',
+  expected_monthly_orders INTEGER COMMENT '预期月订单量',
+  status VARCHAR(20) COMMENT '状态: pending/reviewing/approved/rejected',
+  reviewer_id BIGINT COMMENT '审核人ID',
+  review_remark TEXT COMMENT '审核备注',
+  reject_reason VARCHAR(500) COMMENT '拒绝原因',
+  reviewed_at DATETIME COMMENT '审核时间',
+  laboratory_id BIGINT COMMENT '关联实验室ID',
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY ix_lab_applications_applicant_user_id (applicant_user_id),
+  KEY ix_lab_applications_status (status),
+  CONSTRAINT lab_applications_ibfk_1 FOREIGN KEY (applicant_user_id) REFERENCES users (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='实验室入驻申请表';

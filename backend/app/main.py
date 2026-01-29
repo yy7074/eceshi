@@ -10,6 +10,8 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from starlette.middleware.base import BaseHTTPMiddleware
 
+from sqlalchemy.exc import OperationalError
+
 from app.core.config import settings
 from app.core.database import engine, Base
 from app.api import router
@@ -29,8 +31,18 @@ async def lifespan(app: FastAPI):
     
     # 创建数据库表（生产环境使用Alembic迁移）
     if settings.DEBUG:
-        Base.metadata.create_all(bind=engine)
-        print("✅ 数据库表创建完成")
+        try:
+            Base.metadata.create_all(bind=engine)
+            print("✅ 数据库表创建完成")
+        except OperationalError as e:
+            err_msg = str(getattr(e, "orig", e))
+            # errno 13 = 权限不足，MySQL 无法在数据目录创建表文件；1005 = Can't create table
+            if "errno: 13" in err_msg or "1005" in err_msg or "Can't create table" in err_msg:
+                print("⚠️ 数据库表创建失败(可能权限不足 errno 13)，应用继续启动。")
+                print("   请任选其一：1) 服务器执行 chown -R mysql:mysql <MySQL数据目录>")
+                print("   2) 用 root 执行 migrations/create_lab_applications.sql 创建缺失表后重启。")
+            else:
+                raise
     
     yield
     
