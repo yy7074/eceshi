@@ -141,6 +141,7 @@
 					<text class="service-icon">🧾</text>
 					<text class="service-text">我的发票</text>
 				</view>
+				<!-- 优惠券功能暂不开放
 				<view class="service-item" @click="goPage('/pagesA/coupon/coupon')">
 					<view class="icon-wrap">
 						<text class="service-icon">🎫</text>
@@ -148,6 +149,7 @@
 					</view>
 					<text class="service-text">优惠券</text>
 				</view>
+				-->
 				<view class="service-item" @click="goPage('/pagesA/prepaid/prepaid')">
 					<text class="service-icon">📊</text>
 					<text class="service-text">预付记录</text>

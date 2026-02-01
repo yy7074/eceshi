@@ -40,7 +40,7 @@
 		<!-- 赠送提示 -->
 		<view v-if="bonusAmount > 0" class="bonus-tip">
 			<text class="bonus-icon">🎁</text>
-			<text class="bonus-text">充{{ finalAmount }}元，赠送{{ bonusAmount }}元，到账{{ actualAmount }}元</text>
+			<text class="bonus-text">充{{ finalAmount }}元，赠送{{ bonusAmount }}元测试费，到账共计{{ actualAmount }}元测试费</text>
 		</view>
 		
 		<!-- 赠送示例展示 -->
@@ -187,11 +187,12 @@ export default {
 			} catch (error) {
 				console.error('加载规则失败', error)
 				this.rules = [
+					{ description: '充值金额为测试费，仅用于支付检测订单，不可提现' },
 					{ description: '100元以下不赠送' },
-					{ description: '充100送5，赠送5%' },
-					{ description: '充500送50，赠送10%' },
-					{ description: '充1000送150，赠送15%' },
-					{ description: '充5000送1000，赠送20%' }
+					{ description: '充100送5测试费，赠送5%' },
+					{ description: '充500送50测试费，赠送10%' },
+					{ description: '充1000送150测试费，赠送15%' },
+					{ description: '充5000送1000测试费，赠送20%' }
 				]
 			}
 		},

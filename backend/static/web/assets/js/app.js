@@ -1366,7 +1366,7 @@ const AboutView = {
             <div class="about-section">
                 <h2>联系我们</h2>
                 <p><strong>客服电话：</strong>400-123-4567</p>
-                <p><strong>邮箱：</strong>service@eceshi.com</p>
+                <p><strong>邮箱：</strong>service@keyanbaice.com</p>
                 <p><strong>地址：</strong>北京市海淀区科技园</p>
             </div>
 

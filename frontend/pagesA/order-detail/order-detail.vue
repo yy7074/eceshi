@@ -66,7 +66,7 @@
 				</view>
 				<view class="info-row" v-if="order.delivery_method">
 					<text class="label">寄送方式</text>
-					<text class="value">{{ order.delivery_method === 'express' ? '快递' : '自送' }}</text>
+					<text class="value">{{ order.delivery_method === 'express' ? '自行邮寄' : '上门取样' }}</text>
 				</view>
 				<view class="info-row" v-if="order.delivery_date">
 					<text class="label">期望送达</text>

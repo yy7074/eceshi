@@ -30,7 +30,7 @@
 				<view class="advantage-item">
 					<text class="advantage-icon">🚀</text>
 					<text class="advantage-name">快速结算</text>
-					<text class="advantage-desc">T+7工作日结算佣金</text>
+					<text class="advantage-desc">订单完成后结算佣金</text>
 				</view>
 			</view>
 		</view>

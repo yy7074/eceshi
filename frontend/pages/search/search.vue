@@ -164,8 +164,10 @@ export default {
 					page_size: 20
 				})
 				
-				this.results = res.items || res.list || []
-				this.total = res.total || 0
+				// 响应格式: {code, data: {list, total}}
+				const data = res.data || res
+				this.results = data.items || data.list || []
+				this.total = data.total || 0
 				this.showResults = true
 				
 				uni.hideLoading()

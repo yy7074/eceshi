@@ -346,8 +346,8 @@ export default {
 			dangerTypes: ['普通', '易燃', '氧化性', '放射性', '腐蚀性', '有毒', '无'],
 			storageRequirements: ['冷藏', '干燥', '避光', '真空', '其它', '无'],
 			deliveryMethods: [
-				{ value: 'express', label: '快递', desc: '3-5个工作日' },
-				{ value: 'self', label: '自送', desc: '自行送达实验室' }
+				{ value: 'express', label: '自行邮寄', desc: '3-5个工作日送达' },
+				{ value: 'self', label: '上门取样', desc: '部分院校支持，请提前联系确认' }
 			],
 			paymentMethods: [
 				{ value: 'wechat', name: '微信支付', icon: '/static/wechat-pay.svg' }

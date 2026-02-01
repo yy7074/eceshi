@@ -2,7 +2,7 @@
 	<view class="category-page">
 		<!-- 顶部标题 -->
 		<view class="page-header">
-			<text class="header-title">仪器预约一e测试</text>
+			<text class="header-title">仪器预约</text>
 		</view>
 		
 		<!-- 搜索栏 -->

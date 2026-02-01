@@ -108,7 +108,7 @@
 				banners: [
 					{ id: 1, title: '金秋检测季', subtitle: 'XPS 6折 SEM/FT-IR 6折', btnText: '立即参与', emoji: '🎉', bgColor: 'linear-gradient(135deg, #faad14 0%, #fa8c16 100%)' },
 					{ id: 2, title: '新用户专享', subtitle: '首单立减50元 注册送100积分', btnText: '领取优惠', emoji: '🎁', bgColor: 'linear-gradient(135deg, #1890ff 0%, #096dd9 100%)' },
-					{ id: 3, title: '充值有礼', subtitle: '充1000送100 充5000送800', btnText: '去充值', emoji: '💰', bgColor: 'linear-gradient(135deg, #52c41a 0%, #389e0d 100%)' }
+					{ id: 3, title: '充值有礼', subtitle: '充1000送150测试费 充5000送1000测试费', btnText: '去充值', emoji: '💰', bgColor: 'linear-gradient(135deg, #52c41a 0%, #389e0d 100%)' }
 				],
 				announcements: [
 					{ id: 1, title: '12月优惠活动火热进行中', content: '金秋检测季活动详情...' },
