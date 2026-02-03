@@ -38,14 +38,16 @@ def build_option_tree(options: List[ProjectOption], parent_id: Optional[int] = N
                 "price_type": opt.price_type.value if isinstance(opt.price_type, PriceType) else opt.price_type,
                 "hint_text": opt.hint_text,
                 "placeholder": opt.placeholder,
+                "group_name": opt.group_name,
+                "display_inline": opt.display_inline if opt.display_inline is not None else False,
                 "is_required": opt.is_required,
-                "sort_order": opt.sort_order,
+                "sort_order": opt.sort_order or 0,
                 "children": build_option_tree(options, opt.id)
             }
             tree.append(node)
 
     # 按排序字段排序
-    tree.sort(key=lambda x: x["sort_order"])
+    tree.sort(key=lambda x: x["sort_order"] or 0)
     return tree
 
 

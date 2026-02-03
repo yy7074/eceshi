@@ -155,46 +155,10 @@
 			</view>
 
 			<!-- 证件照片 -->
-			<view class="form-section">
-				<text class="section-title">证件照片</text>
-				<view class="upload-grid">
-					<!-- 身份证正面 -->
-					<view class="upload-item">
-						<view class="upload-box" @click="chooseIdCardFront">
-							<image
-								v-if="form.id_card_front"
-								:src="form.id_card_front"
-								mode="aspectFill"
-								class="upload-image"
-							></image>
-							<view v-else class="upload-placeholder">
-								<text class="upload-icon">📷</text>
-								<text class="upload-text">身份证正面</text>
-							</view>
-						</view>
-						<text class="upload-label">身份证正面</text>
-					</view>
-
-					<!-- 身份证反面 -->
-					<view class="upload-item">
-						<view class="upload-box" @click="chooseIdCardBack">
-							<image
-								v-if="form.id_card_back"
-								:src="form.id_card_back"
-								mode="aspectFill"
-								class="upload-image"
-							></image>
-							<view v-else class="upload-placeholder">
-								<text class="upload-icon">📷</text>
-								<text class="upload-text">身份证反面</text>
-							</view>
-						</view>
-						<text class="upload-label">身份证反面</text>
-					</view>
-				</view>
-
-				<!-- 学生证/工作证（可选） -->
-				<view class="upload-single" v-if="['student', 'teacher'].includes(form.identity_type)">
+			<view class="form-section" v-if="['student', 'teacher'].includes(form.identity_type)">
+				<text class="section-title">证件照片（选填）</text>
+				<!-- 学生证/工作证 -->
+				<view class="upload-single">
 					<view class="upload-box" @click="chooseStudentCard">
 						<image
 							v-if="form.student_card_photo"
@@ -204,9 +168,10 @@
 						></image>
 						<view v-else class="upload-placeholder">
 							<text class="upload-icon">📷</text>
-							<text class="upload-text">{{ form.identity_type === 'student' ? '学生证（选填）' : '工作证（选填）' }}</text>
+							<text class="upload-text">{{ form.identity_type === 'student' ? '上传学生证' : '上传工作证' }}</text>
 						</view>
 					</view>
+					<text class="upload-tip">上传证件有助于加快审核</text>
 				</view>
 			</view>
 
@@ -373,8 +338,6 @@ export default {
 				university: '',
 				department: '',
 				supervisor_name: '',
-				id_card_front: '',
-				id_card_back: '',
 				student_card_photo: ''
 			},
 			submitting: false,
@@ -638,16 +601,6 @@ export default {
 				return
 			}
 
-			if (!this.form.id_card_front) {
-				uni.showToast({ title: '请上传身份证正面', icon: 'none' })
-				return
-			}
-
-			if (!this.form.id_card_back) {
-				uni.showToast({ title: '请上传身份证反面', icon: 'none' })
-				return
-			}
-
 			this.submitting = true
 
 			try {
@@ -663,8 +616,6 @@ export default {
 					university: this.form.university,
 					department: this.form.department,
 					supervisor_name: this.form.supervisor_name || null,
-					id_card_front: this.form.id_card_front,
-					id_card_back: this.form.id_card_back,
 					student_card_photo: this.form.student_card_photo || null
 				})
 
@@ -917,6 +868,14 @@ export default {
 				color: #999;
 			}
 		}
+	}
+
+	.upload-tip {
+		display: block;
+		text-align: center;
+		font-size: 24rpx;
+		color: #999;
+		margin-top: 16rpx;
 	}
 }
 

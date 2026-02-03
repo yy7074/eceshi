@@ -76,6 +76,7 @@ const api = {
     // 优惠券
     getCoupons: (params) => axios.get('/api/v1/coupons/list', { params }),
     getAvailableCoupons: (projectId) => axios.get('/api/v1/coupons/available', { params: { project_id: projectId } }),
+    getMyCoupons: (status = 'available') => axios.get('/api/v1/coupons/my', { params: { status } }),
     
     // 收藏
     getFavorites: (params) => axios.get('/api/v1/favorites/list', { params }),
@@ -455,7 +456,7 @@ const ProjectsView = {
                     page: this.page,
                     page_size: this.pageSize
                 }
-                if (this.search) params.search = this.search
+                if (this.search) params.keyword = this.search
                 if (this.categoryId) params.category_id = this.categoryId
 
                 const res = await api.getProjects(params)
@@ -2629,9 +2630,9 @@ createApp({
                 remark: ''
             }
             try {
-                const [addrRes, couponRes] = await Promise.all([api.getAddresses(), api.getAvailableCoupons(project.id)])
+                const [addrRes, couponRes] = await Promise.all([api.getAddresses(), api.getMyCoupons('available')])
                 this.addresses = addrRes.data || []
-                this.availableCoupons = couponRes.data || []
+                this.availableCoupons = couponRes.data?.items || []
                 if (this.addresses.length > 0) { const def = this.addresses.find(a => a.is_default) || this.addresses[0]; this.bookingForm.address_id = def.id }
             } catch (error) {}
             this.showBooking = true

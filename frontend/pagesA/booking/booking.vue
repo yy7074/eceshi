@@ -61,86 +61,20 @@
 
 			<!-- 单样品模式 -->
 			<view v-else>
+			<!-- 样品数量控制 -->
 			<view class="form-section">
-				<view class="section-title">样品信息</view>
-				
-				<view class="form-item">
-					<text class="label">样品数量</text>
+				<view class="section-title-no-required">样品数量</view>
+				<view class="quantity-row">
 					<view class="quantity-control">
 						<button class="btn-minus" @click="decreaseSampleCount">-</button>
 						<input class="quantity-input" type="number" v-model.number="formData.sampleCount" />
 						<button class="btn-plus" @click="increaseSampleCount">+</button>
 					</view>
+					<text class="quantity-hint">共 {{ formData.sampleCount }} 个样品</text>
 				</view>
-				
-				<view class="form-item">
-					<text class="label">样品编号</text>
-					<text class="value">{{ formData.sampleCount }}</text>
-				</view>
-				
-				<view class="form-item">
-					<text class="label">样品名称</text>
-					<input class="input" placeholder="请输入样品名称" v-model="formData.sampleName" />
-				</view>
-				
-				<view class="form-item">
-					<text class="label">样品成分</text>
-					<input class="input" placeholder="请输入样品成分" v-model="formData.sampleComposition" />
-				</view>
-				
-				<view class="form-item column">
-					<text class="label">样品状态</text>
-					<view class="options">
-						<view 
-							class="option-btn" 
-							:class="{ active: formData.sampleState === item }"
-							v-for="item in sampleStates" 
-							:key="item"
-							@click="formData.sampleState = item"
-						>
-							{{ item }}
-						</view>
-					</view>
-				</view>
-				
-				<view class="form-item column">
-					<text class="label">危险性</text>
-					<view class="options multi-row">
-						<view 
-							class="option-btn" 
-							:class="{ active: formData.dangerType === item }"
-							v-for="item in dangerTypes" 
-							:key="item"
-							@click="formData.dangerType = item"
-						>
-							{{ item }}
-						</view>
-					</view>
-				</view>
-			</view>
-			
-			<view class="form-section">
-				<view class="section-title">存放要求</view>
-				<view class="tips">*样品若有特殊存放要求，请勾选告知我们</view>
-				<view class="options multi-row">
-					<view 
-						class="option-btn" 
-						:class="{ active: formData.storageRequirement === item }"
-						v-for="item in storageRequirements" 
-						:key="item"
-						@click="formData.storageRequirement = item"
-					>
-						{{ item }}
-					</view>
-				</view>
-			</view>
-			
-			<view class="form-section">
-				<view class="section-title">备注</view>
-				<textarea class="textarea" placeholder="请输入备注" v-model="formData.remark" />
 			</view>
 
-			<!-- 动态检测选项 -->
+			<!-- 动态表单（样品信息、测试参数、服务选项等全部由后端配置） -->
 			<dynamic-options-form
 				v-if="optionsTree.length > 0"
 				ref="optionsForm"
@@ -149,6 +83,17 @@
 				:sample-count="formData.sampleCount"
 				@change="handleOptionsChange"
 			/>
+
+			<!-- 无配置时的提示 -->
+			<view class="empty-options" v-if="optionsTree.length === 0 && !optionsLoading">
+				<text class="empty-text">暂无可配置选项</text>
+			</view>
+
+			<!-- 备注 -->
+			<view class="form-section">
+				<view class="section-title-no-required">备注（选填）</view>
+				<textarea class="textarea" placeholder="请输入特殊要求或备注信息" v-model="formData.remark" />
+			</view>
 			</view>
 		</view>
 
@@ -333,6 +278,8 @@ export default {
 			optionsFee: 0,
 			optionsTree: [],
 			optionSelections: [],
+			optionsFormData: {}, // 动态表单数据
+			optionsLoading: false,
 			currentStep: 1,
 			stepNames: ['填写样品信息', '完善配送信息', '提交文档和支付'],
 
@@ -341,10 +288,7 @@ export default {
 			sampleGroups: [],
 			groupsTotalPrice: 0,
 			
-			// 表单选项
-			sampleStates: ['粉末', '块状/薄膜', '溶液', '气体', '其它'],
-			dangerTypes: ['普通', '易燃', '氧化性', '放射性', '腐蚀性', '有毒', '无'],
-			storageRequirements: ['冷藏', '干燥', '避光', '真空', '其它', '无'],
+			// 配送和支付选项
 			deliveryMethods: [
 				{ value: 'express', label: '自行邮寄', desc: '3-5个工作日送达' },
 				{ value: 'self', label: '上门取样', desc: '部分院校支持，请提前联系确认' }
@@ -358,13 +302,8 @@ export default {
 			
 			// 表单数据
 			formData: {
-				// 步骤1
+				// 步骤1 - 样品数量和备注（其他信息由动态表单收集）
 				sampleCount: 1,
-				sampleName: '',
-				sampleComposition: '',
-				sampleState: '',
-				dangerType: '',
-				storageRequirement: '',
 				remark: '',
 				
 				// 步骤2
@@ -440,6 +379,7 @@ export default {
 
 	// 加载项目选项
 	async loadProjectOptions() {
+		this.optionsLoading = true
 		try {
 			if (this.projectId) {
 				const res = await api.getProjectOptions(this.projectId)
@@ -450,6 +390,8 @@ export default {
 		} catch (e) {
 			console.error('加载项目选项失败', e)
 			this.optionsTree = []
+		} finally {
+			this.optionsLoading = false
 		}
 	},
 
@@ -457,6 +399,7 @@ export default {
 	handleOptionsChange(data) {
 		this.optionSelections = data.selections || []
 		this.optionsFee = data.totalOptionsFee || 0
+		this.optionsFormData = data.formData || {}
 	},
 
 	// 处理样品分组变化
@@ -611,14 +554,13 @@ export default {
 						return
 					}
 				} else {
-					// 单样品模式验证
-					if (!this.formData.sampleName) {
-						uni.showToast({ title: '请输入样品名称', icon: 'none' })
-						return
-					}
-					if (!this.formData.sampleState) {
-						uni.showToast({ title: '请选择样品状态', icon: 'none' })
-						return
+					// 单样品模式验证 - 使用动态表单验证
+					if (this.$refs.optionsForm) {
+						const errors = this.$refs.optionsForm.validate()
+						if (errors && errors.length > 0) {
+							uni.showToast({ title: errors[0], icon: 'none' })
+							return
+						}
 					}
 				}
 				this.currentStep = 2
@@ -669,11 +611,8 @@ export default {
 				const orderData = {
 					project_id: this.projectId,
 					sample_count: this.formData.sampleCount,
-					sample_name: this.formData.sampleName,
-					sample_composition: this.formData.sampleComposition,
-					sample_state: this.formData.sampleState,
-					danger_type: this.formData.dangerType,
-					storage_requirement: this.formData.storageRequirement,
+					// 动态表单数据
+					form_data: this.optionsFormData,
 					remark: this.formData.remark,
 					address_id: this.formData.addressId,
 					delivery_method: this.formData.deliveryMethod,
@@ -920,12 +859,43 @@ export default {
 			color: #ff0000;
 		}
 	}
+
+	.section-title-no-required {
+		font-size: 30rpx;
+		font-weight: bold;
+		margin-bottom: 20rpx;
+	}
 	
 	.tips {
 		font-size: 22rpx;
 		color: #ff6b6b;
 		margin-bottom: 20rpx;
 		line-height: 1.6;
+	}
+}
+
+/* 样品数量行 */
+.quantity-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+
+	.quantity-hint {
+		font-size: 26rpx;
+		color: #999;
+	}
+}
+
+/* 空选项提示 */
+.empty-options {
+	padding: 60rpx 30rpx;
+	background: white;
+	margin-bottom: 20rpx;
+	text-align: center;
+
+	.empty-text {
+		font-size: 28rpx;
+		color: #999;
 	}
 }
 

@@ -3548,17 +3548,22 @@ async def export_orders(
     if format == "csv":
         import csv
         import io
+        from fastapi.responses import StreamingResponse
         output = io.StringIO()
         if data:
             writer = csv.DictWriter(output, fieldnames=data[0].keys())
             writer.writeheader()
             writer.writerows(data)
         csv_content = output.getvalue()
-        return Response.success(data={
-            "format": "csv",
-            "content": csv_content,
-            "filename": f"orders_{start_date or 'all'}_{end_date or 'all'}.csv"
-        })
+        # 添加 BOM 头以支持中文
+        csv_bytes = ('\ufeff' + csv_content).encode('utf-8')
+        return StreamingResponse(
+            io.BytesIO(csv_bytes),
+            media_type='text/csv; charset=utf-8',
+            headers={
+                'Content-Disposition': f'attachment; filename=orders_{start_date or "all"}_{end_date or "all"}.csv'
+            }
+        )
 
     return Response.success(data={
         "format": "json",
@@ -3621,17 +3626,22 @@ async def export_users(
     if format == "csv":
         import csv
         import io
+        from fastapi.responses import StreamingResponse
         output = io.StringIO()
         if data:
             writer = csv.DictWriter(output, fieldnames=data[0].keys())
             writer.writeheader()
             writer.writerows(data)
         csv_content = output.getvalue()
-        return Response.success(data={
-            "format": "csv",
-            "content": csv_content,
-            "filename": f"users_{start_date or 'all'}_{end_date or 'all'}.csv"
-        })
+        # 添加 BOM 头以支持中文
+        csv_bytes = ('\ufeff' + csv_content).encode('utf-8')
+        return StreamingResponse(
+            io.BytesIO(csv_bytes),
+            media_type='text/csv; charset=utf-8',
+            headers={
+                'Content-Disposition': f'attachment; filename=users_{start_date or "all"}_{end_date or "all"}.csv'
+            }
+        )
 
     return Response.success(data={
         "format": "json",

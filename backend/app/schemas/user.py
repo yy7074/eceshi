@@ -112,15 +112,18 @@ class CertificationRequest(BaseModel):
     education_level: Optional[str] = Field(None, description="学历: bachelor/master/doctor/other")
     enrollment_year: Optional[str] = Field(None, description="入学年份")
     graduation_year: Optional[str] = Field(None, description="预计毕业年份")
-    province: str = Field(..., description="省份")
-    city: str = Field(..., description="城市")
-    university: str = Field(..., description="高校/单位名称")
-    department: str = Field(..., description="院系/部门")
+    province: Optional[str] = Field(None, description="省份")
+    city: Optional[str] = Field(None, description="城市")
+    university: Optional[str] = Field(None, description="高校/单位名称")
+    department: Optional[str] = Field(None, description="院系/部门")
     supervisor_name: Optional[str] = Field(None, description="导师姓名")
     supervisor_title: Optional[str] = Field(None, description="导师职称")
     student_card_photo: Optional[str] = Field(None, description="学生证/工作证照片URL")
     id_card_front: Optional[str] = Field(None, description="身份证正面URL")
     id_card_back: Optional[str] = Field(None, description="身份证反面URL")
+    # 兼容前端发送的额外字段
+    company: Optional[str] = Field(None, description="单位名称（企业/医院等）")
+    position: Optional[str] = Field(None, description="职位")
 
 
 class CertificationResponse(BaseModel):

@@ -10,9 +10,12 @@ from enum import Enum
 
 class OptionTypeEnum(str, Enum):
     """选项类型"""
-    SINGLE = "single"
-    MULTI = "multi"
-    INPUT = "input"
+    SINGLE = "single"  # 单选（卡片式）
+    MULTI = "multi"  # 多选（卡片式）
+    INPUT = "input"  # 输入框
+    DROPDOWN = "dropdown"  # 下拉选择器
+    CHECKBOX_GROUP = "checkbox_group"  # 复选框组（横向平铺）
+    RADIO_GROUP = "radio_group"  # 单选按钮组（横向平铺）
 
 
 class PriceTypeEnum(str, Enum):
@@ -32,6 +35,8 @@ class ProjectOptionBase(BaseModel):
     price_type: PriceTypeEnum = Field(PriceTypeEnum.FIXED, description="价格类型")
     hint_text: Optional[str] = Field(None, description="红色提示文字")
     placeholder: Optional[str] = Field(None, description="输入框占位符")
+    group_name: Optional[str] = Field(None, description="分组名称（如：样品信息、测试参数）")
+    display_inline: bool = Field(False, description="是否行内显示（标签+控件同行）")
     sort_order: int = Field(0, description="排序")
     is_required: bool = Field(False, description="是否必填")
     is_active: bool = Field(True, description="是否启用")
@@ -52,6 +57,8 @@ class ProjectOptionUpdate(BaseModel):
     price_type: Optional[PriceTypeEnum] = Field(None, description="价格类型")
     hint_text: Optional[str] = Field(None, description="红色提示文字")
     placeholder: Optional[str] = Field(None, description="输入框占位符")
+    group_name: Optional[str] = Field(None, description="分组名称")
+    display_inline: Optional[bool] = Field(None, description="是否行内显示")
     sort_order: Optional[int] = Field(None, description="排序")
     is_required: Optional[bool] = Field(None, description="是否必填")
     is_active: Optional[bool] = Field(None, description="是否启用")
@@ -81,6 +88,8 @@ class ProjectOptionTree(BaseModel):
     price_type: str
     hint_text: Optional[str]
     placeholder: Optional[str]
+    group_name: Optional[str]
+    display_inline: bool = False
     is_required: bool
     sort_order: int
     children: List["ProjectOptionTree"] = []

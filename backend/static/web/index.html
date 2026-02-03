@@ -396,13 +396,12 @@
                     <el-divider content-position="left">收货信息</el-divider>
                     <el-form-item label="收货地址" required>
                         <el-select v-model="bookingForm.address_id" placeholder="请选择收货地址" style="width: 100%">
-                            <el-option v-for="addr in addresses" :key="addr.id" :label="addr.receiver_name + ' ' + addr.phone + ' - ' + addr.province + addr.city + addr.detail" :value="addr.id"></el-option>
+                            <el-option v-for="addr in addresses" :key="addr.id" :label="addr.receiver_name + ' ' + addr.phone + ' - ' + addr.province + addr.city + (addr.district || '') + addr.detail_address" :value="addr.id"></el-option>
                         </el-select>
-                        <div style="margin-top:8px;font-size:12px;color:#909399">报告完成后将邮寄到此地址</div>
                     </el-form-item>
                     <el-form-item label="优惠券">
                         <el-select v-model="bookingForm.coupon_id" placeholder="选择优惠券（可选）" clearable style="width: 100%">
-                            <el-option v-for="coupon in availableCoupons" :key="coupon.id" :label="coupon.name + ' -¥' + coupon.discount_value" :value="coupon.id"></el-option>
+                            <el-option v-for="coupon in availableCoupons" :key="coupon.id" :label="coupon.coupon_name + ' -¥' + coupon.discount_value" :value="coupon.id"></el-option>
                         </el-select>
                     </el-form-item>
                     <el-form-item label="测试要求">

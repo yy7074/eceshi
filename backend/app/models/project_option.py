@@ -11,9 +11,12 @@ import enum
 
 class OptionType(str, enum.Enum):
     """选项类型枚举"""
-    SINGLE = "single"     # 单选
-    MULTI = "multi"       # 多选
+    SINGLE = "single"     # 单选（卡片式，子选项互斥）
+    MULTI = "multi"       # 多选（卡片式，子选项可多选）
     INPUT = "input"       # 输入框（终止分支）
+    DROPDOWN = "dropdown"  # 下拉选择器（单选下拉）
+    CHECKBOX_GROUP = "checkbox_group"  # 复选框组（横向平铺多选）
+    RADIO_GROUP = "radio_group"  # 单选按钮组（横向平铺单选，常用于带加价的选项）
 
 
 class PriceType(str, enum.Enum):
@@ -60,6 +63,10 @@ class ProjectOption(Base):
     # 提示信息
     hint_text = Column(String(500), comment="红色提示文字")
     placeholder = Column(String(200), comment="输入框占位符（input类型时使用）")
+
+    # 分组和显示配置
+    group_name = Column(String(100), comment="分组名称（如：样品信息、测试参数、服务选项）")
+    display_inline = Column(Boolean, default=False, comment="是否行内显示（标签+控件同行）")
 
     # 排序和状态
     sort_order = Column(Integer, default=0, comment="排序")
