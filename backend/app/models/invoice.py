@@ -58,7 +58,11 @@ class Invoice(Base):
     invoice_code = Column(String(50), comment="发票代码")
     invoice_number = Column(String(50), comment="发票号码")
     invoice_url = Column(String(500), comment="电子发票下载链接")
-    
+
+    # 测试报告和清单
+    report_url = Column(String(500), comment="测试报告文件链接")
+    checklist_url = Column(String(500), comment="测试清单文件链接")
+
     # 状态
     status = Column(Enum(InvoiceStatus), default=InvoiceStatus.PENDING, comment="发票状态")
     reject_reason = Column(String(200), comment="拒绝原因")

@@ -550,22 +550,25 @@
                                         {{ formatDate(scope.row.created_at) }}
                                     </template>
                                 </el-table-column>
-                                <el-table-column label="操作" width="200" fixed="right">
+                                <el-table-column label="操作" width="250" fixed="right">
                                     <template #default="scope">
                                         <el-button type="primary" size="small" @click="viewUser(scope.row)">
                                             查看
                                         </el-button>
-                                        <el-button 
+                                        <el-button type="warning" size="small" @click="showEditUserDialog(scope.row)">
+                                            编辑
+                                        </el-button>
+                                        <el-button
                                             v-if="scope.row.status === 'active'"
-                                            type="danger" 
-                                            size="small" 
+                                            type="danger"
+                                            size="small"
                                             @click="updateUserStatus(scope.row.id, 'banned')">
                                             禁用
                                         </el-button>
-                                        <el-button 
+                                        <el-button
                                             v-else
-                                            type="success" 
-                                            size="small" 
+                                            type="success"
+                                            size="small"
                                             @click="updateUserStatus(scope.row.id, 'active')">
                                             激活
                                         </el-button>
@@ -671,6 +674,22 @@
                                 <template #footer>
                                     <el-button @click="creditLimitDialogVisible = false">取消</el-button>
                                     <el-button type="primary" @click="submitCreditLimit" :loading="creditLimitLoading">确定</el-button>
+                                </template>
+                            </el-dialog>
+
+                            <!-- 编辑用户对话框 -->
+                            <el-dialog v-model="editUserDialogVisible" title="编辑用户信息" width="550px">
+                                <el-form :model="editUserForm" label-width="100px">
+                                    <el-form-item label="昵称"><el-input v-model="editUserForm.nickname"></el-input></el-form-item>
+                                    <el-form-item label="手机号"><el-input v-model="editUserForm.phone"></el-input></el-form-item>
+                                    <el-form-item label="真实姓名"><el-input v-model="editUserForm.real_name"></el-input></el-form-item>
+                                    <el-form-item label="邮箱"><el-input v-model="editUserForm.email"></el-input></el-form-item>
+                                    <el-form-item label="积分余额"><el-input-number v-model="editUserForm.points_balance" :min="0" style="width: 100%;"></el-input-number></el-form-item>
+                                    <el-form-item label="储值余额"><el-input-number v-model="editUserForm.prepaid_balance" :min="0" :precision="2" style="width: 100%;"></el-input-number></el-form-item>
+                                </el-form>
+                                <template #footer>
+                                    <el-button @click="editUserDialogVisible = false">取消</el-button>
+                                    <el-button type="primary" @click="saveUserEdit" :loading="loading">保存</el-button>
                                 </template>
                             </el-dialog>
 
@@ -1094,8 +1113,12 @@
                                     <el-select v-model="orderAssigneeFilter" placeholder="指派人员" style="width: 150px;" @change="loadOrders" clearable>
                                         <el-option v-for="staff in labStaffList" :key="staff.id" :label="staff.name" :value="staff.id"></el-option>
                                     </el-select>
+                                    <el-select v-model="orderAssignedFilter" placeholder="分配状态" style="width: 130px;" @change="loadOrders" clearable>
+                                        <el-option label="已分配" value="assigned"></el-option>
+                                        <el-option label="未分配" value="unassigned"></el-option>
+                                    </el-select>
                                     <el-button type="primary" @click="loadOrders">搜索</el-button>
-                                    <el-button @click="orderSearch=''; orderStatusFilter=null; orderAssigneeFilter=null; loadOrders()">重置</el-button>
+                                    <el-button @click="orderSearch=''; orderStatusFilter=null; orderAssigneeFilter=null; orderAssignedFilter=null; loadOrders()">重置</el-button>
                                 </div>
                             </div>
 
@@ -1142,6 +1165,7 @@
                                 <el-table-column label="操作" width="220" fixed="right">
                                     <template #default="scope">
                                         <el-button link type="primary" size="small" @click="viewOrderDetail(scope.row)">详情</el-button>
+                                        <el-button link type="info" size="small" @click="showOrderEditDialog(scope.row)">编辑</el-button>
                                         <el-button link type="success" size="small" @click="showAssignDialog(scope.row)">指派</el-button>
                                         <el-button link type="warning" size="small" @click="showOrderStatusDialog(scope.row)">改状态</el-button>
                                         <el-button link type="info" size="small" @click="printOrderDetail(scope.row)">打印</el-button>
@@ -1186,6 +1210,61 @@
                                 <el-button @click="assignDialogVisible = false">取消</el-button>
                                 <el-button type="primary" @click="confirmAssign">确认指派</el-button>
                             </template>
+                        </el-dialog>
+
+                        <!-- 订单编辑对话框 -->
+                        <el-dialog v-model="orderEditDialogVisible" title="编辑订单" width="600px">
+                            <el-form :model="orderEditForm" label-width="100px">
+                                <el-form-item label="项目费用"><el-input-number v-model="orderEditForm.project_fee" :min="0" :precision="2" style="width: 100%;"></el-input-number></el-form-item>
+                                <el-form-item label="加急费用"><el-input-number v-model="orderEditForm.urgent_fee" :min="0" :precision="2" style="width: 100%;"></el-input-number></el-form-item>
+                                <el-form-item label="运费"><el-input-number v-model="orderEditForm.shipping_fee" :min="0" :precision="2" style="width: 100%;"></el-input-number></el-form-item>
+                                <el-form-item label="总金额"><el-input-number v-model="orderEditForm.total_fee" :min="0" :precision="2" style="width: 100%;"></el-input-number></el-form-item>
+                                <el-form-item label="是否加急"><el-switch v-model="orderEditForm.is_urgent"></el-switch></el-form-item>
+                                <el-form-item label="收件人"><el-input v-model="orderEditForm.receiver_name"></el-input></el-form-item>
+                                <el-form-item label="收件电话"><el-input v-model="orderEditForm.receiver_phone"></el-input></el-form-item>
+                                <el-form-item label="收件地址"><el-input v-model="orderEditForm.receiver_address"></el-input></el-form-item>
+                                <el-form-item label="备注"><el-input v-model="orderEditForm.remark" type="textarea" :rows="2"></el-input></el-form-item>
+                            </el-form>
+                            <template #footer>
+                                <el-button @click="orderEditDialogVisible = false">取消</el-button>
+                                <el-button type="primary" @click="saveOrderEdit" :loading="loading">保存</el-button>
+                            </template>
+                        </el-dialog>
+
+                        <!-- 订单详情对话框 -->
+                        <el-dialog v-model="orderDetailDialogVisible" title="订单详情" width="700px">
+                            <div v-if="orderDetailData" style="line-height: 2;">
+                                <el-descriptions :column="2" border>
+                                    <el-descriptions-item label="订单号">{{ orderDetailData.order_no }}</el-descriptions-item>
+                                    <el-descriptions-item label="状态"><el-tag :type="getOrderStatusType(orderDetailData.status)" size="small">{{ getOrderStatusText(orderDetailData.status) }}</el-tag></el-descriptions-item>
+                                    <el-descriptions-item label="项目">{{ orderDetailData.project_name }}</el-descriptions-item>
+                                    <el-descriptions-item label="总金额"><span style="color:#ff4d4f;font-weight:600;">¥{{ orderDetailData.total_fee }}</span></el-descriptions-item>
+                                    <el-descriptions-item label="是否加急"><el-tag :type="orderDetailData.is_urgent ? 'danger' : 'info'" size="small">{{ orderDetailData.is_urgent ? '加急' : '普通' }}</el-tag></el-descriptions-item>
+                                    <el-descriptions-item label="备注">{{ orderDetailData.remark || '-' }}</el-descriptions-item>
+                                    <el-descriptions-item label="指派实验室">{{ orderDetailData.assigned_lab_name || '-' }}</el-descriptions-item>
+                                    <el-descriptions-item label="指派人员">{{ orderDetailData.assigned_staff_name || '-' }}</el-descriptions-item>
+                                </el-descriptions>
+                                <div v-if="orderDetailData.samples && orderDetailData.samples.length > 0" style="margin-top: 16px;">
+                                    <h4>样品信息</h4>
+                                    <el-table :data="orderDetailData.samples" size="small" border>
+                                        <el-table-column prop="sample_name" label="样品名称" width="150"></el-table-column>
+                                        <el-table-column prop="sample_type" label="样品类型" width="100"></el-table-column>
+                                        <el-table-column prop="quantity" label="数量" width="80"></el-table-column>
+                                        <el-table-column prop="sample_desc" label="描述" show-overflow-tooltip></el-table-column>
+                                        <el-table-column prop="special_requirements" label="特殊要求" show-overflow-tooltip></el-table-column>
+                                    </el-table>
+                                </div>
+                                <div v-if="orderDetailData.option_selections && orderDetailData.option_selections.length > 0" style="margin-top: 16px;">
+                                    <h4>客户条件选择</h4>
+                                    <el-table :data="orderDetailData.option_selections" size="small" border>
+                                        <el-table-column prop="option_name" label="选项名称" width="150"></el-table-column>
+                                        <el-table-column prop="selected_value" label="选择值" width="150"></el-table-column>
+                                        <el-table-column prop="price" label="价格" width="100">
+                                            <template #default="scope">¥{{ scope.row.price || 0 }}</template>
+                                        </el-table-column>
+                                    </el-table>
+                                </div>
+                            </div>
                         </el-dialog>
                     </div>
 
@@ -1377,6 +1456,12 @@
                                 <el-form-item label="发放数量"><el-input-number v-model="couponForm.total_quantity" :min="0" style="width: 100%;"></el-input-number><div style="font-size: 12px; color: #999;">0表示不限量</div></el-form-item>
                                 <el-form-item label="有效天数"><el-input-number v-model="couponForm.valid_days" :min="1" style="width: 100%;"></el-input-number></el-form-item>
                                 <el-form-item label="描述"><el-input v-model="couponForm.description" type="textarea" :rows="2"></el-input></el-form-item>
+                                <el-form-item label="指定项目">
+                                    <el-select v-model="couponForm.applicable_projects" multiple placeholder="留空表示全部项目可用" style="width: 100%;">
+                                        <el-option v-for="p in projects" :key="p.id" :label="p.name" :value="p.id"></el-option>
+                                    </el-select>
+                                    <div style="font-size: 12px; color: #999;">不选则所有项目都可使用</div>
+                                </el-form-item>
                             </el-form>
                             <template #footer>
                                 <el-button @click="couponDialogVisible = false">取消</el-button>
@@ -1401,8 +1486,13 @@
                                     <el-option label="失败" value="failed"></el-option>
                                     <el-option label="已退款" value="refunded"></el-option>
                                 </el-select>
+                                <el-select v-model="rechargeMethodFilter" placeholder="储值方式" style="width: 120px;" clearable @change="loadRecharges">
+                                    <el-option label="微信" value="wechat"></el-option>
+                                    <el-option label="支付宝" value="alipay"></el-option>
+                                    <el-option label="开票充值" value="invoice"></el-option>
+                                </el-select>
                                 <el-button type="primary" @click="loadRecharges">搜索</el-button>
-                                <el-button @click="rechargeSearch=''; rechargeStatusFilter=null; loadRecharges()">重置</el-button>
+                                <el-button @click="rechargeSearch=''; rechargeStatusFilter=null; rechargeMethodFilter=null; loadRecharges()">重置</el-button>
                             </div>
                             <el-table :data="rechargeList" v-loading="rechargeLoading">
                                 <el-table-column prop="id" label="ID" width="60"></el-table-column>
@@ -1424,7 +1514,7 @@
                                 </el-table-column>
                                 <el-table-column label="方式" width="80">
                                     <template #default="scope">
-                                        <el-tag size="small" :type="scope.row.payment_method === 'wechat' ? 'success' : 'primary'">{{ scope.row.payment_method === 'wechat' ? '微信' : '支付宝' }}</el-tag>
+                                        <el-tag size="small" :type="scope.row.payment_method === 'wechat' ? 'success' : scope.row.payment_method === 'invoice' ? 'warning' : 'primary'">{{ scope.row.payment_method === 'wechat' ? '微信' : scope.row.payment_method === 'invoice' ? '开票充值' : '支付宝' }}</el-tag>
                                     </template>
                                 </el-table-column>
                                 <el-table-column label="状态" width="80">
@@ -1602,8 +1692,11 @@
                                         <el-tag :type="scope.row.status === 'active' ? 'success' : 'danger'" size="small">{{ scope.row.status === 'active' ? '正常' : '禁用' }}</el-tag>
                                     </template>
                                 </el-table-column>
-                                <el-table-column label="操作" width="160">
+                                <el-table-column label="操作" width="280">
                                     <template #default="scope">
+                                        <el-button link type="primary" size="small" @click="viewGroupDetail(scope.row)">详情</el-button>
+                                        <el-button link type="info" size="small" @click="viewGroupMembers(scope.row)">成员</el-button>
+                                        <el-button link type="success" size="small" @click="viewGroupOrders(scope.row)">订单</el-button>
                                         <el-button link :type="scope.row.is_certified ? 'warning' : 'success'" size="small" @click="toggleGroupCertify(scope.row)">
                                             {{ scope.row.is_certified ? '取消认证' : '认证' }}
                                         </el-button>
@@ -1617,6 +1710,57 @@
                                 layout="total, prev, pager, next" @current-change="loadGroups" style="margin-top: 16px; justify-content: center;">
                             </el-pagination>
                         </div>
+
+                        <!-- 团队详情对话框 -->
+                        <el-dialog v-model="groupDetailDialogVisible" :title="'团队详情 - ' + currentGroupName" width="500px">
+                            <div v-if="groupDetailData">
+                                <el-descriptions :column="1" border>
+                                    <el-descriptions-item label="团队名称">{{ groupDetailData.name }}</el-descriptions-item>
+                                    <el-descriptions-item label="负责人">{{ groupDetailData.owner_name }}</el-descriptions-item>
+                                    <el-descriptions-item label="联系电话">{{ groupDetailData.owner_phone }}</el-descriptions-item>
+                                    <el-descriptions-item label="所属高校">{{ groupDetailData.university || '-' }}</el-descriptions-item>
+                                    <el-descriptions-item label="成员数">{{ groupDetailData.member_count }}</el-descriptions-item>
+                                    <el-descriptions-item label="团队储值总额"><span style="color:#ff4d4f;font-weight:600;">¥{{ groupDetailData.total_prepaid_balance || 0 }}</span></el-descriptions-item>
+                                    <el-descriptions-item label="累计消费">¥{{ groupDetailData.total_spent || 0 }}</el-descriptions-item>
+                                </el-descriptions>
+                            </div>
+                        </el-dialog>
+
+                        <!-- 团队成员对话框 -->
+                        <el-dialog v-model="groupMembersDialogVisible" :title="'团队成员 - ' + currentGroupName" width="700px">
+                            <el-table :data="groupMembersList" v-loading="groupMembersLoading" size="small">
+                                <el-table-column prop="nickname" label="昵称" width="120"></el-table-column>
+                                <el-table-column prop="phone" label="手机号" width="130"></el-table-column>
+                                <el-table-column prop="real_name" label="真实姓名" width="100"></el-table-column>
+                                <el-table-column label="订单数" width="80">
+                                    <template #default="scope">{{ scope.row.order_count || 0 }}</template>
+                                </el-table-column>
+                                <el-table-column label="消费金额" width="120">
+                                    <template #default="scope"><span style="color:#ff4d4f;">¥{{ scope.row.total_spent || 0 }}</span></template>
+                                </el-table-column>
+                                <el-table-column label="储值余额" width="120">
+                                    <template #default="scope">¥{{ scope.row.prepaid_balance || 0 }}</template>
+                                </el-table-column>
+                            </el-table>
+                        </el-dialog>
+
+                        <!-- 团队订单对话框 -->
+                        <el-dialog v-model="groupOrdersDialogVisible" :title="'团队订单 - ' + currentGroupName" width="900px">
+                            <el-table :data="groupOrdersList" v-loading="groupOrdersLoading" size="small">
+                                <el-table-column prop="order_no" label="订单号" width="180"></el-table-column>
+                                <el-table-column prop="user_nickname" label="用户" width="100"></el-table-column>
+                                <el-table-column prop="project_name" label="项目" width="150" show-overflow-tooltip></el-table-column>
+                                <el-table-column label="金额" width="100">
+                                    <template #default="scope"><span style="color:#ff4d4f;">¥{{ scope.row.total_fee || scope.row.total_amount }}</span></template>
+                                </el-table-column>
+                                <el-table-column label="状态" width="80">
+                                    <template #default="scope"><el-tag :type="getOrderStatusType(scope.row.status)" size="small">{{ getOrderStatusText(scope.row.status) }}</el-tag></template>
+                                </el-table-column>
+                                <el-table-column label="创建时间" width="160">
+                                    <template #default="scope">{{ formatDateTime(scope.row.created_at) }}</template>
+                                </el-table-column>
+                            </el-table>
+                        </el-dialog>
                     </div>
 
                     <!-- 邀请管理 -->
@@ -2505,6 +2649,7 @@
                                                     <el-button link type="primary" size="small" @click="confirmInvoice(scope.row)">确认开票</el-button>
                                                 </template>
                                                 <el-button link type="info" size="small" @click="viewInvoiceDetail(scope.row)">详情</el-button>
+                                                <el-button link type="warning" size="small" @click="showInvoiceReportDialog(scope.row)">上传报告/清单</el-button>
                                             </template>
                                         </el-table-column>
                                     </el-table>
@@ -2561,6 +2706,28 @@
                             <template #footer>
                                 <el-button @click="invoiceUploadDialogVisible = false">取消</el-button>
                                 <el-button type="primary" @click="submitInvoiceUpload">确认上传</el-button>
+                            </template>
+                        </el-dialog>
+
+                        <!-- 上传测试报告/清单对话框 -->
+                        <el-dialog v-model="invoiceReportDialogVisible" title="上传测试报告/清单" width="500px">
+                            <el-form :model="invoiceReportForm" label-width="120px">
+                                <el-form-item label="测试报告">
+                                    <el-upload action="#" :auto-upload="false" :on-change="(f) => handleReportFileUpload(f, 'report')" :show-file-list="false" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx">
+                                        <el-button type="primary" size="small">选择报告文件</el-button>
+                                    </el-upload>
+                                    <span v-if="invoiceReportForm.report_url" style="margin-left: 10px; color: #67c23a;">✓ 已上传</span>
+                                </el-form-item>
+                                <el-form-item label="测试清单">
+                                    <el-upload action="#" :auto-upload="false" :on-change="(f) => handleReportFileUpload(f, 'checklist')" :show-file-list="false" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx">
+                                        <el-button type="primary" size="small">选择清单文件</el-button>
+                                    </el-upload>
+                                    <span v-if="invoiceReportForm.checklist_url" style="margin-left: 10px; color: #67c23a;">✓ 已上传</span>
+                                </el-form-item>
+                            </el-form>
+                            <template #footer>
+                                <el-button @click="invoiceReportDialogVisible = false">取消</el-button>
+                                <el-button type="primary" @click="submitInvoiceReport">确认上传</el-button>
                             </template>
                         </el-dialog>
                     </div>
@@ -2912,6 +3079,21 @@
                                 </div>
                             </el-tab-pane>
                         </el-tabs>
+
+                        <!-- 加盟商编辑对话框 -->
+                        <el-dialog v-model="franchiseeDialogVisible" title="编辑加盟商" width="550px">
+                            <el-form :model="franchiseeForm" label-width="100px">
+                                <el-form-item label="公司名称"><el-input v-model="franchiseeForm.company_name"></el-input></el-form-item>
+                                <el-form-item label="联系人"><el-input v-model="franchiseeForm.contact_name"></el-input></el-form-item>
+                                <el-form-item label="联系电话"><el-input v-model="franchiseeForm.contact_phone"></el-input></el-form-item>
+                                <el-form-item label="所在城市"><el-input v-model="franchiseeForm.city"></el-input></el-form-item>
+                                <el-form-item label="经营类型"><el-input v-model="franchiseeForm.business_type"></el-input></el-form-item>
+                            </el-form>
+                            <template #footer>
+                                <el-button @click="franchiseeDialogVisible = false">取消</el-button>
+                                <el-button type="primary" @click="saveFranchisee" :loading="loading">保存</el-button>
+                            </template>
+                        </el-dialog>
                     </div>
 
                     <!-- 数据分析 -->
@@ -3025,6 +3207,11 @@
                                         <el-option label="全部项目" value="all"></el-option>
                                         <el-option label="指定分类" value="category"></el-option>
                                         <el-option label="指定项目" value="project"></el-option>
+                                    </el-select>
+                                </el-form-item>
+                                <el-form-item label="指定项目" v-if="discountForm.apply_to === 'project'">
+                                    <el-select v-model="discountForm.applicable_projects" multiple placeholder="选择项目" style="width: 100%;">
+                                        <el-option v-for="p in projects" :key="p.id" :label="p.name" :value="p.id"></el-option>
                                     </el-select>
                                 </el-form-item>
                                 <el-form-item label="有效期" required>
@@ -3230,6 +3417,8 @@
                     selectedUser: null,
                     avatarUploadVisible: false,
                     currentEditUserId: null,
+                    editUserDialogVisible: false,
+                    editUserForm: { id: null, nickname: '', phone: '', real_name: '', email: '', points_balance: 0, prepaid_balance: 0 },
                     creditLimitDialogVisible: false,
                     creditLimitLoading: false,
                     creditLimitForm: {
@@ -3253,6 +3442,11 @@
                     orderSearch: '',
                     orderStatusFilter: null,
                     orderAssigneeFilter: null,
+                    orderAssignedFilter: null,
+                    orderEditDialogVisible: false,
+                    orderEditForm: { id: null, total_fee: 0, project_fee: 0, urgent_fee: 0, shipping_fee: 0, remark: '', receiver_name: '', receiver_phone: '', receiver_address: '', is_urgent: false },
+                    orderDetailDialogVisible: false,
+                    orderDetailData: null,
                     orderPage: 1,
                     orderPageSize: 20,
                     orderTotal: 0,
@@ -3312,7 +3506,7 @@
                     couponPageSize: 20,
                     couponTotal: 0,
                     couponDialogVisible: false,
-                    couponForm: { id: null, name: '', type: 'cash', description: '', cash_amount: 10, discount_rate: 0.9, full_amount: 100, reduction_amount: 10, min_order_amount: 0, total_quantity: 0, valid_days: 30 },
+                    couponForm: { id: null, name: '', type: 'cash', description: '', cash_amount: 10, discount_rate: 0.9, full_amount: 100, reduction_amount: 10, min_order_amount: 0, total_quantity: 0, valid_days: 30, applicable_projects: [] },
                     sendCouponDialogVisible: false,
                     sendCouponForm: { coupon_id: null, send_type: 'phone', phones: '', user_group: '', quantity: 1, remark: '' },
                     // 充值管理
@@ -3320,6 +3514,7 @@
                     rechargeLoading: false,
                     rechargeSearch: '',
                     rechargeStatusFilter: null,
+                    rechargeMethodFilter: null,
                     rechargePage: 1,
                     rechargePageSize: 20,
                     rechargeTotal: 0,
@@ -3347,6 +3542,16 @@
                     groupPage: 1,
                     groupPageSize: 20,
                     groupTotal: 0,
+                    groupDetailDialogVisible: false,
+                    groupDetailData: null,
+                    groupMembersDialogVisible: false,
+                    groupMembersList: [],
+                    groupMembersLoading: false,
+                    groupOrdersDialogVisible: false,
+                    groupOrdersList: [],
+                    groupOrdersLoading: false,
+                    currentGroupId: null,
+                    currentGroupName: '',
                     // 邀请管理
                     inviteTab: 'records',
                     inviteList: [],
@@ -3460,6 +3665,8 @@
                     invoiceStatusFilter: null,
                     invoiceUploadDialogVisible: false,
                     invoiceUploadForm: { invoice_id: null, invoice_no: '', invoice_code: '', file_url: '' },
+                    invoiceReportDialogVisible: false,
+                    invoiceReportForm: { invoice_id: null, report_url: '', checklist_url: '' },
                     invoiceList: [
                         { id: 1, invoice_no: '', order_no: 'ORD20240115001', applicant: '张三', title: '北京科技有限公司', tax_no: '91110108MA01XXXXX', amount: 5680, type: 'special', status: 'pending', created_at: '2024-01-15 15:00:00' },
                         { id: 2, invoice_no: 'INV20240114001', order_no: 'ORD20240114002', applicant: '李四', title: '清华大学', tax_no: '12100000400XXXXX', amount: 3200, type: 'normal', status: 'completed', created_at: '2024-01-14 10:30:00' }
@@ -3524,6 +3731,8 @@
                     franchiseeList: [
                         { id: 1, company_name: '杭州实验室', contact_name: '陈经理', contact_phone: '13800138002', order_count: 156, total_amount: 89600, is_active: true, joined_at: '2023-06-15 00:00:00' }
                     ],
+                    franchiseeDialogVisible: false,
+                    franchiseeForm: { id: null, company_name: '', contact_name: '', contact_phone: '', city: '', business_type: '' },
                     // 数据分析
                     analyticsDateRange: null,
                     analyticsData: {
@@ -3548,7 +3757,7 @@
                     ],
                     discountLoading: false,
                     discountDialogVisible: false,
-                    discountForm: { id: null, name: '', discount_rate: 0.9, apply_to: 'all', dateRange: null, is_active: true },
+                    discountForm: { id: null, name: '', discount_rate: 0.9, apply_to: 'all', applicable_projects: [], dateRange: null, is_active: true },
                     // 抽奖活动
                     lotteryTab: 'prizes',
                     lotteryPrizeList: [],
@@ -3858,6 +4067,32 @@
                         }
                     }
                 },
+                // 编辑用户信息
+                showEditUserDialog(user) {
+                    this.editUserForm = {
+                        id: user.id,
+                        nickname: user.nickname || '',
+                        phone: user.phone || '',
+                        real_name: user.real_name || '',
+                        email: user.email || '',
+                        points_balance: user.points_balance || 0,
+                        prepaid_balance: parseFloat(user.prepaid_balance) || 0
+                    }
+                    this.editUserDialogVisible = true
+                },
+                async saveUserEdit() {
+                    this.loading = true
+                    try {
+                        await axios.put(`${this.baseUrl}/api/v1/admin/users/${this.editUserForm.id}`, this.editUserForm, { headers: this.uploadHeaders })
+                        ElMessage.success('用户信息更新成功')
+                        this.editUserDialogVisible = false
+                        this.loadUsers()
+                    } catch (error) {
+                        ElMessage.error(error.response?.data?.detail || '更新失败')
+                    } finally {
+                        this.loading = false
+                    }
+                },
                 // 显示修改信用额度对话框
                 showEditCreditLimit() {
                     this.creditLimitForm.credit_limit = this.selectedUser?.credit_limit || 0
@@ -3987,8 +4222,12 @@
                     finally { this.couponLoading = false }
                 },
                 showCouponDialog(coupon = null) {
-                    if (coupon) this.couponForm = { ...coupon }
-                    else this.couponForm = { id: null, name: '', type: 'cash', description: '', cash_amount: 10, discount_rate: 0.9, full_amount: 100, reduction_amount: 10, min_order_amount: 0, total_quantity: 0, valid_days: 30 }
+                    if (coupon) {
+                        this.couponForm = { ...coupon, applicable_projects: coupon.applicable_projects || [] }
+                    } else {
+                        this.couponForm = { id: null, name: '', type: 'cash', description: '', cash_amount: 10, discount_rate: 0.9, full_amount: 100, reduction_amount: 10, min_order_amount: 0, total_quantity: 0, valid_days: 30, applicable_projects: [] }
+                    }
+                    if (this.projects.length === 0) this.loadProjects()
                     this.couponDialogVisible = true
                 },
                 async saveCoupon() {
@@ -4062,7 +4301,7 @@
                     try {
                         const res = await axios.get(`${this.baseUrl}/api/v1/admin/recharges`, {
                             headers: this.uploadHeaders,
-                            params: { page: this.rechargePage, page_size: this.rechargePageSize, search: this.rechargeSearch || undefined, status: this.rechargeStatusFilter || undefined }
+                            params: { page: this.rechargePage, page_size: this.rechargePageSize, search: this.rechargeSearch || undefined, status: this.rechargeStatusFilter || undefined, payment_method: this.rechargeMethodFilter || undefined }
                         })
                         this.rechargeList = res.data.data.items || []
                         this.rechargeTotal = res.data.data.total || 0
@@ -4193,6 +4432,45 @@
                         ElMessage.success('状态已更新')
                         this.loadGroups()
                     } catch (error) { ElMessage.error('操作失败') }
+                },
+                async viewGroupDetail(group) {
+                    this.currentGroupId = group.id
+                    this.currentGroupName = group.name
+                    try {
+                        const res = await axios.get(`${this.baseUrl}/api/v1/admin/groups/${group.id}`, { headers: this.uploadHeaders })
+                        this.groupDetailData = res.data.data
+                        this.groupDetailDialogVisible = true
+                    } catch (error) {
+                        ElMessage.error(error.response?.data?.detail || '加载团队详情失败')
+                    }
+                },
+                async viewGroupMembers(group) {
+                    this.currentGroupId = group.id
+                    this.currentGroupName = group.name
+                    this.groupMembersLoading = true
+                    this.groupMembersDialogVisible = true
+                    try {
+                        const res = await axios.get(`${this.baseUrl}/api/v1/admin/groups/${group.id}/members`, { headers: this.uploadHeaders })
+                        this.groupMembersList = res.data.data || []
+                    } catch (error) {
+                        ElMessage.error(error.response?.data?.detail || '加载成员列表失败')
+                    } finally {
+                        this.groupMembersLoading = false
+                    }
+                },
+                async viewGroupOrders(group) {
+                    this.currentGroupId = group.id
+                    this.currentGroupName = group.name
+                    this.groupOrdersLoading = true
+                    this.groupOrdersDialogVisible = true
+                    try {
+                        const res = await axios.get(`${this.baseUrl}/api/v1/admin/groups/${group.id}/orders`, { headers: this.uploadHeaders })
+                        this.groupOrdersList = res.data.data?.items || res.data.data || []
+                    } catch (error) {
+                        ElMessage.error(error.response?.data?.detail || '加载团队订单失败')
+                    } finally {
+                        this.groupOrdersLoading = false
+                    }
                 },
                 // 邀请管理方法
                 async loadInvites() {
@@ -4613,7 +4891,8 @@
                                 page: this.orderPage,
                                 page_size: this.orderPageSize,
                                 search: this.orderSearch || undefined,
-                                status: this.orderStatusFilter || undefined
+                                status: this.orderStatusFilter || undefined,
+                                assigned: this.orderAssignedFilter || undefined
                             }
                         })
                         this.orders = res.data.data.items || []
@@ -4625,25 +4904,51 @@
                         this.ordersLoading = false
                     }
                 },
-                viewOrderDetail(order) {
-                    // 隐藏敏感信息
-                    const maskedPhone = order.user_phone ? order.user_phone.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2') : '-'
-                    const maskedNickname = order.user_nickname ? (order.user_nickname.length > 1 ? order.user_nickname[0] + '**' : order.user_nickname) : '用户'
-                    ElMessageBox.alert(`
-                        <div style="line-height: 1.8;">
-                            <p><strong>订单号：</strong>${order.order_no}</p>
-                            <p><strong>用户：</strong>${maskedNickname} (${maskedPhone})</p>
-                            <p><strong>项目：</strong>${order.project_name}</p>
-                            <p><strong>样品：</strong>${order.sample_name || '-'} × ${order.quantity || order.sample_count || 1}</p>
-                            <p><strong>金额：</strong>¥${order.total_amount || order.total_fee || 0}</p>
-                            <p><strong>状态：</strong>${this.getOrderStatusText(order.status)}</p>
-                            <p><strong>创建时间：</strong>${this.formatDateTime(order.created_at)}</p>
-                            ${order.paid_at ? `<p><strong>支付时间：</strong>${this.formatDateTime(order.paid_at)}</p>` : ''}
-                        </div>
-                    `, '订单详情', {
-                        dangerouslyUseHTMLString: true,
-                        confirmButtonText: '关闭'
-                    })
+                async viewOrderDetail(order) {
+                    try {
+                        const res = await axios.get(`${this.baseUrl}/api/v1/admin/orders/${order.id}`, { headers: this.uploadHeaders })
+                        this.orderDetailData = res.data.data
+                        this.orderDetailDialogVisible = true
+                    } catch (error) {
+                        // 降级显示基本信息
+                        const maskedPhone = order.user_phone ? order.user_phone.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2') : '-'
+                        ElMessageBox.alert(`
+                            <div style="line-height: 1.8;">
+                                <p><strong>订单号：</strong>${order.order_no}</p>
+                                <p><strong>项目：</strong>${order.project_name}</p>
+                                <p><strong>金额：</strong>¥${order.total_amount || order.total_fee || 0}</p>
+                                <p><strong>状态：</strong>${this.getOrderStatusText(order.status)}</p>
+                            </div>
+                        `, '订单详情', { dangerouslyUseHTMLString: true, confirmButtonText: '关闭' })
+                    }
+                },
+                showOrderEditDialog(order) {
+                    this.orderEditForm = {
+                        id: order.id,
+                        total_fee: parseFloat(order.total_amount || order.total_fee) || 0,
+                        project_fee: parseFloat(order.project_fee) || 0,
+                        urgent_fee: parseFloat(order.urgent_fee) || 0,
+                        shipping_fee: parseFloat(order.shipping_fee) || 0,
+                        remark: order.remark || '',
+                        receiver_name: order.receiver_name || '',
+                        receiver_phone: order.receiver_phone || '',
+                        receiver_address: order.receiver_address || '',
+                        is_urgent: order.is_urgent || false
+                    }
+                    this.orderEditDialogVisible = true
+                },
+                async saveOrderEdit() {
+                    this.loading = true
+                    try {
+                        await axios.put(`${this.baseUrl}/api/v1/admin/orders/${this.orderEditForm.id}`, this.orderEditForm, { headers: this.uploadHeaders })
+                        ElMessage.success('订单修改成功')
+                        this.orderEditDialogVisible = false
+                        this.loadOrders()
+                    } catch (error) {
+                        ElMessage.error(error.response?.data?.detail || '修改失败')
+                    } finally {
+                        this.loading = false
+                    }
                 },
                 showOrderStatusDialog(order) {
                     ElMessageBox.prompt('请输入新状态', '修改订单状态', {
@@ -5094,11 +5399,17 @@
                     if (!this.labForm.name || !this.labForm.director) { ElMessage.error('请填写实验室名称和负责人'); return }
                     this.loading = true
                     try {
+                        const labData = {
+                            ...this.labForm,
+                            contact_name: this.labForm.director,
+                            contact_phone: this.labForm.phone,
+                            address: this.labForm.location
+                        }
                         if (this.labForm.id) {
-                            await axios.put(`${this.baseUrl}/api/v1/admin/laboratories/${this.labForm.id}`, this.labForm, { headers: this.uploadHeaders })
+                            await axios.put(`${this.baseUrl}/api/v1/admin/laboratories/${this.labForm.id}`, labData, { headers: this.uploadHeaders })
                             ElMessage.success('更新成功')
                         } else {
-                            await axios.post(`${this.baseUrl}/api/v1/admin/laboratories`, this.labForm, { headers: this.uploadHeaders })
+                            await axios.post(`${this.baseUrl}/api/v1/admin/laboratories`, labData, { headers: this.uploadHeaders })
                             ElMessage.success('创建成功')
                         }
                         this.labDialogVisible = false
@@ -5394,6 +5705,51 @@
                         ElMessage.success('文件上传成功')
                     } catch (error) {
                         ElMessage.error('文件上传失败')
+                    }
+                },
+                showInvoiceReportDialog(invoice) {
+                    this.invoiceReportForm = {
+                        invoice_id: invoice.id,
+                        report_url: invoice.report_url || '',
+                        checklist_url: invoice.checklist_url || ''
+                    }
+                    this.invoiceReportDialogVisible = true
+                },
+                async handleReportFileUpload(file, type) {
+                    const formData = new FormData()
+                    formData.append('file', file.raw)
+                    try {
+                        const res = await axios.post(`${this.baseUrl}/api/v1/upload/image`, formData, {
+                            headers: { ...this.uploadHeaders, 'Content-Type': 'multipart/form-data' }
+                        })
+                        const url = res.data.data?.url || res.data.url
+                        if (type === 'report') this.invoiceReportForm.report_url = url
+                        else this.invoiceReportForm.checklist_url = url
+                        ElMessage.success('文件上传成功')
+                    } catch (error) {
+                        ElMessage.error('文件上传失败')
+                    }
+                },
+                async submitInvoiceReport() {
+                    const id = this.invoiceReportForm.invoice_id
+                    try {
+                        if (this.invoiceReportForm.report_url) {
+                            await axios.put(`${this.baseUrl}/api/v1/admin/invoices/${id}/upload-report`, null, {
+                                headers: this.uploadHeaders,
+                                params: { report_url: this.invoiceReportForm.report_url }
+                            })
+                        }
+                        if (this.invoiceReportForm.checklist_url) {
+                            await axios.put(`${this.baseUrl}/api/v1/admin/invoices/${id}/upload-checklist`, null, {
+                                headers: this.uploadHeaders,
+                                params: { checklist_url: this.invoiceReportForm.checklist_url }
+                            })
+                        }
+                        ElMessage.success('上传成功')
+                        this.invoiceReportDialogVisible = false
+                        this.loadInvoiceList()
+                    } catch (error) {
+                        ElMessage.error(error.response?.data?.detail || '上传失败')
                     }
                 },
                 viewInvoiceDetail(invoice) {
@@ -5753,13 +6109,36 @@
                     `, '加盟申请详情', { dangerouslyUseHTMLString: true })
                 },
                 editFranchisee(franchisee) {
-                    this.franchiseeForm = { ...franchisee }
+                    this.franchiseeForm = {
+                        id: franchisee.id,
+                        company_name: franchisee.company_name || '',
+                        contact_name: franchisee.contact_name || '',
+                        contact_phone: franchisee.contact_phone || '',
+                        city: franchisee.city || '',
+                        business_type: franchisee.business_type || ''
+                    }
                     this.franchiseeDialogVisible = true
+                },
+                async saveFranchisee() {
+                    this.loading = true
+                    try {
+                        await axios.put(`${this.baseUrl}/api/v1/admin/franchise/franchisees/${this.franchiseeForm.id}`, this.franchiseeForm, { headers: this.uploadHeaders })
+                        ElMessage.success('更新成功')
+                        this.franchiseeDialogVisible = false
+                        this.loadFranchise()
+                    } catch (error) {
+                        ElMessage.error(error.response?.data?.detail || '更新失败')
+                    } finally {
+                        this.loading = false
+                    }
                 },
                 async toggleFranchiseeStatus(franchisee) {
                     try {
-                        await axios.put(`${this.baseUrl}/api/v1/admin/franchise/franchisees/${franchisee.id}/status`, 
-                            { is_active: !franchisee.is_active }, { headers: this.uploadHeaders })
+                        const newStatus = !franchisee.is_active ? 'active' : 'inactive'
+                        await axios.put(`${this.baseUrl}/api/v1/admin/franchise/franchisees/${franchisee.id}/status`, null, {
+                            headers: this.uploadHeaders,
+                            params: { status: newStatus }
+                        })
                         franchisee.is_active = !franchisee.is_active
                         ElMessage.success(franchisee.is_active ? '已启用' : '已停用')
                     } catch (error) {
@@ -5859,8 +6238,9 @@
                     }
                 },
                 showDiscountDialog(discount = null) {
-                    if (discount) this.discountForm = { ...discount, dateRange: [discount.start_date, discount.end_date] }
-                    else this.discountForm = { id: null, name: '', discount_rate: 0.9, apply_to: 'all', dateRange: null, is_active: true }
+                    if (discount) this.discountForm = { ...discount, applicable_projects: discount.applicable_projects || [], dateRange: [discount.start_date, discount.end_date] }
+                    else this.discountForm = { id: null, name: '', discount_rate: 0.9, apply_to: 'all', applicable_projects: [], dateRange: null, is_active: true }
+                    if (this.projects.length === 0) this.loadProjects()
                     this.discountDialogVisible = true
                 },
                 async saveDiscount() {
