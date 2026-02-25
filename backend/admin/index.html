@@ -589,6 +589,10 @@
 
                             <!-- 用户详情对话框 -->
                             <el-dialog v-model="userDialogVisible" title="用户详情" width="700px">
+                                <template #footer>
+                                    <el-button @click="userDialogVisible = false">关闭</el-button>
+                                    <el-button type="primary" @click="submitUserEdit" :loading="userEditLoading">保存修改</el-button>
+                                </template>
                                 <div v-if="selectedUser" style="display: flex; gap: 20px;">
                                     <!-- 左侧头像 -->
                                     <div style="flex-shrink: 0; text-align: center;">
@@ -609,11 +613,20 @@
                                     <div style="flex: 1;">
                                         <el-descriptions :column="2" border>
                                             <el-descriptions-item label="用户ID">{{ selectedUser.id }}</el-descriptions-item>
-                                            <el-descriptions-item label="昵称">{{ selectedUser.nickname }}</el-descriptions-item>
-                                            <el-descriptions-item label="手机号">{{ selectedUser.phone || '未绑定' }}</el-descriptions-item>
-                                            <el-descriptions-item label="邮箱">{{ selectedUser.email || '未填写' }}</el-descriptions-item>
+                                            <el-descriptions-item label="昵称">
+                                                <el-input v-model="userEditForm.nickname" size="small" placeholder="请输入昵称" />
+                                            </el-descriptions-item>
+                                            <el-descriptions-item label="手机号">
+                                                <el-input v-model="userEditForm.phone" size="small" placeholder="请输入手机号" />
+                                            </el-descriptions-item>
+                                            <el-descriptions-item label="邮箱">
+                                                <el-input v-model="userEditForm.email" size="small" placeholder="请输入邮箱" />
+                                            </el-descriptions-item>
                                             <el-descriptions-item label="微信OpenID" :span="2">
                                                 {{ selectedUser.wechat_openid || '未绑定' }}
+                                            </el-descriptions-item>
+                                            <el-descriptions-item label="真实姓名">
+                                                <el-input v-model="userEditForm.real_name" size="small" placeholder="请输入姓名" />
                                             </el-descriptions-item>
                                             <el-descriptions-item label="实名认证">
                                                 <el-tag :type="selectedUser.is_certified ? 'success' : 'info'" size="small">
@@ -631,7 +644,9 @@
                                             </el-descriptions-item>
                                             <el-descriptions-item label="已用额度">¥{{ selectedUser.used_credit }}</el-descriptions-item>
                                             <el-descriptions-item label="预付余额">¥{{ selectedUser.prepaid_balance }}</el-descriptions-item>
-                                            <el-descriptions-item label="积分余额">{{ selectedUser.points_balance }}</el-descriptions-item>
+                                            <el-descriptions-item label="积分余额">
+                                                <el-input-number v-model="userEditForm.points_balance" :min="0" :max="999999999" size="small" style="width: 100%;" />
+                                            </el-descriptions-item>
                                             <el-descriptions-item label="累计消费">¥{{ selectedUser.total_spent }}</el-descriptions-item>
                                             <el-descriptions-item label="订单总数">{{ selectedUser.total_orders }}</el-descriptions-item>
                                             <el-descriptions-item label="账户状态">
@@ -1190,6 +1205,91 @@
                                 </el-pagination>
                             </div>
                         </div>
+                        <!-- 订单详情编辑对话框 -->
+                        <el-dialog v-model="orderDetailDialogVisible" title="订单详情（可修改）" width="900px">
+                            <el-form label-width="120px" v-loading="orderDetailLoading">
+                                <el-row :gutter="16">
+                                    <el-col :span="12">
+                                        <el-form-item label="订单号">
+                                            <el-input v-model="orderDetailForm.order_no" disabled />
+                                        </el-form-item>
+                                    </el-col>
+                                    <el-col :span="12">
+                                        <el-form-item label="订单金额" required>
+                                            <el-input-number v-model="orderDetailForm.total_fee" :min="0" :precision="2" style="width: 100%;" />
+                                        </el-form-item>
+                                    </el-col>
+                                </el-row>
+                                <el-row :gutter="16">
+                                    <el-col :span="12">
+                                        <el-form-item label="样品数">
+                                            <el-input-number v-model="orderDetailForm.sample_count" :min="1" :max="9999" style="width: 100%;" />
+                                        </el-form-item>
+                                    </el-col>
+                                    <el-col :span="12">
+                                        <el-form-item label="用户备注">
+                                            <el-input v-model="orderDetailForm.remark" type="textarea" :rows="2" />
+                                        </el-form-item>
+                                    </el-col>
+                                </el-row>
+
+                                <el-divider content-position="left">客户条件信息（动态选项）</el-divider>
+                                <el-table :data="orderDetailForm.options" size="small" border style="width: 100%; margin-bottom: 12px;">
+                                    <el-table-column prop="option_path" label="条件路径" min-width="260" show-overflow-tooltip />
+                                    <el-table-column prop="option_name" label="条件名称" min-width="160" show-overflow-tooltip />
+                                    <el-table-column label="填写/选择值" min-width="220">
+                                        <template #default="scope">
+                                            <el-input v-model="scope.row.input_value" placeholder="可修改" />
+                                        </template>
+                                    </el-table-column>
+                                    <el-table-column label="加价" width="100">
+                                        <template #default="scope">¥{{ scope.row.calculated_price }}</template>
+                                    </el-table-column>
+                                </el-table>
+
+                                <el-divider content-position="left">样品信息</el-divider>
+                                <el-table :data="orderDetailForm.samples" size="small" border style="width: 100%; margin-bottom: 12px;">
+                                    <el-table-column label="样品名称" min-width="160">
+                                        <template #default="scope">
+                                            <el-input v-model="scope.row.sample_name" />
+                                        </template>
+                                    </el-table-column>
+                                    <el-table-column label="数量" width="90">
+                                        <template #default="scope">
+                                            <el-input-number v-model="scope.row.quantity" :min="1" :max="9999" style="width: 100%;" />
+                                        </template>
+                                    </el-table-column>
+                                    <el-table-column label="样品描述" min-width="200">
+                                        <template #default="scope">
+                                            <el-input v-model="scope.row.sample_desc" />
+                                        </template>
+                                    </el-table-column>
+                                    <el-table-column label="特殊要求" min-width="200">
+                                        <template #default="scope">
+                                            <el-input v-model="scope.row.special_requirements" />
+                                        </template>
+                                    </el-table-column>
+                                    <el-table-column label="参数(JSON)" min-width="220">
+                                        <template #default="scope">
+                                            <el-input v-model="scope.row.test_params" placeholder='{"key":"value"}' />
+                                        </template>
+                                    </el-table-column>
+                                </el-table>
+
+                                <el-divider content-position="left">后台补充信息</el-divider>
+                                <el-form-item label="后台测试条件/要求">
+                                    <el-input v-model="orderDetailForm.admin_test_requirements" type="textarea" :rows="3" />
+                                </el-form-item>
+                                <el-form-item label="给实验室备注">
+                                    <el-input v-model="orderDetailForm.admin_notes_to_lab" type="textarea" :rows="3" />
+                                </el-form-item>
+                            </el-form>
+                            <template #footer>
+                                <el-button @click="orderDetailDialogVisible = false">关闭</el-button>
+                                <el-button type="primary" @click="saveOrderDetail" :loading="orderDetailLoading">保存修改</el-button>
+                            </template>
+                        </el-dialog>
+
                         <!-- 订单指派对话框 -->
                         <el-dialog v-model="assignDialogVisible" title="订单指派" width="450px">
                             <el-form :model="assignForm" label-width="100px">
@@ -2242,8 +2342,13 @@
                         </el-row>
 
                         <div class="content-card">
-                            <div style="margin-bottom: 16px;">
-                                <el-input v-model="assignSearch" placeholder="搜索订单号/项目名" style="width: 250px; margin-right: 10px;" clearable @change="loadPendingAssignOrders"></el-input>
+                            <div style="margin-bottom: 16px; display: flex; gap: 10px; align-items: center;">
+                                <el-input v-model="assignSearch" placeholder="搜索订单号/项目名" style="width: 250px;" clearable @change="loadPendingAssignOrders"></el-input>
+                                <el-select v-model="assignStatusFilter" placeholder="指派状态" style="width: 150px;" clearable @change="loadPendingAssignOrders">
+                                    <el-option label="未分配" value="unassigned"></el-option>
+                                    <el-option label="已分配" value="assigned"></el-option>
+                                    <el-option label="实验室退回" value="rejected"></el-option>
+                                </el-select>
                                 <el-select v-model="assignProjectFilter" placeholder="项目筛选" style="width: 150px;" clearable @change="loadPendingAssignOrders">
                                     <el-option v-for="cat in projectCategories" :key="cat.id" :label="cat.name" :value="cat.id"></el-option>
                                 </el-select>
@@ -2274,46 +2379,65 @@
                         </div>
 
                         <!-- 分配对话框 -->
-                        <el-dialog v-model="assignDialogVisible" title="分配订单到实验室" width="600px">
-                            <div v-if="assigningOrder" style="margin-bottom: 20px;">
-                                <el-descriptions :column="2" border>
-                                    <el-descriptions-item label="订单号">{{ assigningOrder.order_no }}</el-descriptions-item>
-                                    <el-descriptions-item label="项目">{{ assigningOrder.project_name }}</el-descriptions-item>
-                                    <el-descriptions-item label="客户">{{ assigningOrder.user_name }}</el-descriptions-item>
-                                    <el-descriptions-item label="金额">¥{{ assigningOrder.total_amount }}</el-descriptions-item>
-                                </el-descriptions>
-                            </div>
-                            <div style="margin-bottom: 16px;">
-                                <h4>推荐实验室</h4>
-                                <p style="color: #909399; font-size: 12px;">根据项目类型和实验室能力推荐</p>
-                            </div>
-                            <el-table :data="suitableLabs" v-loading="labRecommendLoading" @row-click="selectLab" highlight-current-row>
-                                <el-table-column prop="name" label="实验室" width="180"></el-table-column>
-                                <el-table-column prop="director" label="负责人" width="100"></el-table-column>
-                                <el-table-column label="当前任务" width="100">
-                                    <template #default="scope"><el-tag type="warning" size="small">{{ scope.row.current_tasks || 0 }}个</el-tag></template>
-                                </el-table-column>
-                                <el-table-column label="匹配度" width="120">
-                                    <template #default="scope">
-                                        <el-progress :percentage="scope.row.match_score || 80" :color="scope.row.match_score >= 90 ? '#67c23a' : '#409eff'" :stroke-width="10"></el-progress>
-                                    </template>
-                                </el-table-column>
-                                <el-table-column label="状态" width="80">
-                                    <template #default="scope">
-                                        <el-tag :type="scope.row.status === 'active' ? 'success' : 'warning'" size="small">
-                                            {{ scope.row.status === 'active' ? '空闲' : '忙碌' }}
-                                        </el-tag>
-                                    </template>
-                                </el-table-column>
-                            </el-table>
-                            <div style="margin-top: 16px;">
-                                <el-form-item label="备注">
-                                    <el-input v-model="assignRemark" type="textarea" placeholder="分配备注（可选）" :rows="2"></el-input>
-                                </el-form-item>
+                        <el-dialog v-model="assignDialogVisible" title="分配订单到实验室（可核对/修改内容）" width="900px">
+                            <div v-if="assigningOrder" v-loading="labRecommendLoading">
+                                <el-divider content-position="left">核心信息核对</el-divider>
+                                <el-row :gutter="16" style="margin-bottom: 12px;">
+                                    <el-col :span="8">
+                                        <div style="font-size: 14px; color: #606266;">订单号：{{ assigningOrder.order_no }}</div>
+                                    </el-col>
+                                    <el-col :span="8">
+                                        <div style="font-size: 14px; color: #606266;">项目：{{ assigningOrder.project_name }}</div>
+                                    </el-col>
+                                    <el-col :span="8">
+                                        <div style="display: flex; align-items: center;">
+                                            <span style="font-size: 14px; color: #606266; margin-right: 8px;">分配/核定金额：</span>
+                                            <el-input-number v-model="assigningOrder.total_amount" :min="0" :precision="2" size="small" />
+                                        </div>
+                                    </el-col>
+                                </el-row>
+
+                                <div v-if="orderDetailForm.id === assigningOrder.id">
+                                    <el-divider content-position="left">客户条件与样品（核对用）</el-divider>
+                                    <div style="max-height: 200px; overflow-y: auto; border: 1px solid #f0f0f0; padding: 10px; border-radius: 4px; background: #fafafa; margin-bottom: 12px;">
+                                        <div v-for="opt in orderDetailForm.options" :key="opt.id" style="font-size: 12px; margin-bottom: 4px;">
+                                            <span style="color: #909399;">[{{ opt.option_path }}]</span> 
+                                            <strong>{{ opt.option_name }}:</strong> 
+                                            <span style="color: #409eff;">{{ opt.input_value }}</span>
+                                        </div>
+                                        <el-divider style="margin: 8px 0;" />
+                                        <div v-for="s in orderDetailForm.samples" :key="s.id" style="font-size: 12px; margin-bottom: 4px;">
+                                            <strong>样品:</strong> {{ s.sample_name }} (×{{ s.quantity }}) | 
+                                            <strong>要求:</strong> {{ s.special_requirements || '-' }}
+                                        </div>
+                                    </div>
+                                    
+                                    <el-divider content-position="left">技术老师补充要求</el-divider>
+                                    <el-form-item label="测试要求">
+                                        <el-input v-model="orderDetailForm.admin_test_requirements" type="textarea" :rows="2" placeholder="同步保存到订单" />
+                                    </el-form-item>
+                                    <el-form-item label="给实验室备注">
+                                        <el-input v-model="orderDetailForm.admin_notes_to_lab" type="textarea" :rows="2" placeholder="给实验室看的注意事项" />
+                                    </el-form-item>
+                                </div>
+
+                                <el-divider content-position="left">选择目标实验室</el-divider>
+                                <el-table :data="suitableLabs" @row-click="selectLab" highlight-current-row size="small" border>
+                                    <el-table-column prop="name" label="实验室名称" min-width="150" />
+                                    <el-table-column prop="director" label="负责人" width="90" />
+                                    <el-table-column label="任务量" width="80">
+                                        <template #default="scope"><el-tag type="warning" size="small">{{ scope.row.current_tasks || 0 }}个</el-tag></template>
+                                    </el-table-column>
+                                    <el-table-column label="操作" width="80">
+                                        <template #default="scope">
+                                            <el-radio v-model="selectedLabId" :label="scope.row.id">{{''}}</el-radio>
+                                        </template>
+                                    </el-table-column>
+                                </el-table>
                             </div>
                             <template #footer>
                                 <el-button @click="assignDialogVisible = false">取消</el-button>
-                                <el-button type="primary" @click="confirmAssignOrder" :loading="loading" :disabled="!selectedLabId">确认分配</el-button>
+                                <el-button type="primary" @click="confirmAssignOrder" :loading="loading" :disabled="!selectedLabId">确认保存并分配</el-button>
                             </template>
                         </el-dialog>
 
@@ -3425,6 +3549,14 @@
                         credit_limit: 0,
                         remark: ''
                     },
+                    userEditForm: {
+                        nickname: '',
+                        phone: '',
+                        email: '',
+                        real_name: '',
+                        points_balance: 0
+                    },
+                    userEditLoading: false,
                     // 项目管理
                     projects: [],
                     projectsLoading: false,
@@ -3439,6 +3571,19 @@
                     // 订单管理
                     orders: [],
                     ordersLoading: false,
+                    orderDetailDialogVisible: false,
+                    orderDetailForm: {
+                        id: null,
+                        order_no: '',
+                        total_fee: 0,
+                        sample_count: 1,
+                        remark: '',
+                        admin_test_requirements: '',
+                        admin_notes_to_lab: '',
+                        samples: [],
+                        options: []
+                    },
+                    orderDetailLoading: false,
                     orderSearch: '',
                     orderStatusFilter: null,
                     orderAssigneeFilter: null,
@@ -3463,6 +3608,7 @@
                     pendingAssignOrders: [],
                     assignLoading: false,
                     assignSearch: '',
+                    assignStatusFilter: '',
                     assignProjectFilter: null,
                     assignPage: 1,
                     assignPageSize: 20,
@@ -4040,6 +4186,11 @@
                             headers: this.uploadHeaders
                         })
                         this.selectedUser = res.data.data
+                        this.userEditForm.nickname = this.selectedUser.nickname || ''
+                        this.userEditForm.phone = this.selectedUser.phone || ''
+                        this.userEditForm.email = this.selectedUser.email || ''
+                        this.userEditForm.real_name = this.selectedUser.real_name || ''
+                        this.userEditForm.points_balance = this.selectedUser.points_balance ?? 0
                         this.userDialogVisible = true
                     } catch (error) {
                         ElMessage.error(error.response?.data?.detail || '加载用户详情失败')
@@ -4098,6 +4249,30 @@
                     this.creditLimitForm.credit_limit = this.selectedUser?.credit_limit || 0
                     this.creditLimitForm.remark = ''
                     this.creditLimitDialogVisible = true
+                },
+                async submitUserEdit() {
+                    if (!this.selectedUser?.id) return
+                    this.userEditLoading = true
+                    try {
+                        await axios.put(
+                            `${this.baseUrl}/api/v1/admin/users/${this.selectedUser.id}`,
+                            {
+                                nickname: this.userEditForm.nickname || null,
+                                phone: this.userEditForm.phone || null,
+                                email: this.userEditForm.email || null,
+                                real_name: this.userEditForm.real_name || null,
+                                points_balance: this.userEditForm.points_balance
+                            },
+                            { headers: this.uploadHeaders }
+                        )
+                        ElMessage.success('用户信息保存成功')
+                        await this.viewUser({ id: this.selectedUser.id })
+                        this.loadUsers()
+                    } catch (error) {
+                        ElMessage.error(error.response?.data?.detail || '保存用户信息失败')
+                    } finally {
+                        this.userEditLoading = false
+                    }
                 },
                 // 提交修改信用额度
                 async submitCreditLimit() {
@@ -4905,6 +5080,7 @@
                     }
                 },
                 async viewOrderDetail(order) {
+<<<<<<< Updated upstream
                     try {
                         const res = await axios.get(`${this.baseUrl}/api/v1/admin/orders/${order.id}`, { headers: this.uploadHeaders })
                         this.orderDetailData = res.data.data
@@ -4948,6 +5124,47 @@
                         ElMessage.error(error.response?.data?.detail || '修改失败')
                     } finally {
                         this.loading = false
+=======
+                    this.orderDetailLoading = true
+                    try {
+                        const res = await axios.get(`${this.baseUrl}/api/v1/admin/orders/${order.id}`, {
+                            headers: this.uploadHeaders
+                        })
+                        const detail = res.data.data
+                        this.orderDetailForm = {
+                            id: detail.id,
+                            order_no: detail.order_no,
+                            total_fee: detail.total_amount || detail.total_fee || 0,
+                            sample_count: detail.sample_count || 1,
+                            remark: detail.remark || '',
+                            admin_test_requirements: detail.admin_test_requirements || '',
+                            admin_notes_to_lab: detail.admin_notes_to_lab || '',
+                            samples: detail.samples || [],
+                            options: detail.options || []
+                        }
+                        this.orderDetailDialogVisible = true
+                    } catch (error) {
+                        ElMessage.error(error.response?.data?.detail || '加载订单详情失败')
+                    } finally {
+                        this.orderDetailLoading = false
+                    }
+                },
+                async saveOrderDetail() {
+                    this.orderDetailLoading = true
+                    try {
+                        await axios.put(
+                            `${this.baseUrl}/api/v1/admin/orders/${this.orderDetailForm.id}`,
+                            this.orderDetailForm,
+                            { headers: this.uploadHeaders }
+                        )
+                        ElMessage.success('订单修改成功')
+                        this.orderDetailDialogVisible = false
+                        this.loadOrders()
+                    } catch (error) {
+                        ElMessage.error(error.response?.data?.detail || '保存订单失败')
+                    } finally {
+                        this.orderDetailLoading = false
+>>>>>>> Stashed changes
                     }
                 },
                 showOrderStatusDialog(order) {
@@ -5269,7 +5486,8 @@
                             page: this.assignPage,
                             page_size: this.assignPageSize,
                             search: this.assignSearch || undefined,
-                            category_id: this.assignProjectFilter || undefined
+                            category_id: this.assignProjectFilter || undefined,
+                            assign_status: this.assignStatusFilter || undefined
                         }
                         const res = await axios.get(`${this.baseUrl}/api/v1/admin/orders/pending-assign`, { headers: this.uploadHeaders, params })
                         this.pendingAssignOrders = res.data.data?.items || res.data.data || []
@@ -5304,6 +5522,10 @@
                     this.assigningOrder = order
                     this.selectedLabId = null
                     this.assignRemark = ''
+                    
+                    // 分配前先拉取详情，确保看到完整条件
+                    await this.viewOrderDetail(order)
+                    
                     this.assignDialogVisible = true
                     this.labRecommendLoading = true
                     try {
@@ -5311,7 +5533,6 @@
                         this.suitableLabs = res.data.data?.laboratories || []
                     } catch (error) {
                         console.error('加载推荐实验室失败', error)
-                        // 如果API失败，使用全部实验室
                         this.suitableLabs = this.labList
                     } finally {
                         this.labRecommendLoading = false
@@ -5327,16 +5548,31 @@
                     }
                     this.loading = true
                     try {
+                        // 1. 先保存可能修改的内容和金额
+                        await axios.put(
+                            `${this.baseUrl}/api/v1/admin/orders/${this.assigningOrder.id}`,
+                            {
+                                total_fee: this.assigningOrder.total_amount,
+                                admin_test_requirements: this.orderDetailForm.admin_test_requirements,
+                                admin_notes_to_lab: this.orderDetailForm.admin_notes_to_lab,
+                                samples: this.orderDetailForm.samples,
+                                options: this.orderDetailForm.options
+                            },
+                            { headers: this.uploadHeaders }
+                        )
+
+                        // 2. 执行指派
                         await axios.post(`${this.baseUrl}/api/v1/admin/orders/${this.assigningOrder.id}/assign`, {
                             laboratory_id: this.selectedLabId,
-                            remark: this.assignRemark
+                            remark: this.assignRemark || `指派至实验室，核定金额: ¥${this.assigningOrder.total_amount}`
                         }, { headers: this.uploadHeaders })
-                        ElMessage.success('分配成功')
+
+                        ElMessage.success('保存并分配成功')
                         this.assignDialogVisible = false
                         this.loadPendingAssignOrders()
                         this.loadAssignStats()
                     } catch (error) {
-                        ElMessage.error(error.response?.data?.detail || '分配失败')
+                        ElMessage.error(error.response?.data?.detail || '操作失败')
                     } finally {
                         this.loading = false
                     }

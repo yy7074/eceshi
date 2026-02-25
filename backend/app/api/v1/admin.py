@@ -107,6 +107,24 @@ class PointsGoodsUpdate(BaseModel):
     sort_order: Optional[int] = None
 
 
+class AdminUserUpdate(BaseModel):
+    nickname: Optional[str] = None
+    phone: Optional[str] = None
+    real_name: Optional[str] = None
+    email: Optional[str] = None
+    points_balance: Optional[int] = None
+
+
+class AdminOrderUpdate(BaseModel):
+    total_fee: Optional[float] = None
+    sample_count: Optional[int] = None
+    remark: Optional[str] = None
+    admin_test_requirements: Optional[str] = None
+    admin_notes_to_lab: Optional[str] = None
+    samples: Optional[List[dict]] = None
+    options: Optional[List[dict]] = None
+
+
 # ========== 数据统计仪表盘 ==========
 
 @router.get("/dashboard/stats", summary="获取仪表盘统计数据")
@@ -354,6 +372,44 @@ async def get_user_detail(
             "last_login_at": user.last_login_at.isoformat() if user.last_login_at else None
         }
     )
+
+
+@router.put("/users/{user_id}", summary="更新用户信息（管理员）")
+async def update_user_admin(
+    user_id: int,
+    data: AdminUserUpdate,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """管理员更新用户信息：昵称/手机号/姓名/邮箱/积分余额"""
+    user = db.query(User).filter(User.id == user_id).first()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="用户不存在"
+        )
+
+    payload = data.model_dump(exclude_unset=True)
+
+    # 手机号唯一性校验
+    if "phone" in payload and payload["phone"]:
+        exists = db.query(User).filter(User.phone == payload["phone"], User.id != user_id).first()
+        if exists:
+            raise HTTPException(status_code=400, detail="手机号已被其他用户绑定")
+
+    # 积分余额不能为负
+    if "points_balance" in payload and payload["points_balance"] is not None:
+        if payload["points_balance"] < 0:
+            raise HTTPException(status_code=400, detail="积分余额不能小于0")
+
+    for k, v in payload.items():
+        setattr(user, k, v)
+
+    db.commit()
+    db.refresh(user)
+
+    return Response.success(message="用户信息更新成功")
 
 
 @router.put("/users/{user_id}/status", summary="修改用户状态（管理员）")
@@ -652,15 +708,27 @@ async def get_pending_assign_orders(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     search: Optional[str] = Query(None, description="搜索订单号"),
+    assign_status: Optional[str] = Query(None, description="指派状态: unassigned/assigned/rejected"),
     db: Session = Depends(get_db),
     current_admin: User = Depends(get_current_admin_user)
 ):
-    """获取待指派的订单列表（已支付但未指派的订单）"""
-    query = db.query(Order).filter(
-        Order.is_draft == False,
-        Order.status.in_(["paid", "pending_assign"]),
-        Order.assigned_lab_id.is_(None)
-    )
+    """获取订单指派列表（支持未分配/已分配/退回筛选）"""
+    query = db.query(Order).filter(Order.is_draft == False)
+
+    if assign_status == "unassigned":
+        query = query.filter(Order.status.in_(["paid", "pending_assign"]), Order.assigned_lab_id.is_(None))
+    elif assign_status == "assigned":
+        query = query.filter(Order.status == "assigned")
+    elif assign_status == "rejected":
+        query = query.filter(Order.status == "rejected_by_lab")
+    else:
+        # 默认显示待处理（未分配 + 退回）
+        query = query.filter(
+            or_(
+                Order.status.in_(["paid", "pending_assign", "rejected_by_lab"]),
+                Order.assigned_lab_id.is_(None)
+            )
+        )
 
     if search:
         query = query.filter(Order.order_no.like(f"%{search}%"))
@@ -674,10 +742,14 @@ async def get_pending_assign_orders(
                 "id": o.id,
                 "order_no": o.order_no,
                 "project_name": o.project_name,
+                "user_name": o.user.nickname if o.user else "未知用户",
                 "sample_count": o.sample_count,
-                "total_fee": float(o.total_fee or 0),
+                "total_amount": float(o.total_fee or 0),
                 "is_urgent": o.is_urgent,
                 "status": o.status,
+                "assigned_lab_id": o.assigned_lab_id,
+                "assigned_lab_name": db.query(Laboratory.name).filter(Laboratory.id == o.assigned_lab_id).scalar() if o.assigned_lab_id else None,
+                "assigned_at": o.assigned_at.isoformat() if o.assigned_at else None,
                 "created_at": o.created_at.isoformat() if o.created_at else None,
                 "paid_at": o.paid_at.isoformat() if o.paid_at else None
             }
@@ -769,6 +841,7 @@ async def get_order_detail_admin(
             detail="订单不存在"
         )
     
+<<<<<<< Updated upstream
     # 获取样品信息
     samples = db.query(OrderSample).filter(OrderSample.order_id == order_id).all()
     samples_data = [
@@ -800,10 +873,42 @@ async def get_order_detail_admin(
         }
         for sel in option_selections
     ]
+=======
+    # 获取样品明细
+    from app.models.order import OrderSample
+    samples = db.query(OrderSample).filter(OrderSample.order_id == order_id).all()
+    
+    # 获取动态选项条件
+    from app.models.project_option import OrderOptionSelection
+    options = db.query(OrderOptionSelection).filter(OrderOptionSelection.order_id == order_id).all()
+>>>>>>> Stashed changes
 
     return Response.success(data={
         "id": order.id,
         "order_no": order.order_no,
+        "remark": order.remark,
+        "admin_test_requirements": order.admin_test_requirements,
+        "admin_notes_to_lab": order.admin_notes_to_lab,
+        "samples": [
+            {
+                "id": s.id,
+                "sample_name": s.sample_name,
+                "sample_type": s.sample_type,
+                "sample_desc": s.sample_desc,
+                "quantity": s.quantity,
+                "test_params": s.test_params,
+                "special_requirements": s.special_requirements
+            } for s in samples
+        ],
+        "options": [
+            {
+                "id": o.id,
+                "option_name": o.option_name,
+                "option_path": o.option_path,
+                "input_value": o.input_value,
+                "calculated_price": float(o.calculated_price or 0)
+            } for o in options
+        ],
         "user": {
             "id": order.user.id if order.user else None,
             "phone": order.user.phone if order.user else None,
@@ -839,6 +944,72 @@ async def get_order_detail_admin(
         "confirmed_at": order.confirmed_at.isoformat() if order.confirmed_at else None,
         "completed_at": order.completed_at.isoformat() if order.completed_at else None
     })
+
+
+@router.put("/orders/{order_id}", summary="修改订单内容与金额（管理员）")
+async def update_order_admin(
+    order_id: int,
+    data: AdminOrderUpdate,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """管理员修改订单：金额、测试内容、注意事项等"""
+    from app.models.order import Order
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="订单不存在")
+
+    payload = data.model_dump(exclude_unset=True)
+    
+    # 如果修改了总金额
+    if "total_fee" in payload:
+        order.total_fee = payload["total_fee"]
+    
+    # 更新测试条件与备注
+    if "admin_test_requirements" in payload:
+        order.admin_test_requirements = payload["admin_test_requirements"]
+    if "admin_notes_to_lab" in payload:
+        order.admin_notes_to_lab = payload["admin_notes_to_lab"]
+    if "remark" in payload:
+        order.remark = payload["remark"]
+    if "sample_count" in payload:
+        order.sample_count = payload["sample_count"]
+
+    # 更新样品明细
+    if "samples" in payload:
+        from app.models.order import OrderSample
+        # 简单处理：先删除旧样品，再添加新样品（或者按 ID 更新）
+        db.query(OrderSample).filter(OrderSample.order_id == order_id).delete()
+        for s in payload["samples"]:
+            new_sample = OrderSample(
+                order_id=order_id,
+                sample_name=s.get("sample_name", ""),
+                sample_type=s.get("sample_type"),
+                sample_desc=s.get("sample_desc"),
+                quantity=s.get("quantity", 1),
+                test_params=s.get("test_params"),
+                special_requirements=s.get("special_requirements")
+            )
+            db.add(new_sample)
+    
+    # 更新动态选项 (OrderOptionSelection)
+    if "options" in payload:
+        from app.models.project_option import OrderOptionSelection
+        db.query(OrderOptionSelection).filter(OrderOptionSelection.order_id == order_id).delete()
+        for opt in payload["options"]:
+            new_opt = OrderOptionSelection(
+                order_id=order_id,
+                option_id=opt.get("option_id") or opt.get("optionId"),
+                option_name=opt.get("option_name"),
+                option_path=opt.get("option_path"),
+                input_value=opt.get("input_value"),
+                calculated_price=opt.get("calculated_price", 0)
+            )
+            db.add(new_opt)
+
+    db.commit()
+    db.refresh(order)
+    return Response.success(message="订单内容及金额修改成功")
 
 
 @router.put("/orders/{order_id}/status", summary="修改订单状态（管理员）")
@@ -882,6 +1053,7 @@ async def update_order_status_admin(
 class OrderAssignRequest(BaseModel):
     """订单指派请求"""
     laboratory_id: int
+    total_fee: Optional[float] = None
     remark: Optional[str] = None
 
 

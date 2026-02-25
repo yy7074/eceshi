@@ -69,6 +69,8 @@ class Order(Base):
     
     # 备注
     remark = Column(Text, comment="用户备注")
+    admin_test_requirements = Column(Text, comment="后台修改后的测试条件/要求")
+    admin_notes_to_lab = Column(Text, comment="后台给实验室的备注事项")
     cancel_reason = Column(String(200), comment="取消原因")
     
     # 是否加急
