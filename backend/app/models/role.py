@@ -105,6 +105,7 @@ class PermissionCode:
     LAB_EDIT = "lab:edit"
     LAB_DELETE = "lab:delete"
     LAB_APPROVE = "lab:approve"
+    LAB_UPLOAD = "lab:upload"        # 实验室上传数据/报告
 
     # 财务管理
     FINANCE_VIEW = "finance:view"
@@ -177,11 +178,11 @@ DEFAULT_ROLE_PERMISSIONS = {
         PermissionCode.PROJECT_VIEW,
     ],
     RoleCode.LAB_ADMIN: [
-        PermissionCode.LAB_VIEW, PermissionCode.LAB_EDIT,
+        PermissionCode.LAB_VIEW, PermissionCode.LAB_EDIT, PermissionCode.LAB_UPLOAD,
         PermissionCode.ORDER_VIEW,
     ],
     RoleCode.LAB_TECHNICIAN: [
-        PermissionCode.ORDER_VIEW,
+        PermissionCode.ORDER_VIEW, PermissionCode.LAB_UPLOAD,
     ],
     RoleCode.USER: [
         # 普通用户无后台权限

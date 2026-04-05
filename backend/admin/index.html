@@ -3518,7 +3518,7 @@
         const app = createApp({
             data() {
                 return {
-                    baseUrl: 'https://www.keyanbaice.com',
+                    baseUrl: window.location.origin,
                     token: localStorage.getItem('admin_token') || '',
                     userInfo: JSON.parse(localStorage.getItem('admin_user') || '{}'),
                     loginType: 'admin',

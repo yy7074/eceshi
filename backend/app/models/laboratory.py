@@ -242,3 +242,32 @@ class LabStaff(Base):
     # 关系
     laboratory = relationship("Laboratory", back_populates="staff")
     user = relationship("User", backref="lab_staff_records")
+
+
+class LabSettlement(Base):
+    """实验室结算记录"""
+    __tablename__ = "lab_settlements"
+
+    id = Column(BigInteger, primary_key=True, index=True, autoincrement=True)
+    lab_id = Column(BigInteger, ForeignKey("laboratories.id"), nullable=False, comment="实验室ID")
+    order_id = Column(BigInteger, ForeignKey("orders.id"), comment="关联订单ID")
+    order_no = Column(String(32), comment="订单编号")
+
+    # 金额
+    amount = Column(Numeric(10, 2), nullable=False, default=0, comment="结算金额")
+    commission_rate = Column(Numeric(5, 2), comment="佣金比例")
+    commission_amount = Column(Numeric(10, 2), default=0, comment="平台佣金")
+    lab_amount = Column(Numeric(10, 2), default=0, comment="实验室实际获得金额")
+
+    # 状态
+    status = Column(String(20), default="pending", comment="结算状态: pending/confirmed/paid")
+    confirmed_by = Column(Integer, comment="确认人ID")
+    confirmed_at = Column(DateTime, comment="确认时间")
+    paid_at = Column(DateTime, comment="打款时间")
+    remark = Column(Text, comment="备注")
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    # 关系
+    laboratory = relationship("Laboratory", backref="settlements")

@@ -40,8 +40,8 @@ router = APIRouter()
 class CouponCreate(BaseModel):
     name: str
     description: Optional[str] = None
-    type: str = "cash"
-    discount_rate: Optional[float] = None
+    type: str = "cash"  # cash / discount / full_reduction
+    discount_rate: Optional[float] = None  # 折扣率，如0.9=9折
     cash_amount: Optional[float] = None
     full_amount: Optional[float] = None
     reduction_amount: Optional[float] = None
@@ -49,11 +49,15 @@ class CouponCreate(BaseModel):
     max_discount_amount: Optional[float] = None
     total_quantity: int = 0
     valid_days: int = 30
-    applicable_projects: Optional[List[int]] = None
+    applicable_projects: Optional[List[int]] = None  # 指定适用项目ID
+    applicable_categories: Optional[List[int]] = None  # 指定适用分类ID
+    start_time: Optional[str] = None
+    end_time: Optional[str] = None
 
 class CouponUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
+    type: Optional[str] = None  # cash / discount / full_reduction
     discount_rate: Optional[float] = None
     cash_amount: Optional[float] = None
     full_amount: Optional[float] = None
@@ -64,6 +68,9 @@ class CouponUpdate(BaseModel):
     valid_days: Optional[int] = None
     status: Optional[str] = None
     applicable_projects: Optional[List[int]] = None
+    applicable_categories: Optional[List[int]] = None
+    start_time: Optional[str] = None
+    end_time: Optional[str] = None
 
 class CategoryCreate(BaseModel):
     name: str
@@ -113,14 +120,25 @@ class AdminUserUpdate(BaseModel):
     real_name: Optional[str] = None
     email: Optional[str] = None
     points_balance: Optional[int] = None
+    prepaid_balance: Optional[float] = None
+    membership_level: Optional[str] = None
+    status: Optional[str] = None
 
 
 class AdminOrderUpdate(BaseModel):
     total_fee: Optional[float] = None
+    project_fee: Optional[float] = None
+    urgent_fee: Optional[float] = None
+    shipping_fee: Optional[float] = None
+    discount_amount: Optional[float] = None
     sample_count: Optional[int] = None
     remark: Optional[str] = None
     admin_test_requirements: Optional[str] = None
     admin_notes_to_lab: Optional[str] = None
+    receiver_name: Optional[str] = None
+    receiver_phone: Optional[str] = None
+    receiver_address: Optional[str] = None
+    is_urgent: Optional[bool] = None
     samples: Optional[List[dict]] = None
     options: Optional[List[dict]] = None
 
@@ -381,7 +399,7 @@ async def update_user_admin(
     db: Session = Depends(get_db),
     current_admin: User = Depends(get_current_admin_user)
 ):
-    """管理员更新用户信息：昵称/手机号/姓名/邮箱/积分余额"""
+    """管理员更新用户信息：昵称/手机号/姓名/邮箱/积分余额/储值余额/会员等级/状态"""
     user = db.query(User).filter(User.id == user_id).first()
 
     if not user:
@@ -402,6 +420,12 @@ async def update_user_admin(
     if "points_balance" in payload and payload["points_balance"] is not None:
         if payload["points_balance"] < 0:
             raise HTTPException(status_code=400, detail="积分余额不能小于0")
+
+    # 储值余额转 Decimal
+    if "prepaid_balance" in payload and payload["prepaid_balance"] is not None:
+        if payload["prepaid_balance"] < 0:
+            raise HTTPException(status_code=400, detail="储值余额不能小于0")
+        payload["prepaid_balance"] = Decimal(str(payload["prepaid_balance"]))
 
     for k, v in payload.items():
         setattr(user, k, v)
@@ -841,74 +865,15 @@ async def get_order_detail_admin(
             detail="订单不存在"
         )
     
-<<<<<<< Updated upstream
-    # 获取样品信息
-    samples = db.query(OrderSample).filter(OrderSample.order_id == order_id).all()
-    samples_data = [
-        {
-            "id": s.id,
-            "sample_name": s.sample_name,
-            "sample_type": s.sample_type,
-            "sample_desc": s.sample_desc,
-            "quantity": s.quantity,
-            "photos": s.photos,
-            "test_params": s.test_params,
-            "special_requirements": s.special_requirements
-        }
-        for s in samples
-    ]
-
-    # 获取选项选择信息
-    option_selections = db.query(OrderOptionSelection).filter(
-        OrderOptionSelection.order_id == order_id
-    ).all()
-    selections_data = [
-        {
-            "id": sel.id,
-            "option_id": sel.option_id,
-            "option_name": sel.option_name if hasattr(sel, 'option_name') else None,
-            "option_value": sel.option_value if hasattr(sel, 'option_value') else None,
-            "price": float(sel.price) if hasattr(sel, 'price') and sel.price else 0,
-            "quantity": sel.quantity if hasattr(sel, 'quantity') else 1,
-        }
-        for sel in option_selections
-    ]
-=======
     # 获取样品明细
-    from app.models.order import OrderSample
     samples = db.query(OrderSample).filter(OrderSample.order_id == order_id).all()
-    
+
     # 获取动态选项条件
-    from app.models.project_option import OrderOptionSelection
     options = db.query(OrderOptionSelection).filter(OrderOptionSelection.order_id == order_id).all()
->>>>>>> Stashed changes
 
     return Response.success(data={
         "id": order.id,
         "order_no": order.order_no,
-        "remark": order.remark,
-        "admin_test_requirements": order.admin_test_requirements,
-        "admin_notes_to_lab": order.admin_notes_to_lab,
-        "samples": [
-            {
-                "id": s.id,
-                "sample_name": s.sample_name,
-                "sample_type": s.sample_type,
-                "sample_desc": s.sample_desc,
-                "quantity": s.quantity,
-                "test_params": s.test_params,
-                "special_requirements": s.special_requirements
-            } for s in samples
-        ],
-        "options": [
-            {
-                "id": o.id,
-                "option_name": o.option_name,
-                "option_path": o.option_path,
-                "input_value": o.input_value,
-                "calculated_price": float(o.calculated_price or 0)
-            } for o in options
-        ],
         "user": {
             "id": order.user.id if order.user else None,
             "phone": order.user.phone if order.user else None,
@@ -927,8 +892,11 @@ async def get_order_detail_admin(
         "total_amount": float(order.total_fee or 0),
         "paid_fee": float(order.paid_fee or 0),
         "status": order.status,
+        "payment_status": order.payment_status,
         "is_urgent": order.is_urgent,
         "remark": order.remark,
+        "admin_test_requirements": order.admin_test_requirements,
+        "admin_notes_to_lab": order.admin_notes_to_lab,
         "assigned_lab_id": order.assigned_lab_id,
         "assigned_staff_name": order.assigned_staff_name,
         "assigned_at": order.assigned_at.isoformat() if order.assigned_at else None,
@@ -937,8 +905,28 @@ async def get_order_detail_admin(
             "phone": order.receiver_phone,
             "address": order.receiver_address
         } if order.receiver_name else None,
-        "samples": samples_data,
-        "option_selections": selections_data,
+        "samples": [
+            {
+                "id": s.id,
+                "sample_name": s.sample_name,
+                "sample_type": s.sample_type,
+                "sample_desc": s.sample_desc,
+                "quantity": s.quantity,
+                "photos": s.photos,
+                "test_params": s.test_params,
+                "special_requirements": s.special_requirements
+            } for s in samples
+        ],
+        "options": [
+            {
+                "id": o.id,
+                "option_id": o.option_id,
+                "option_name": o.option_name,
+                "option_path": o.option_path,
+                "input_value": o.input_value,
+                "calculated_price": float(o.calculated_price or 0)
+            } for o in options
+        ],
         "created_at": order.created_at.isoformat() if order.created_at else None,
         "paid_at": order.paid_at.isoformat() if order.paid_at else None,
         "confirmed_at": order.confirmed_at.isoformat() if order.confirmed_at else None,
@@ -953,27 +941,29 @@ async def update_order_admin(
     db: Session = Depends(get_db),
     current_admin: User = Depends(get_current_admin_user)
 ):
-    """管理员修改订单：金额、测试内容、注意事项等"""
+    """管理员修改订单：金额、测试内容、收件人信息、注意事项等"""
     from app.models.order import Order
     order = db.query(Order).filter(Order.id == order_id).first()
     if not order:
         raise HTTPException(status_code=404, detail="订单不存在")
 
     payload = data.model_dump(exclude_unset=True)
-    
-    # 如果修改了总金额
-    if "total_fee" in payload:
-        order.total_fee = payload["total_fee"]
-    
+
+    # 金额类字段转 Decimal
+    for fee_field in ['total_fee', 'project_fee', 'urgent_fee', 'shipping_fee', 'discount_amount']:
+        if fee_field in payload and payload[fee_field] is not None:
+            setattr(order, fee_field, Decimal(str(payload[fee_field])))
+
     # 更新测试条件与备注
-    if "admin_test_requirements" in payload:
-        order.admin_test_requirements = payload["admin_test_requirements"]
-    if "admin_notes_to_lab" in payload:
-        order.admin_notes_to_lab = payload["admin_notes_to_lab"]
-    if "remark" in payload:
-        order.remark = payload["remark"]
+    for text_field in ['admin_test_requirements', 'admin_notes_to_lab', 'remark',
+                       'receiver_name', 'receiver_phone', 'receiver_address']:
+        if text_field in payload:
+            setattr(order, text_field, payload[text_field])
+
     if "sample_count" in payload:
         order.sample_count = payload["sample_count"]
+    if "is_urgent" in payload:
+        order.is_urgent = payload["is_urgent"]
 
     # 更新样品明细
     if "samples" in payload:
@@ -1487,6 +1477,7 @@ async def get_coupons_admin(
                 "valid_days": c.valid_days,
                 "status": c.status.value if c.status else None,
                 "applicable_projects": json.loads(c.applicable_projects) if c.applicable_projects else None,
+                "applicable_categories": json.loads(c.applicable_categories) if c.applicable_categories else None,
                 "start_time": c.start_time.isoformat() if c.start_time else None,
                 "end_time": c.end_time.isoformat() if c.end_time else None,
                 "created_at": c.created_at.isoformat() if c.created_at else None
@@ -1505,7 +1496,7 @@ async def create_coupon_admin(
     db: Session = Depends(get_db),
     current_admin: User = Depends(get_current_admin_user)
 ):
-    """管理员创建优惠券"""
+    """管理员创建优惠券（支持折扣券、现金券、满减券，可指定项目/分类）"""
     coupon = Coupon(
         name=data.name,
         description=data.description,
@@ -1519,12 +1510,20 @@ async def create_coupon_admin(
         total_quantity=data.total_quantity,
         valid_days=data.valid_days,
         applicable_projects=json.dumps(data.applicable_projects) if data.applicable_projects else None,
+        applicable_categories=json.dumps(data.applicable_categories) if data.applicable_categories else None,
         status=CouponStatus.ACTIVE
     )
+
+    # 设置有效期
+    if data.start_time:
+        coupon.start_time = datetime.strptime(data.start_time, "%Y-%m-%d %H:%M:%S") if " " in data.start_time else datetime.strptime(data.start_time, "%Y-%m-%d")
+    if data.end_time:
+        coupon.end_time = datetime.strptime(data.end_time, "%Y-%m-%d %H:%M:%S") if " " in data.end_time else datetime.strptime(data.end_time, "%Y-%m-%d")
+
     db.add(coupon)
     db.commit()
     db.refresh(coupon)
-    
+
     return Response.success(data={"id": coupon.id}, message="优惠券创建成功")
 
 
@@ -1539,12 +1538,21 @@ async def update_coupon_admin(
     coupon = db.query(Coupon).filter(Coupon.id == coupon_id).first()
     if not coupon:
         raise HTTPException(status_code=404, detail="优惠券不存在")
-    
+
     update_data = data.dict(exclude_unset=True)
     if 'status' in update_data:
         update_data['status'] = CouponStatus(update_data['status'])
+    if 'type' in update_data:
+        update_data['type'] = CouponType(update_data['type'])
     if 'applicable_projects' in update_data:
         update_data['applicable_projects'] = json.dumps(update_data['applicable_projects']) if update_data['applicable_projects'] else None
+    if 'applicable_categories' in update_data:
+        update_data['applicable_categories'] = json.dumps(update_data['applicable_categories']) if update_data['applicable_categories'] else None
+    # 时间字段转换
+    for time_field in ['start_time', 'end_time']:
+        if time_field in update_data and update_data[time_field]:
+            val = update_data[time_field]
+            update_data[time_field] = datetime.strptime(val, "%Y-%m-%d %H:%M:%S") if " " in val else datetime.strptime(val, "%Y-%m-%d")
 
     for key, value in update_data.items():
         setattr(coupon, key, value)
@@ -2254,69 +2262,7 @@ async def export_analytics(
 
 
 # ==================== 角色管理 ====================
-
-@router.get("/roles", summary="获取角色列表（管理员）")
-async def get_roles(
-    db: Session = Depends(get_db),
-    current_admin: User = Depends(get_current_admin_user)
-):
-    """获取角色列表（暂时返回默认角色）"""
-    # TODO: 实现真实的角色管理功能
-    roles = [
-        {"id": 1, "name": "销售", "code": "sales", "description": "销售人员", "user_count": 0, "is_active": True, "is_system": False},
-        {"id": 2, "name": "技术老师", "code": "teacher", "description": "技术指导老师", "user_count": 0, "is_active": True, "is_system": False},
-        {"id": 3, "name": "实验室", "code": "lab", "description": "实验室人员", "user_count": 0, "is_active": True, "is_system": False},
-        {"id": 4, "name": "财务", "code": "finance", "description": "财务人员", "user_count": 0, "is_active": True, "is_system": False},
-        {"id": 5, "name": "客服", "code": "service", "description": "客服人员", "user_count": 0, "is_active": True, "is_system": False},
-        {"id": 6, "name": "超级管理员", "code": "admin", "description": "系统管理员", "user_count": 1, "is_active": True, "is_system": True}
-    ]
-    return Response.success(data={"items": roles})
-
-
-@router.post("/roles", summary="创建角色（管理员）")
-async def create_role(
-    data: dict = Body(...),
-    db: Session = Depends(get_db),
-    current_admin: User = Depends(get_current_admin_user)
-):
-    """创建角色（暂时返回成功）"""
-    # TODO: 实现真实的角色创建功能
-    return Response.success(message="角色创建成功", data={"id": 999, **data})
-
-
-@router.put("/roles/{role_id}", summary="更新角色（管理员）")
-async def update_role(
-    role_id: int,
-    data: dict = Body(...),
-    db: Session = Depends(get_db),
-    current_admin: User = Depends(get_current_admin_user)
-):
-    """更新角色（暂时返回成功）"""
-    # TODO: 实现真实的角色更新功能
-    return Response.success(message="角色更新成功")
-
-
-@router.delete("/roles/{role_id}", summary="删除角色（管理员）")
-async def delete_role(
-    role_id: int,
-    db: Session = Depends(get_db),
-    current_admin: User = Depends(get_current_admin_user)
-):
-    """删除角色（暂时返回成功）"""
-    # TODO: 实现真实的角色删除功能
-    return Response.success(message="角色删除成功")
-
-
-@router.put("/roles/{role_id}/permissions", summary="更新角色权限（管理员）")
-async def update_role_permissions(
-    role_id: int,
-    data: dict = Body(...),
-    db: Session = Depends(get_db),
-    current_admin: User = Depends(get_current_admin_user)
-):
-    """更新角色权限（暂时返回成功）"""
-    # TODO: 实现真实的权限管理功能
-    return Response.success(message="权限更新成功")
+# 占位版本已移除，使用后面的真实DB实现（见 get_roles/create_role/update_role/delete_role）
 
 
 # ==================== 折扣管理 ====================
@@ -2484,37 +2430,7 @@ async def delete_discount(
 
 
 # ==================== 抽奖管理 ====================
-
-@router.get("/lotteries", summary="获取抽奖活动列表（管理员）")
-async def get_lotteries(
-    db: Session = Depends(get_db),
-    current_admin: User = Depends(get_current_admin_user)
-):
-    """获取抽奖活动列表（暂时返回空列表）"""
-    # TODO: 实现真实的抽奖管理功能
-    return Response.success(data={"items": []})
-
-
-@router.get("/lotteries/{lottery_id}/prizes", summary="获取抽奖奖品列表（管理员）")
-async def get_lottery_prizes(
-    lottery_id: int,
-    db: Session = Depends(get_db),
-    current_admin: User = Depends(get_current_admin_user)
-):
-    """获取抽奖奖品列表（暂时返回空列表）"""
-    # TODO: 实现真实的奖品查询功能
-    return Response.success(data=[])
-
-
-@router.get("/lotteries/{lottery_id}/records", summary="获取抽奖中奖记录（管理员）")
-async def get_lottery_records(
-    lottery_id: int,
-    db: Session = Depends(get_db),
-    current_admin: User = Depends(get_current_admin_user)
-):
-    """获取抽奖中奖记录（暂时返回空列表）"""
-    # TODO: 实现真实的中奖记录查询功能
-    return Response.success(data=[])
+# 占位版本已移除，使用后面的真实DB实现（见 lottery/prizes 相关接口）
 
 
 # ==================== 销售统计 ====================
@@ -2592,37 +2508,119 @@ async def export_sales_data(
 
 # ==================== 二维码推广 ====================
 
+
+class QRCodeCreate(BaseModel):
+    """创建二维码"""
+    name: str
+    scene: str = "personal"  # personal/company/activity
+    user_id: Optional[int] = None
+
+
 @router.get("/qrcodes", summary="获取二维码列表（管理员）")
 async def get_qrcodes(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    search: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     current_admin: User = Depends(get_current_admin_user)
 ):
-    """获取二维码列表（暂时返回空列表）"""
-    # TODO: 实现真实的二维码管理功能
-    return Response.success(data={"items": []})
+    """获取二维码列表"""
+    from app.models.invite import InviteQRCodeRecord
+
+    query = db.query(InviteQRCodeRecord)
+
+    if search:
+        query = query.filter(
+            or_(
+                InviteQRCodeRecord.name.like(f"%{search}%"),
+                InviteQRCodeRecord.invite_code.like(f"%{search}%")
+            )
+        )
+
+    total = query.count()
+    records = query.order_by(desc(InviteQRCodeRecord.created_at)).offset(
+        (page - 1) * page_size
+    ).limit(page_size).all()
+
+    # 获取关联用户信息
+    user_ids = [r.user_id for r in records]
+    users_map = {}
+    if user_ids:
+        users_map = {u.id: u for u in db.query(User).filter(User.id.in_(user_ids)).all()}
+
+    return Response.success(data={
+        "items": [
+            {
+                "id": r.id,
+                "user_id": r.user_id,
+                "user_phone": users_map.get(r.user_id).phone if users_map.get(r.user_id) else None,
+                "user_nickname": users_map.get(r.user_id).nickname if users_map.get(r.user_id) else None,
+                "name": r.name,
+                "scene": r.scene,
+                "invite_code": r.invite_code,
+                "qrcode_url": r.qrcode_url,
+                "scan_count": r.scan_count or 0,
+                "register_count": r.register_count or 0,
+                "is_active": bool(r.is_active),
+                "created_at": r.created_at.isoformat() if r.created_at else None
+            }
+            for r in records
+        ],
+        "total": total,
+        "page": page,
+        "page_size": page_size
+    })
 
 
 @router.post("/qrcodes", summary="创建二维码（管理员）")
 async def create_qrcode(
-    data: dict = Body(...),
+    data: QRCodeCreate,
     db: Session = Depends(get_db),
     current_admin: User = Depends(get_current_admin_user)
 ):
-    """创建二维码（暂时返回成功）"""
-    # TODO: 实现真实的二维码生成功能
-    return Response.success(message="二维码创建成功", data={"id": 999, "qrcode_url": "https://via.placeholder.com/100?text=QR", **data})
+    """创建推广二维码"""
+    from app.models.invite import InviteQRCodeRecord
+    import uuid
+
+    user_id = data.user_id or current_admin.id
+    invite_code = uuid.uuid4().hex[:8].upper()
+
+    record = InviteQRCodeRecord(
+        user_id=user_id,
+        name=data.name,
+        scene=data.scene,
+        invite_code=invite_code,
+        qrcode_url=f"/api/v1/invites/qrcode/{invite_code}",
+        is_active=1
+    )
+    db.add(record)
+    db.commit()
+    db.refresh(record)
+
+    return Response.success(data={
+        "id": record.id,
+        "invite_code": invite_code,
+        "qrcode_url": record.qrcode_url
+    }, message="二维码创建成功")
 
 
-@router.get("/qrcodes/{qrcode_id}/download", summary="下载二维码（管理员）")
-async def download_qrcode(
+@router.put("/qrcodes/{qrcode_id}/status", summary="切换二维码状态（管理员）")
+async def toggle_qrcode_status(
     qrcode_id: int,
     db: Session = Depends(get_db),
     current_admin: User = Depends(get_current_admin_user)
 ):
-    """下载二维码（暂时返回空文件）"""
-    from fastapi.responses import Response as FastAPIResponse
-    # TODO: 实现二维码下载功能
-    return FastAPIResponse(content="", media_type="image/png")
+    """启用/禁用二维码"""
+    from app.models.invite import InviteQRCodeRecord
+
+    record = db.query(InviteQRCodeRecord).filter(InviteQRCodeRecord.id == qrcode_id).first()
+    if not record:
+        raise HTTPException(status_code=404, detail="二维码不存在")
+
+    record.is_active = 0 if record.is_active else 1
+    db.commit()
+
+    return Response.success(message="状态切换成功")
 
 
 @router.delete("/qrcodes/{qrcode_id}", summary="删除二维码（管理员）")
@@ -2631,8 +2629,16 @@ async def delete_qrcode(
     db: Session = Depends(get_db),
     current_admin: User = Depends(get_current_admin_user)
 ):
-    """删除二维码（暂时返回成功）"""
-    # TODO: 实现真实的二维码删除功能
+    """删除二维码"""
+    from app.models.invite import InviteQRCodeRecord
+
+    record = db.query(InviteQRCodeRecord).filter(InviteQRCodeRecord.id == qrcode_id).first()
+    if not record:
+        raise HTTPException(status_code=404, detail="二维码不存在")
+
+    db.delete(record)
+    db.commit()
+
     return Response.success(message="二维码删除成功")
 
 
@@ -3774,6 +3780,7 @@ async def init_roles_and_permissions(
         ("lab:edit", "编辑实验室", "lab"),
         ("lab:delete", "删除实验室", "lab"),
         ("lab:approve", "审核实验室", "lab"),
+        ("lab:upload", "实验室上传数据/报告", "lab"),
         # 财务管理
         ("finance:view", "查看财务", "finance"),
         ("finance:recharge", "充值管理", "finance"),
@@ -4598,24 +4605,112 @@ async def create_finance_expense(
 
 @router.get("/finance/settlement", summary="获取结算列表")
 async def get_finance_settlement(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    lab_id: Optional[int] = Query(None, description="实验室ID"),
+    settlement_status: Optional[str] = Query(None, description="状态: pending/confirmed/paid"),
     db: Session = Depends(get_db),
     current_admin: User = Depends(get_current_admin_user)
 ):
-    """获取实验室结算列表"""
+    """获取实验室结算列表，包含待结算金额统计"""
     from app.models.laboratory import Laboratory, LabSettlement
 
-    settlements = db.query(LabSettlement).order_by(LabSettlement.id.desc()).limit(50).all()
+    # 待结算金额：已分配且已完成的订单总金额（尚未创建结算记录的）
+    pending_amount = db.query(func.sum(Order.total_fee)).filter(
+        Order.assigned_lab_id.isnot(None),
+        Order.status == "completed"
+    ).scalar() or 0
+
+    # 已结算金额
+    settled_amount = db.query(func.sum(LabSettlement.amount)).filter(
+        LabSettlement.status.in_(["confirmed", "paid"])
+    ).scalar() or 0
+
+    # 查询结算记录
+    query = db.query(LabSettlement)
+    if lab_id:
+        query = query.filter(LabSettlement.lab_id == lab_id)
+    if settlement_status:
+        query = query.filter(LabSettlement.status == settlement_status)
+
+    total = query.count()
+    settlements = query.order_by(LabSettlement.id.desc()).offset(
+        (page - 1) * page_size
+    ).limit(page_size).all()
 
     return Response.success(data={
+        "summary": {
+            "pending_settlement_amount": float(pending_amount) - float(settled_amount),
+            "settled_amount": float(settled_amount)
+        },
         "items": [{
             "id": s.id,
             "lab_id": s.lab_id,
             "lab_name": s.laboratory.name if s.laboratory else "",
-            "amount": float(s.amount) if hasattr(s, 'amount') else 0,
-            "status": s.status if hasattr(s, 'status') else "pending",
+            "order_no": s.order_no,
+            "amount": float(s.amount or 0),
+            "commission_rate": float(s.commission_rate or 0),
+            "commission_amount": float(s.commission_amount or 0),
+            "lab_amount": float(s.lab_amount or 0),
+            "status": s.status or "pending",
+            "remark": s.remark,
+            "confirmed_at": s.confirmed_at.isoformat() if s.confirmed_at else None,
+            "paid_at": s.paid_at.isoformat() if s.paid_at else None,
             "created_at": s.created_at.isoformat() if s.created_at else None
-        } for s in settlements]
+        } for s in settlements],
+        "total": total,
+        "page": page,
+        "page_size": page_size
     })
+
+
+@router.post("/finance/settlement/create", summary="创建结算记录")
+async def create_settlement(
+    lab_id: int = Body(..., embed=False, description="实验室ID"),
+    order_ids: List[int] = Body(default=[], description="订单ID列表"),
+    remark: Optional[str] = Body(None, description="备注"),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """根据已分配订单金额创建结算记录"""
+    from app.models.laboratory import Laboratory, LabSettlement
+
+    lab = db.query(Laboratory).filter(Laboratory.id == lab_id).first()
+    if not lab:
+        raise HTTPException(status_code=404, detail="实验室不存在")
+
+    # 获取需要结算的订单
+    query = db.query(Order).filter(
+        Order.assigned_lab_id == lab_id,
+        Order.status == "completed"
+    )
+    if order_ids:
+        query = query.filter(Order.id.in_(order_ids))
+
+    orders = query.all()
+    if not orders:
+        raise HTTPException(status_code=400, detail="没有可结算的订单")
+
+    total_amount = sum(float(o.total_fee or 0) for o in orders)
+    commission_rate = float(lab.commission_rate or 20)
+    commission_amount = total_amount * commission_rate / 100
+    lab_amount = total_amount - commission_amount
+
+    settlement = LabSettlement(
+        lab_id=lab_id,
+        order_no=",".join([o.order_no for o in orders[:10]]),
+        amount=Decimal(str(total_amount)),
+        commission_rate=Decimal(str(commission_rate)),
+        commission_amount=Decimal(str(commission_amount)),
+        lab_amount=Decimal(str(lab_amount)),
+        status="pending",
+        remark=remark
+    )
+    db.add(settlement)
+    db.commit()
+    db.refresh(settlement)
+
+    return Response.success(data={"id": settlement.id}, message="结算记录创建成功")
 
 
 @router.put("/finance/settlement/{settlement_id}/confirm", summary="确认结算")
@@ -4629,13 +4724,34 @@ async def confirm_settlement(
 
     settlement = db.query(LabSettlement).filter(LabSettlement.id == settlement_id).first()
     if not settlement:
-        return Response.error(message="结算记录不存在")
+        raise HTTPException(status_code=404, detail="结算记录不存在")
 
-    if hasattr(settlement, 'status'):
-        settlement.status = "confirmed"
+    settlement.status = "confirmed"
+    settlement.confirmed_by = current_admin.id
+    settlement.confirmed_at = datetime.utcnow()
     db.commit()
 
     return Response.success(message="结算确认成功")
+
+
+@router.put("/finance/settlement/{settlement_id}/paid", summary="标记已打款")
+async def mark_settlement_paid(
+    settlement_id: int,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """标记结算已打款"""
+    from app.models.laboratory import LabSettlement
+
+    settlement = db.query(LabSettlement).filter(LabSettlement.id == settlement_id).first()
+    if not settlement:
+        raise HTTPException(status_code=404, detail="结算记录不存在")
+
+    settlement.status = "paid"
+    settlement.paid_at = datetime.utcnow()
+    db.commit()
+
+    return Response.success(message="已标记打款完成")
 
 
 @router.get("/finance/export", summary="导出财务数据")
@@ -5679,11 +5795,11 @@ async def admin_get_options(
     category_id: Optional[int] = Query(None, description="分类ID"),
     is_active: Optional[bool] = Query(None, description="是否启用"),
     page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100),
+    page_size: int = Query(50, ge=1, le=200),
     db: Session = Depends(get_db),
     current_admin: User = Depends(get_current_admin_user)
 ):
-    """获取项目选项列表（管理端）"""
+    """获取项目选项列表（管理端，统一返回 items + list 兼容旧前端）"""
     query = db.query(ProjectOption)
 
     if project_id is not None:
@@ -5694,27 +5810,53 @@ async def admin_get_options(
         query = query.filter(ProjectOption.is_active == is_active)
 
     total = query.count()
-    options = query.order_by(ProjectOption.sort_order, ProjectOption.id).offset((page - 1) * page_size).limit(page_size).all()
+    options = query.order_by(
+        ProjectOption.project_id, ProjectOption.sort_order, ProjectOption.id
+    ).offset((page - 1) * page_size).limit(page_size).all()
 
-    items = [{
-        "id": opt.id,
-        "project_id": opt.project_id,
-        "category_id": opt.category_id,
-        "parent_id": opt.parent_id,
-        "level": opt.level,
-        "name": opt.name,
-        "option_type": opt.option_type.value if isinstance(opt.option_type, OptionType) else opt.option_type,
-        "price": float(opt.price) if opt.price else 0,
-        "price_type": opt.price_type.value if isinstance(opt.price_type, PriceType) else opt.price_type,
-        "hint_text": opt.hint_text,
-        "placeholder": opt.placeholder,
-        "sort_order": opt.sort_order,
-        "is_required": opt.is_required,
-        "is_active": opt.is_active,
-        "created_at": opt.created_at.isoformat() if opt.created_at else None
-    } for opt in options]
+    def get_option_level(opt):
+        level = 1
+        current = opt
+        while current.parent_id:
+            level += 1
+            current = db.query(ProjectOption).filter(ProjectOption.id == current.parent_id).first()
+            if not current:
+                break
+        return level
 
-    return Response.success(data={"total": total, "list": items})
+    items = []
+    for opt in options:
+        project = db.query(Project).filter(Project.id == opt.project_id).first() if opt.project_id else None
+        category = db.query(Category).filter(Category.id == opt.category_id).first() if opt.category_id else None
+        items.append({
+            "id": opt.id,
+            "project_id": opt.project_id,
+            "project_name": project.name if project else None,
+            "category_id": opt.category_id,
+            "category_name": category.name if category else None,
+            "parent_id": opt.parent_id,
+            "level": get_option_level(opt),
+            "name": opt.name,
+            "option_type": opt.option_type.value if isinstance(opt.option_type, OptionType) else opt.option_type,
+            "price": float(opt.price) if opt.price else 0,
+            "price_type": opt.price_type.value if isinstance(opt.price_type, PriceType) else (opt.price_type or "fixed"),
+            "hint_text": opt.hint_text,
+            "placeholder": opt.placeholder,
+            "group_name": opt.group_name,
+            "display_inline": bool(opt.display_inline) if opt.display_inline is not None else False,
+            "sort_order": opt.sort_order,
+            "is_required": opt.is_required,
+            "is_active": opt.is_active,
+            "created_at": opt.created_at.isoformat() if opt.created_at else None
+        })
+
+    return Response.success(data={
+        "items": items,
+        "list": items,
+        "total": total,
+        "page": page,
+        "page_size": page_size
+    })
 
 
 @router.get("/options/tree/project/{project_id}", summary="获取项目选项树")
@@ -5806,6 +5948,8 @@ async def admin_create_option(
         price_type=data.price_type.value,
         hint_text=data.hint_text,
         placeholder=data.placeholder,
+        group_name=data.group_name,
+        display_inline=data.display_inline,
         sort_order=data.sort_order,
         is_required=data.is_required,
         is_active=data.is_active
@@ -6434,183 +6578,6 @@ async def reject_invoice_recharge(
     return Response.success(message="开票充值申请已拒绝")
 
 
-# ==================== 项目选项管理 ====================
-from app.models.project_option import ProjectOption, OptionType, PriceType
-
-
-@router.get("/options", summary="获取选项列表（管理员）")
-async def get_options_admin(
-    page: int = Query(1, ge=1),
-    page_size: int = Query(50, ge=1, le=200),
-    project_id: Optional[int] = Query(None, description="项目ID"),
-    category_id: Optional[int] = Query(None, description="分类ID"),
-    db: Session = Depends(get_db),
-    current_admin: User = Depends(get_current_admin_user)
-):
-    """管理员获取项目选项列表"""
-    query = db.query(ProjectOption)
-
-    if project_id:
-        query = query.filter(ProjectOption.project_id == project_id)
-    if category_id:
-        query = query.filter(ProjectOption.category_id == category_id)
-
-    total = query.count()
-    options = query.order_by(ProjectOption.project_id, ProjectOption.sort_order, ProjectOption.id).offset((page - 1) * page_size).limit(page_size).all()
-
-    # 构建层级结构
-    def get_option_level(opt):
-        level = 1
-        current = opt
-        while current.parent_id:
-            level += 1
-            current = db.query(ProjectOption).filter(ProjectOption.id == current.parent_id).first()
-            if not current:
-                break
-        return level
-
-    result = []
-    for opt in options:
-        project = db.query(Project).filter(Project.id == opt.project_id).first() if opt.project_id else None
-        category = db.query(Category).filter(Category.id == opt.category_id).first() if opt.category_id else None
-        result.append({
-            "id": opt.id,
-            "project_id": opt.project_id,
-            "project_name": project.name if project else None,
-            "category_id": opt.category_id,
-            "category_name": category.name if category else None,
-            "parent_id": opt.parent_id,
-            "name": opt.name,
-            "option_type": opt.option_type.value if isinstance(opt.option_type, OptionType) else opt.option_type,
-            "price": float(opt.price) if opt.price else 0,
-            "price_type": opt.price_type.value if isinstance(opt.price_type, PriceType) else (opt.price_type or "fixed"),
-            "hint_text": opt.hint_text,
-            "placeholder": opt.placeholder,
-            "is_required": opt.is_required,
-            "sort_order": opt.sort_order,
-            "is_active": opt.is_active,
-            "level": get_option_level(opt),
-            "created_at": opt.created_at.isoformat() if opt.created_at else None
-        })
-
-    return Response.success(data={
-        "items": result,
-        "total": total,
-        "page": page,
-        "page_size": page_size
-    })
-
-
-@router.post("/options", summary="创建选项（管理员）")
-async def create_option_admin(
-    data: dict = Body(...),
-    db: Session = Depends(get_db),
-    current_admin: User = Depends(get_current_admin_user)
-):
-    """管理员创建项目选项"""
-    if not data.get("name"):
-        raise HTTPException(status_code=400, detail="选项名称不能为空")
-    if not data.get("project_id") and not data.get("category_id"):
-        raise HTTPException(status_code=400, detail="必须关联项目或分类")
-
-    option = ProjectOption(
-        project_id=data.get("project_id"),
-        category_id=data.get("category_id"),
-        parent_id=data.get("parent_id"),
-        name=data.get("name"),
-        option_type=OptionType(data.get("option_type", "single")),
-        price=Decimal(str(data.get("price", 0))),
-        price_type=PriceType(data.get("price_type", "fixed")),
-        hint_text=data.get("hint_text", ""),
-        placeholder=data.get("placeholder", ""),
-        is_required=data.get("is_required", False),
-        sort_order=data.get("sort_order", 0),
-        is_active=data.get("is_active", True)
-    )
-    db.add(option)
-    db.commit()
-    db.refresh(option)
-
-    return Response.success(data={"id": option.id}, message="选项创建成功")
-
-
-@router.put("/options/{option_id}", summary="更新选项（管理员）")
-async def update_option_admin(
-    option_id: int,
-    data: dict = Body(...),
-    db: Session = Depends(get_db),
-    current_admin: User = Depends(get_current_admin_user)
-):
-    """管理员更新项目选项"""
-    option = db.query(ProjectOption).filter(ProjectOption.id == option_id).first()
-    if not option:
-        raise HTTPException(status_code=404, detail="选项不存在")
-
-    if "name" in data:
-        option.name = data["name"]
-    if "project_id" in data:
-        option.project_id = data["project_id"]
-    if "category_id" in data:
-        option.category_id = data["category_id"]
-    if "parent_id" in data:
-        option.parent_id = data["parent_id"]
-    if "option_type" in data:
-        option.option_type = OptionType(data["option_type"])
-    if "price" in data:
-        option.price = Decimal(str(data["price"]))
-    if "price_type" in data:
-        option.price_type = PriceType(data["price_type"])
-    if "hint_text" in data:
-        option.hint_text = data["hint_text"]
-    if "placeholder" in data:
-        option.placeholder = data["placeholder"]
-    if "is_required" in data:
-        option.is_required = data["is_required"]
-    if "sort_order" in data:
-        option.sort_order = data["sort_order"]
-    if "is_active" in data:
-        option.is_active = data["is_active"]
-
-    db.commit()
-    return Response.success(message="选项更新成功")
-
-
-@router.post("/options/{option_id}/toggle", summary="切换选项状态（管理员）")
-async def toggle_option_admin(
-    option_id: int,
-    db: Session = Depends(get_db),
-    current_admin: User = Depends(get_current_admin_user)
-):
-    """切换选项启用/禁用状态"""
-    option = db.query(ProjectOption).filter(ProjectOption.id == option_id).first()
-    if not option:
-        raise HTTPException(status_code=404, detail="选项不存在")
-
-    option.is_active = not option.is_active
-    db.commit()
-
-    return Response.success(message=f"选项已{'启用' if option.is_active else '禁用'}")
-
-
-@router.delete("/options/{option_id}", summary="删除选项（管理员）")
-async def delete_option_admin(
-    option_id: int,
-    db: Session = Depends(get_db),
-    current_admin: User = Depends(get_current_admin_user)
-):
-    """删除项目选项（同时删除子选项）"""
-    option = db.query(ProjectOption).filter(ProjectOption.id == option_id).first()
-    if not option:
-        raise HTTPException(status_code=404, detail="选项不存在")
-
-    # 删除所有子选项
-    db.query(ProjectOption).filter(ProjectOption.parent_id == option_id).delete()
-    db.delete(option)
-    db.commit()
-
-    return Response.success(message="选项删除成功")
-
-
 # ==================== 发票文件上传/下载 ====================
 
 @router.post("/invoices/{invoice_id}/upload-file", summary="上传发票文件（管理员）")
@@ -6708,13 +6675,14 @@ async def get_lottery_prizes_admin(
             "id": p.id,
             "name": p.name,
             "prize_type": p.prize_type.value if isinstance(p.prize_type, LotteryPrizeType) else p.prize_type,
+            "icon": p.icon,
             "value": float(p.value) if p.value else 0,
-            "probability": float(p.probability) if p.probability else 0,
-            "total_count": p.total_count,
-            "remain_count": p.remain_count,
+            "coupon_id": p.coupon_id,
+            "points_amount": p.points_amount,
+            "probability": p.probability or 0,
+            "total_limit": p.total_limit,
             "daily_limit": p.daily_limit,
-            "image_url": p.image_url,
-            "description": p.description,
+            "issued_count": p.issued_count,
             "is_active": p.is_active,
             "sort_order": p.sort_order
         })
@@ -6740,13 +6708,13 @@ async def create_lottery_prize_admin(
     prize = LotteryPrize(
         name=data.get("name"),
         prize_type=LotteryPrizeType(data.get("prize_type", "points")),
+        icon=data.get("icon", "🎁"),
         value=Decimal(str(data.get("value", 0))),
-        probability=Decimal(str(data.get("probability", 0))),
-        total_count=data.get("total_count"),
-        remain_count=data.get("remain_count") or data.get("total_count"),
-        daily_limit=data.get("daily_limit"),
-        image_url=data.get("image_url", ""),
-        description=data.get("description", ""),
+        coupon_id=data.get("coupon_id"),
+        points_amount=data.get("points_amount"),
+        probability=data.get("probability", 0),
+        total_limit=data.get("total_limit", 0),
+        daily_limit=data.get("daily_limit", 0),
         is_active=data.get("is_active", True),
         sort_order=data.get("sort_order", 0)
     )
@@ -6773,20 +6741,20 @@ async def update_lottery_prize_admin(
         prize.name = data["name"]
     if "prize_type" in data:
         prize.prize_type = LotteryPrizeType(data["prize_type"])
+    if "icon" in data:
+        prize.icon = data["icon"]
     if "value" in data:
         prize.value = Decimal(str(data["value"]))
+    if "coupon_id" in data:
+        prize.coupon_id = data["coupon_id"]
+    if "points_amount" in data:
+        prize.points_amount = data["points_amount"]
     if "probability" in data:
-        prize.probability = Decimal(str(data["probability"]))
-    if "total_count" in data:
-        prize.total_count = data["total_count"]
-    if "remain_count" in data:
-        prize.remain_count = data["remain_count"]
+        prize.probability = data["probability"]
+    if "total_limit" in data:
+        prize.total_limit = data["total_limit"]
     if "daily_limit" in data:
         prize.daily_limit = data["daily_limit"]
-    if "image_url" in data:
-        prize.image_url = data["image_url"]
-    if "description" in data:
-        prize.description = data["description"]
     if "is_active" in data:
         prize.is_active = data["is_active"]
     if "sort_order" in data:
