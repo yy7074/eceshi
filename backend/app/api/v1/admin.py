@@ -3113,8 +3113,10 @@ async def get_laboratories_admin(
                 "institution": lab.institution,
                 "province": lab.province,
                 "city": lab.city,
+                "address": lab.address,
                 "contact_name": lab.contact_name,
                 "contact_phone": lab.contact_phone,
+                "description": lab.description,
                 "rating": float(lab.rating) if lab.rating else 5.0,
                 "total_orders": lab.total_orders or 0,
                 "commission_rate": float(lab.commission_rate) if lab.commission_rate else 20.0,
@@ -4804,6 +4806,8 @@ async def get_equipment_list(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     lab_id: int = Query(None),
+    category: str = Query(None),
+    search: str = Query(None),
     keyword: str = Query(None),
     db: Session = Depends(get_db),
     current_admin: User = Depends(get_current_admin_user)
@@ -4816,8 +4820,17 @@ async def get_equipment_list(
     if lab_id:
         query = query.filter(LabEquipment.laboratory_id == lab_id)
 
+    keyword = keyword or search
     if keyword:
-        query = query.filter(LabEquipment.name.contains(keyword))
+        query = query.filter(
+            or_(
+                LabEquipment.name.contains(keyword),
+                LabEquipment.model.contains(keyword),
+                LabEquipment.brand.contains(keyword)
+            )
+        )
+    if category:
+        query = query.filter(LabEquipment.category == category)
 
     total = query.count()
     equipment_list = query.order_by(LabEquipment.id.desc()).offset((page - 1) * page_size).limit(page_size).all()
@@ -4827,8 +4840,11 @@ async def get_equipment_list(
             "id": e.id,
             "name": e.name,
             "model": e.model if hasattr(e, 'model') else "",
+            "brand": e.brand if hasattr(e, 'brand') else "",
+            "category": e.category if hasattr(e, 'category') else "",
             "lab_id": e.laboratory_id,
             "lab_name": e.laboratory.name if e.laboratory else "",
+            "image": e.images[0] if getattr(e, "images", None) else "",
             "status": e.status if hasattr(e, 'status') and e.status else "available",
             "created_at": e.created_at.isoformat() if e.created_at else None
         } for e in equipment_list],
@@ -4840,24 +4856,33 @@ async def get_equipment_list(
 
 @router.post("/equipment", summary="创建设备")
 async def create_equipment(
-    name: str = Query(...),
-    model: str = Query(None),
-    lab_id: int = Query(...),
-    description: str = Query(None),
+    data: dict = Body(...),
     db: Session = Depends(get_db),
     current_admin: User = Depends(get_current_admin_user)
 ):
     """创建设备"""
     from app.models.laboratory import LabEquipment
 
+    name = data.get("name")
+    lab_id = data.get("lab_id") or data.get("laboratory_id")
+    if not name or not lab_id:
+        raise HTTPException(status_code=400, detail="请填写仪器名称和所属实验室")
+
+    laboratory = db.query(Laboratory).filter(Laboratory.id == lab_id).first()
+    if not laboratory:
+        raise HTTPException(status_code=404, detail="实验室不存在")
+
+    images = data.get("images") or ([data.get("image")] if data.get("image") else None)
+
     equipment = LabEquipment(
         name=name,
-        laboratory_id=lab_id
+        laboratory_id=lab_id,
+        model=data.get("model") or data.get("equipment_no"),
+        brand=data.get("brand"),
+        category=data.get("category"),
+        description=data.get("description"),
+        images=images
     )
-    if model and hasattr(equipment, 'model'):
-        equipment.model = model
-    if description and hasattr(equipment, 'description'):
-        equipment.description = description
 
     db.add(equipment)
     db.commit()
@@ -4869,9 +4894,7 @@ async def create_equipment(
 @router.put("/equipment/{equipment_id}", summary="更新设备")
 async def update_equipment(
     equipment_id: int,
-    name: str = Query(None),
-    model: str = Query(None),
-    description: str = Query(None),
+    data: dict = Body(...),
     db: Session = Depends(get_db),
     current_admin: User = Depends(get_current_admin_user)
 ):
@@ -4882,12 +4905,26 @@ async def update_equipment(
     if not equipment:
         return Response.error(message="设备不存在")
 
-    if name:
-        equipment.name = name
-    if model and hasattr(equipment, 'model'):
-        equipment.model = model
-    if description and hasattr(equipment, 'description'):
-        equipment.description = description
+    if data.get("name"):
+        equipment.name = data["name"]
+    if "lab_id" in data or "laboratory_id" in data:
+        lab_id = data.get("lab_id") or data.get("laboratory_id")
+        laboratory = db.query(Laboratory).filter(Laboratory.id == lab_id).first()
+        if not laboratory:
+            raise HTTPException(status_code=404, detail="实验室不存在")
+        equipment.laboratory_id = lab_id
+    if "model" in data or "equipment_no" in data:
+        equipment.model = data.get("model") or data.get("equipment_no")
+    if "brand" in data:
+        equipment.brand = data.get("brand")
+    if "category" in data:
+        equipment.category = data.get("category")
+    if "description" in data:
+        equipment.description = data.get("description")
+    if "image" in data:
+        equipment.images = [data["image"]] if data["image"] else []
+    if "images" in data:
+        equipment.images = data["images"]
 
     db.commit()
     return Response.success(message="更新成功")
@@ -7155,6 +7192,26 @@ class LaboratoryCreate(BaseModel):
     commission_rate: float = 20.0
 
 
+class LaboratoryUpdate(BaseModel):
+    """管理员更新实验室"""
+    name: Optional[str] = None
+    code: Optional[str] = None
+    lab_type: Optional[str] = None
+    institution: Optional[str] = None
+    department: Optional[str] = None
+    province: Optional[str] = None
+    city: Optional[str] = None
+    address: Optional[str] = None
+    contact_name: Optional[str] = None
+    contact_phone: Optional[str] = None
+    contact_email: Optional[str] = None
+    description: Optional[str] = None
+    logo: Optional[str] = None
+    cover_image: Optional[str] = None
+    commission_rate: Optional[float] = None
+    status: Optional[str] = None
+
+
 @router.post("/laboratories", summary="创建实验室（管理员）")
 async def create_laboratory_admin(
     data: LaboratoryCreate,
@@ -7192,6 +7249,58 @@ async def create_laboratory_admin(
     db.refresh(lab)
 
     return Response.success(data={"id": lab.id}, message="实验室创建成功")
+
+
+@router.put("/laboratories/{lab_id}", summary="更新实验室（管理员）")
+async def update_laboratory_admin(
+    lab_id: int,
+    data: LaboratoryUpdate,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """管理员更新实验室"""
+    lab = db.query(Laboratory).filter(Laboratory.id == lab_id).first()
+    if not lab:
+        raise HTTPException(status_code=404, detail="实验室不存在")
+
+    payload = data.model_dump(exclude_unset=True)
+    if "code" in payload and payload["code"] and payload["code"] != lab.code:
+        existing = db.query(Laboratory).filter(
+            Laboratory.code == payload["code"],
+            Laboratory.id != lab_id
+        ).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="实验室编号已存在")
+
+    if "commission_rate" in payload and payload["commission_rate"] is not None:
+        payload["commission_rate"] = Decimal(str(payload["commission_rate"]))
+
+    for key, value in payload.items():
+        setattr(lab, key, value)
+
+    db.commit()
+    return Response.success(message="实验室更新成功")
+
+
+@router.delete("/laboratories/{lab_id}", summary="删除实验室（管理员）")
+async def delete_laboratory_admin(
+    lab_id: int,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """删除实验室，同时删除关联设备"""
+    from app.models.laboratory import LabEquipment
+
+    lab = db.query(Laboratory).filter(Laboratory.id == lab_id).first()
+    if not lab:
+        raise HTTPException(status_code=404, detail="实验室不存在")
+
+    equipments = db.query(LabEquipment).filter(LabEquipment.laboratory_id == lab_id).all()
+    for equipment in equipments:
+        db.delete(equipment)
+    db.delete(lab)
+    db.commit()
+    return Response.success(message="实验室删除成功")
 
 
 # ==================== 仪器/设备管理增强 ====================
@@ -7425,4 +7534,3 @@ async def assign_order_enhanced(
     db.commit()
 
     return Response.success(message=f"订单已指派给 {lab.name}")
-

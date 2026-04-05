@@ -1206,7 +1206,7 @@
                             </div>
                         </div>
                         <!-- 订单详情编辑对话框 -->
-                        <el-dialog v-model="orderDetailDialogVisible" title="订单详情（可修改）" width="900px">
+                        <el-dialog v-model="orderDetailEditDialogVisible" title="订单详情（可修改）" width="900px">
                             <el-form label-width="120px" v-loading="orderDetailLoading">
                                 <el-row :gutter="16">
                                     <el-col :span="12">
@@ -1285,7 +1285,7 @@
                                 </el-form-item>
                             </el-form>
                             <template #footer>
-                                <el-button @click="orderDetailDialogVisible = false">关闭</el-button>
+                                <el-button @click="orderDetailEditDialogVisible = false">关闭</el-button>
                                 <el-button type="primary" @click="saveOrderDetail" :loading="orderDetailLoading">保存修改</el-button>
                             </template>
                         </el-dialog>
@@ -1332,21 +1332,21 @@
                         </el-dialog>
 
                         <!-- 订单详情对话框 -->
-                        <el-dialog v-model="orderDetailDialogVisible" title="订单详情" width="700px">
-                            <div v-if="orderDetailData" style="line-height: 2;">
+                        <el-dialog v-model="orderPreviewDialogVisible" title="订单详情" width="700px">
+                            <div v-if="orderPreviewData" style="line-height: 2;">
                                 <el-descriptions :column="2" border>
-                                    <el-descriptions-item label="订单号">{{ orderDetailData.order_no }}</el-descriptions-item>
-                                    <el-descriptions-item label="状态"><el-tag :type="getOrderStatusType(orderDetailData.status)" size="small">{{ getOrderStatusText(orderDetailData.status) }}</el-tag></el-descriptions-item>
-                                    <el-descriptions-item label="项目">{{ orderDetailData.project_name }}</el-descriptions-item>
-                                    <el-descriptions-item label="总金额"><span style="color:#ff4d4f;font-weight:600;">¥{{ orderDetailData.total_fee }}</span></el-descriptions-item>
-                                    <el-descriptions-item label="是否加急"><el-tag :type="orderDetailData.is_urgent ? 'danger' : 'info'" size="small">{{ orderDetailData.is_urgent ? '加急' : '普通' }}</el-tag></el-descriptions-item>
-                                    <el-descriptions-item label="备注">{{ orderDetailData.remark || '-' }}</el-descriptions-item>
-                                    <el-descriptions-item label="指派实验室">{{ orderDetailData.assigned_lab_name || '-' }}</el-descriptions-item>
-                                    <el-descriptions-item label="指派人员">{{ orderDetailData.assigned_staff_name || '-' }}</el-descriptions-item>
+                                    <el-descriptions-item label="订单号">{{ orderPreviewData.order_no }}</el-descriptions-item>
+                                    <el-descriptions-item label="状态"><el-tag :type="getOrderStatusType(orderPreviewData.status)" size="small">{{ getOrderStatusText(orderPreviewData.status) }}</el-tag></el-descriptions-item>
+                                    <el-descriptions-item label="项目">{{ orderPreviewData.project_name }}</el-descriptions-item>
+                                    <el-descriptions-item label="总金额"><span style="color:#ff4d4f;font-weight:600;">¥{{ orderPreviewData.total_fee || orderPreviewData.total_amount || 0 }}</span></el-descriptions-item>
+                                    <el-descriptions-item label="是否加急"><el-tag :type="orderPreviewData.is_urgent ? 'danger' : 'info'" size="small">{{ orderPreviewData.is_urgent ? '加急' : '普通' }}</el-tag></el-descriptions-item>
+                                    <el-descriptions-item label="备注">{{ orderPreviewData.remark || '-' }}</el-descriptions-item>
+                                    <el-descriptions-item label="指派实验室">{{ orderPreviewData.assigned_lab_name || '-' }}</el-descriptions-item>
+                                    <el-descriptions-item label="指派人员">{{ orderPreviewData.assigned_staff_name || '-' }}</el-descriptions-item>
                                 </el-descriptions>
-                                <div v-if="orderDetailData.samples && orderDetailData.samples.length > 0" style="margin-top: 16px;">
+                                <div v-if="orderPreviewData.samples && orderPreviewData.samples.length > 0" style="margin-top: 16px;">
                                     <h4>样品信息</h4>
-                                    <el-table :data="orderDetailData.samples" size="small" border>
+                                    <el-table :data="orderPreviewData.samples" size="small" border>
                                         <el-table-column prop="sample_name" label="样品名称" width="150"></el-table-column>
                                         <el-table-column prop="sample_type" label="样品类型" width="100"></el-table-column>
                                         <el-table-column prop="quantity" label="数量" width="80"></el-table-column>
@@ -1354,13 +1354,13 @@
                                         <el-table-column prop="special_requirements" label="特殊要求" show-overflow-tooltip></el-table-column>
                                     </el-table>
                                 </div>
-                                <div v-if="orderDetailData.option_selections && orderDetailData.option_selections.length > 0" style="margin-top: 16px;">
+                                <div v-if="orderPreviewData.options && orderPreviewData.options.length > 0" style="margin-top: 16px;">
                                     <h4>客户条件选择</h4>
-                                    <el-table :data="orderDetailData.option_selections" size="small" border>
+                                    <el-table :data="orderPreviewData.options" size="small" border>
                                         <el-table-column prop="option_name" label="选项名称" width="150"></el-table-column>
-                                        <el-table-column prop="selected_value" label="选择值" width="150"></el-table-column>
-                                        <el-table-column prop="price" label="价格" width="100">
-                                            <template #default="scope">¥{{ scope.row.price || 0 }}</template>
+                                        <el-table-column prop="input_value" label="选择值" width="150"></el-table-column>
+                                        <el-table-column prop="calculated_price" label="价格" width="100">
+                                            <template #default="scope">¥{{ scope.row.calculated_price || 0 }}</template>
                                         </el-table-column>
                                     </el-table>
                                 </div>
@@ -3571,7 +3571,7 @@
                     // 订单管理
                     orders: [],
                     ordersLoading: false,
-                    orderDetailDialogVisible: false,
+                    orderDetailEditDialogVisible: false,
                     orderDetailForm: {
                         id: null,
                         order_no: '',
@@ -3590,8 +3590,8 @@
                     orderAssignedFilter: null,
                     orderEditDialogVisible: false,
                     orderEditForm: { id: null, total_fee: 0, project_fee: 0, urgent_fee: 0, shipping_fee: 0, remark: '', receiver_name: '', receiver_phone: '', receiver_address: '', is_urgent: false },
-                    orderDetailDialogVisible: false,
-                    orderDetailData: null,
+                    orderPreviewDialogVisible: false,
+                    orderPreviewData: null,
                     orderPage: 1,
                     orderPageSize: 20,
                     orderTotal: 0,
@@ -5080,11 +5080,10 @@
                     }
                 },
                 async viewOrderDetail(order) {
-<<<<<<< Updated upstream
                     try {
                         const res = await axios.get(`${this.baseUrl}/api/v1/admin/orders/${order.id}`, { headers: this.uploadHeaders })
-                        this.orderDetailData = res.data.data
-                        this.orderDetailDialogVisible = true
+                        this.orderPreviewData = res.data.data
+                        this.orderPreviewDialogVisible = true
                     } catch (error) {
                         // 降级显示基本信息
                         const maskedPhone = order.user_phone ? order.user_phone.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2') : '-'
@@ -5096,6 +5095,34 @@
                                 <p><strong>状态：</strong>${this.getOrderStatusText(order.status)}</p>
                             </div>
                         `, '订单详情', { dangerouslyUseHTMLString: true, confirmButtonText: '关闭' })
+                    }
+                },
+                async loadOrderDetailForm(orderId, openDialog = false) {
+                    this.orderDetailLoading = true
+                    try {
+                        const res = await axios.get(`${this.baseUrl}/api/v1/admin/orders/${orderId}`, {
+                            headers: this.uploadHeaders
+                        })
+                        const detail = res.data.data
+                        this.orderDetailForm = {
+                            id: detail.id,
+                            order_no: detail.order_no,
+                            total_fee: detail.total_amount || detail.total_fee || 0,
+                            sample_count: detail.sample_count || 1,
+                            remark: detail.remark || '',
+                            admin_test_requirements: detail.admin_test_requirements || '',
+                            admin_notes_to_lab: detail.admin_notes_to_lab || '',
+                            samples: detail.samples || [],
+                            options: detail.options || []
+                        }
+                        if (openDialog) {
+                            this.orderDetailEditDialogVisible = true
+                        }
+                    } catch (error) {
+                        ElMessage.error(error.response?.data?.detail || '加载订单详情失败')
+                        throw error
+                    } finally {
+                        this.orderDetailLoading = false
                     }
                 },
                 showOrderEditDialog(order) {
@@ -5124,29 +5151,6 @@
                         ElMessage.error(error.response?.data?.detail || '修改失败')
                     } finally {
                         this.loading = false
-=======
-                    this.orderDetailLoading = true
-                    try {
-                        const res = await axios.get(`${this.baseUrl}/api/v1/admin/orders/${order.id}`, {
-                            headers: this.uploadHeaders
-                        })
-                        const detail = res.data.data
-                        this.orderDetailForm = {
-                            id: detail.id,
-                            order_no: detail.order_no,
-                            total_fee: detail.total_amount || detail.total_fee || 0,
-                            sample_count: detail.sample_count || 1,
-                            remark: detail.remark || '',
-                            admin_test_requirements: detail.admin_test_requirements || '',
-                            admin_notes_to_lab: detail.admin_notes_to_lab || '',
-                            samples: detail.samples || [],
-                            options: detail.options || []
-                        }
-                        this.orderDetailDialogVisible = true
-                    } catch (error) {
-                        ElMessage.error(error.response?.data?.detail || '加载订单详情失败')
-                    } finally {
-                        this.orderDetailLoading = false
                     }
                 },
                 async saveOrderDetail() {
@@ -5158,13 +5162,12 @@
                             { headers: this.uploadHeaders }
                         )
                         ElMessage.success('订单修改成功')
-                        this.orderDetailDialogVisible = false
+                        this.orderDetailEditDialogVisible = false
                         this.loadOrders()
                     } catch (error) {
                         ElMessage.error(error.response?.data?.detail || '保存订单失败')
                     } finally {
                         this.orderDetailLoading = false
->>>>>>> Stashed changes
                     }
                 },
                 showOrderStatusDialog(order) {
@@ -5524,7 +5527,7 @@
                     this.assignRemark = ''
                     
                     // 分配前先拉取详情，确保看到完整条件
-                    await this.viewOrderDetail(order)
+                    await this.loadOrderDetailForm(order.id)
                     
                     this.assignDialogVisible = true
                     this.labRecommendLoading = true
@@ -5627,7 +5630,14 @@
                     }
                 },
                 showLabDialog(lab = null) {
-                    if (lab) this.labForm = { ...lab }
+                    if (lab) {
+                        this.labForm = {
+                            ...lab,
+                            director: lab.director || lab.contact_name || '',
+                            phone: lab.phone || lab.contact_phone || '',
+                            location: lab.location || lab.address || ''
+                        }
+                    }
                     else this.labForm = { id: null, name: '', director: '', phone: '', location: '', status: 'active', description: '' }
                     this.labDialogVisible = true
                 },
@@ -5695,7 +5705,7 @@
                     }
                 },
                 showEquipmentDialog(equipment = null) {
-                    if (equipment) this.equipmentForm = { ...equipment }
+                    if (equipment) this.equipmentForm = { ...equipment, image: equipment.image || '' }
                     else this.equipmentForm = { id: null, equipment_no: '', name: '', category: '', lab_id: null, brand: '', image: '', description: '' }
                     this.equipmentDialogVisible = true
                 },

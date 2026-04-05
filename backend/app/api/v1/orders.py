@@ -14,6 +14,7 @@ from app.models.user import User
 from app.models.order import Order, OrderSample, OrderFee, OrderStatusHistory, UserAddress
 from app.models.project import Project
 from app.models.project_option import ProjectOption, OrderOptionSelection, OptionType, PriceType
+from app.models.coupon import Coupon, UserCoupon, CouponStatus, UserCouponStatus, CouponType
 from app.schemas.order import (
     OrderCreate, OrderCalculate, OrderCalculateResponse,
     OrderDetail, OrderListResponse, OrderListItem, OrderCancel, OrderFeeDetail
@@ -54,6 +55,89 @@ def calculate_option_price(option: ProjectOption, base_price: Decimal, sample_co
     elif price_type == "percentage":
         return base_price * (price / 100)
     return Decimal("0")
+
+
+def _loads_id_list(raw_value) -> list[int]:
+    """将 JSON 文本解析为 ID 列表"""
+    if not raw_value:
+        return []
+    if isinstance(raw_value, list):
+        return [int(item) for item in raw_value if str(item).strip()]
+    if isinstance(raw_value, str):
+        try:
+            parsed = json.loads(raw_value)
+            if isinstance(parsed, list):
+                return [int(item) for item in parsed if str(item).strip()]
+        except Exception:
+            return []
+    return []
+
+
+def calculate_coupon_discount(
+    db: Session,
+    current_user: User,
+    project: Project,
+    coupon_ref_id: Optional[int],
+    subtotal: Decimal
+) -> tuple[Decimal, Optional[str]]:
+    """根据用户优惠券或优惠券模板计算真实优惠金额"""
+    if not coupon_ref_id:
+        return Decimal("0"), None
+
+    now = datetime.now()
+    user_coupon = db.query(UserCoupon).filter(
+        UserCoupon.id == coupon_ref_id,
+        UserCoupon.user_id == current_user.id
+    ).first()
+
+    coupon = None
+    if user_coupon:
+        if user_coupon.status != UserCouponStatus.UNUSED:
+            raise HTTPException(status_code=400, detail="优惠券已使用")
+        if user_coupon.expire_at and user_coupon.expire_at <= now:
+            raise HTTPException(status_code=400, detail="优惠券已过期")
+        coupon = db.query(Coupon).filter(Coupon.id == user_coupon.coupon_id).first()
+    else:
+        coupon = db.query(Coupon).filter(Coupon.id == coupon_ref_id).first()
+
+    if not coupon:
+        raise HTTPException(status_code=404, detail="优惠券不存在")
+    if coupon.status != CouponStatus.ACTIVE:
+        raise HTTPException(status_code=400, detail="优惠券已下架")
+    if coupon.start_time and coupon.start_time > now:
+        raise HTTPException(status_code=400, detail="优惠券尚未开始")
+    if coupon.end_time and coupon.end_time < now:
+        raise HTTPException(status_code=400, detail="优惠券已过期")
+
+    applicable_projects = _loads_id_list(coupon.applicable_projects)
+    if applicable_projects and project.id not in applicable_projects:
+        raise HTTPException(status_code=400, detail="该优惠券不适用于当前项目")
+
+    applicable_categories = _loads_id_list(coupon.applicable_categories)
+    if applicable_categories and getattr(project, "category_id", None) not in applicable_categories:
+        raise HTTPException(status_code=400, detail="该优惠券不适用于当前分类")
+
+    min_order_amount = Decimal(str(coupon.min_order_amount or 0))
+    if subtotal < min_order_amount:
+        raise HTTPException(status_code=400, detail=f"订单金额未达到优惠券门槛: {min_order_amount}")
+
+    coupon_type = coupon.type.value if isinstance(coupon.type, CouponType) else str(coupon.type)
+    discount_amount = Decimal("0")
+    if coupon_type == "cash":
+        discount_amount = Decimal(str(coupon.cash_amount or 0))
+    elif coupon_type == "full_reduction":
+        full_amount = Decimal(str(coupon.full_amount or 0))
+        if full_amount and subtotal < full_amount:
+            raise HTTPException(status_code=400, detail=f"订单金额未达到满减门槛: {full_amount}")
+        discount_amount = Decimal(str(coupon.reduction_amount or 0))
+    elif coupon_type == "discount":
+        discount_rate = Decimal(str(coupon.discount_rate or 1))
+        discount_amount = subtotal * (Decimal("1") - discount_rate)
+        if coupon.max_discount_amount is not None:
+            discount_amount = min(discount_amount, Decimal(str(coupon.max_discount_amount)))
+
+    discount_amount = max(Decimal("0"), min(discount_amount.quantize(Decimal("0.01")), subtotal))
+    return discount_amount, coupon.name
 
 
 def calculate_options_fee(
@@ -143,20 +227,26 @@ async def calculate_order(
     elif shipping_method == "platform":
         shipping_fee = Decimal("30.00")
 
+    subtotal = project_fee + options_fee + urgent_fee + shipping_fee
+
     # 优惠计算
     discount_amount = Decimal("0")
+    coupon_label = None
     if coupon_id:
-        discount_amount = Decimal("50.00")  # 模拟优惠券
+        discount_amount, coupon_label = calculate_coupon_discount(
+            db, current_user, project, coupon_id, subtotal
+        )
 
     # 积分抵扣（100积分=1元，最多抵扣20%）
     if use_points > 0:
         points_discount = Decimal(use_points) / 100
-        max_discount = (project_fee + options_fee + urgent_fee + shipping_fee) * Decimal("0.2")
+        max_discount = subtotal * Decimal("0.2")
         points_discount = min(points_discount, max_discount)
         discount_amount += points_discount
+    discount_amount = min(discount_amount, subtotal)
 
     # 总费用
-    total_fee = project_fee + options_fee + urgent_fee + shipping_fee - discount_amount
+    total_fee = subtotal - discount_amount
 
     # 费用明细
     fee_details = [
@@ -169,7 +259,7 @@ async def calculate_order(
     if shipping_fee > 0:
         fee_details.append({"fee_type": "shipping", "fee_name": "运费", "amount": float(shipping_fee)})
     if discount_amount > 0:
-        fee_details.append({"fee_type": "discount", "fee_name": "优惠", "amount": float(-discount_amount)})
+        fee_details.append({"fee_type": "discount", "fee_name": coupon_label or "优惠", "amount": float(-discount_amount)})
 
     result = {
         "project_fee": float(project_fee),
@@ -296,11 +386,24 @@ async def create_order(
     elif data.shipping_method == "platform":
         shipping_fee = Decimal("30.00")
 
+    subtotal = project_fee + options_fee + urgent_fee + shipping_fee
+
     # 优惠金额
     discount_amount = Decimal("0")
+    if data.coupon_id:
+        discount_amount, _ = calculate_coupon_discount(
+            db, current_user, project, data.coupon_id, subtotal
+        )
+
+    if data.use_points > 0:
+        points_discount = Decimal(data.use_points) / 100
+        max_discount = subtotal * Decimal("0.2")
+        points_discount = min(points_discount, max_discount)
+        discount_amount += points_discount
+    discount_amount = min(discount_amount, subtotal)
 
     # 总费用（包含选项费用）
-    total_fee = project_fee + options_fee + urgent_fee + shipping_fee - discount_amount
+    total_fee = subtotal - discount_amount
 
     # 创建订单
     order = Order(
@@ -369,6 +472,8 @@ async def create_order(
         fee_items.append(("urgent", "加急费用", urgent_fee))
     if shipping_fee > 0:
         fee_items.append(("shipping", "运费", shipping_fee))
+    if discount_amount > 0:
+        fee_items.append(("discount", "优惠", -discount_amount))
 
     for fee_type, fee_name, amount in fee_items:
         fee = OrderFee(
@@ -865,4 +970,3 @@ async def delete_draft_order(
     db.commit()
 
     return SuccessResponse(message="草稿已删除")
-
