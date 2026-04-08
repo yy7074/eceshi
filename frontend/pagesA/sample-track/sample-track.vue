@@ -131,54 +131,45 @@ export default {
 	methods: {
 		async loadTrackInfo() {
 			try {
-				// 获取订单详情
-				if (this.orderId) {
-					const orderRes = await api.getOrderDetail(this.orderId)
-					const order = orderRes.data
-					
-					this.orderInfo = {
-						orderNo: order.order_no,
-						projectName: order.project_name,
-						sampleName: order.sample_name,
-						createdAt: order.created_at?.slice(0, 16).replace('T', ' ')
+				if (!this.orderId) return
+
+				const orderRes = await api.getOrderDetail(this.orderId)
+				const order = orderRes.data || {}
+
+				this.orderInfo = {
+					orderNo: order.order_no || this.orderInfo.orderNo || '',
+					projectName: order.project_name || '',
+					sampleName: order.sample_name || '',
+					createdAt: order.created_at?.slice(0, 16).replace('T', ' ') || ''
+				}
+
+				this.updateTimeline(order.status)
+				this.needShip = ['paid', 'confirmed'].includes(order.status)
+
+				if (order.express_company && order.express_no) {
+					this.expressInfo = {
+						company: order.express_company,
+						trackingNo: order.express_no
 					}
-					
-					// 根据订单状态更新时间线
-					this.updateTimeline(order.status)
-					
-					// 检查是否需要寄送样品
-					this.needShip = ['paid', 'confirmed'].includes(order.status)
-					
-					// 物流信息
-					if (order.express_company && order.express_no) {
-						this.expressInfo = {
-							company: order.express_company,
-							trackingNo: order.express_no
-						}
+				} else {
+					this.expressInfo = {
+						company: '',
+						trackingNo: ''
 					}
 				}
 			} catch (e) {
 				console.error('加载追踪信息失败', e)
-				// 使用演示数据
 				this.orderInfo = {
-					orderNo: this.orderInfo.orderNo || 'ORD2025120100001',
-					projectName: 'X射线衍射分析(XRD)',
-					sampleName: 'XRD测试样品',
-					createdAt: '2025-12-01 10:00'
+					orderNo: this.orderInfo.orderNo || '',
+					projectName: '',
+					sampleName: '',
+					createdAt: ''
 				}
 				this.expressInfo = {
-					company: '顺丰速运',
-					trackingNo: 'SF1234567890'
+					company: '',
+					trackingNo: ''
 				}
-				// 更新演示状态
-				this.trackSteps = [
-					{ id: 1, title: '订单创建', description: '订单已创建，等待支付', time: '12-01 10:00', active: true },
-					{ id: 2, title: '已支付', description: '订单支付成功', time: '12-01 10:30', active: true },
-					{ id: 3, title: '样品已寄出', description: '用户已寄出样品', time: '12-02 09:00', active: true },
-					{ id: 4, title: '样品已签收', description: '实验室已签收样品', time: '12-03 14:00', active: true },
-					{ id: 5, title: '检测中', description: '样品正在检测中', time: '12-04 09:00', active: false },
-					{ id: 6, title: '检测完成', description: '检测完成，报告已生成', time: '', active: false }
-				]
+				this.updateTimeline('unpaid')
 				this.needShip = false
 			}
 		},
@@ -187,7 +178,9 @@ export default {
 			const statusMap = {
 				'unpaid': 1,
 				'paid': 2,
-				'shipped': 3,
+				'confirmed': 2,
+				'accepted': 3,
+				'sample_received': 4,
 				'received': 4,
 				'testing': 5,
 				'completed': 6
@@ -502,4 +495,3 @@ export default {
 	}
 }
 </style>
-

@@ -19,38 +19,16 @@
 		<!-- 支付方式 -->
 		<view class="payment-methods">
 			<text class="section-title">支付方式</text>
-			
-			<view 
-				v-for="method in paymentMethods" 
-				:key="method.value"
-				class="method-item card"
-				:class="{ selected: selectedMethod === method.value }"
-				@click="selectMethod(method.value)"
-			>
+			<view class="method-item card selected">
 				<view class="method-info">
-					<text class="method-icon">{{ method.icon }}</text>
+					<text class="method-icon">信用</text>
 					<view class="method-detail">
-						<text class="method-name">{{ method.name }}</text>
-						<text v-if="method.desc" class="method-desc">{{ method.desc }}</text>
+						<text class="method-name">信用支付</text>
+						<text class="method-desc">使用当前信用额度支付订单</text>
 					</view>
 				</view>
-				<view class="radio" :class="{ checked: selectedMethod === method.value }"></view>
+				<view class="radio checked"></view>
 			</view>
-		</view>
-		
-		<!-- 余额支付密码 -->
-		<view v-if="selectedMethod === 'balance'" class="password-section">
-			<text class="section-title">支付密码</text>
-			<view class="password-input card">
-				<input 
-					v-model="paymentPassword" 
-					type="password"
-					maxlength="6"
-					placeholder="请输入支付密码"
-					class="input"
-				/>
-			</view>
-			<text class="password-tip">提示：开发模式下，支付密码与登录密码相同</text>
 		</view>
 		
 		<!-- 底部操作栏 -->
@@ -59,8 +37,8 @@
 				<text class="label">需支付：</text>
 				<text class="price">¥{{ order.total_fee }}</text>
 			</view>
-			<button class="btn-pay" :loading="paying" @click="confirmPay">
-				{{ paying ? '支付中...' : '确认支付' }}
+				<button class="btn-pay" :loading="paying" @click="confirmPay">
+				{{ paying ? '支付中...' : '信用支付' }}
 			</button>
 		</view>
 	</view>
@@ -79,23 +57,7 @@
 					total_fee: 0
 				},
 				
-				paymentMethods: [
-					{ 
-						value: 'balance', 
-						name: '余额支付', 
-						desc: '当前余额：¥1000.00',
-						icon: '💰' 
-					},
-					{ 
-						value: 'wechat', 
-						name: '微信支付',
-						desc: '',
-						icon: '💚'
-					}
-				],
-				
-				selectedMethod: 'balance',
-				paymentPassword: '',
+				selectedMethod: 'credit',
 				paying: false
 			}
 		},
@@ -118,87 +80,27 @@
 				}
 			},
 			
-			// 选择支付方式
-			selectMethod(value) {
-				const method = this.paymentMethods.find(m => m.value === value)
-				if (method && !method.disabled) {
-					this.selectedMethod = value
-				}
-			},
-			
 			// 确认支付
 			async confirmPay() {
-				// 验证
-				if (this.selectedMethod === 'balance') {
-					if (!this.paymentPassword) {
-						return uni.showToast({
-							title: '请输入支付密码',
-							icon: 'none'
-						})
-					}
-				}
-				
 				this.paying = true
 				try {
 					const data = {
 						order_id: this.orderId,
-						payment_method: this.selectedMethod,
-						payment_password: this.paymentPassword
+						amount: this.order.total_fee
 					}
 					
-					const res = await api.createPayment(data)
-					
-					// 余额支付直接成功
-					if (this.selectedMethod === 'balance') {
-						if (res.data.status === 'success') {
-							uni.showToast({
-								title: '支付成功',
-								icon: 'success'
-							})
-							
-							// 跳转订单详情
-							setTimeout(() => {
-								uni.redirectTo({
-									url: `/pagesA/order-detail/order-detail?id=${this.orderId}`
-								})
-							}, 1500)
-						}
-				} else if (this.selectedMethod === 'wechat') {
-					// 微信支付
-					console.log('微信支付参数:', res.data)
-					
-					uni.requestPayment({
-						provider: 'wxpay',
-						timeStamp: res.data.timeStamp,
-						nonceStr: res.data.nonceStr,
-						package: res.data.package,
-						signType: res.data.signType,
-						paySign: res.data.paySign,
-						success: () => {
-							uni.showToast({ title: '支付成功', icon: 'success' })
-							setTimeout(() => {
-								uni.redirectTo({
-									url: `/pagesA/order-detail/order-detail?id=${this.orderId}`
-								})
-							}, 1500)
-						},
-						fail: (err) => {
-							console.error('微信支付失败:', err)
-							uni.showToast({ title: '支付取消', icon: 'none' })
-						}
-					})
-				} else {
-					// 支付宝等其他支付
-					uni.showToast({
-						title: '该支付方式暂未开通',
-						icon: 'none'
-					})
-				}
+					const res = await api.creditPay(data)
+					uni.showToast({ title: res.message || '信用支付成功', icon: 'success' })
+					setTimeout(() => {
+						uni.redirectTo({
+							url: `/pagesA/order-detail/order-detail?id=${this.orderId}`
+						})
+					}, 1500)
 					
 				} catch (error) {
 					console.error('支付失败', error)
 					uni.showToast({
-						title: error.message || '支付失败',
+						title: error.message || error.detail || '支付失败',
 						icon: 'none'
 					})
 				} finally {
@@ -405,4 +307,3 @@
 		}
 	}
 </style>
-

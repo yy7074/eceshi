@@ -354,7 +354,7 @@ export default {
 	},
 	methods: {
 	// 加载项目信息
-	async loadProjectInfo() {
+		async loadProjectInfo() {
 		try {
 			if (this.projectId) {
 				const res = await api.getProjectDetail(this.projectId)
@@ -363,11 +363,11 @@ export default {
 				// 设置项目价格
 				this.projectPrice = project.current_price || 0
 
-				// 配送费用（可以根据地区或项目类型计算）
-				this.deliveryFee = 20.00
+					// 配送费用（可以根据地区或项目类型计算）
+					this.deliveryFee = 20.00
 
-				// 加载项目选项
-				this.loadProjectOptions()
+					// 加载项目选项
+					this.loadProjectOptions()
 			}
 		} catch (e) {
 			console.error('加载项目信息失败', e)
@@ -661,7 +661,7 @@ export default {
 			return new Promise((resolve, reject) => {
 				const token = uni.getStorageSync('token')
 				uni.uploadFile({
-					url: 'https://catdog.dachaonet.com/api/v1/upload/image',
+					url: `${api.baseUrl}/api/v1/upload/image`,
 					filePath: filePath,
 					name: 'file',
 					header: {
@@ -735,10 +735,40 @@ export default {
 		
 		// 支付宝支付
 		async alipayPay(orderId) {
-			uni.showToast({
-				title: '支付宝支付开发中',
-				icon: 'none'
-			})
+			try {
+				const res = await api.createPayment({
+					order_id: orderId,
+					payment_method: 'alipay'
+				})
+				if (res.data?.pay_url) {
+					uni.showModal({
+						title: '支付宝支付',
+						content: '已生成支付宝支付链接，是否复制到剪贴板？',
+						confirmText: '复制链接',
+						cancelText: '取消',
+						success: (modalRes) => {
+							if (modalRes.confirm) {
+								uni.setClipboardData({
+									data: res.data.pay_url,
+									success: () => {
+										uni.showToast({ title: '链接已复制', icon: 'success' })
+									}
+								})
+							}
+						}
+					})
+					return
+				}
+				uni.showToast({
+					title: '请在新页面完成支付',
+					icon: 'none'
+				})
+			} catch (e) {
+				uni.showToast({
+					title: e.message || '支付失败',
+					icon: 'none'
+				})
+			}
 		}
 	}
 }

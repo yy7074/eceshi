@@ -36,6 +36,8 @@
 </template>
 
 <script>
+import api from '@/utils/api.js'
+
 export default {
 	data() {
 		return {}
@@ -53,12 +55,21 @@ export default {
 		scanToJoin() {
 			uni.scanCode({
 				success: (res) => {
-					console.log('扫码结果：', res.result)
-					// TODO: 解析二维码，加入团队
-					uni.showToast({
-						title: '扫码入团功能开发中',
-						icon: 'none'
-					})
+					const code = (res.result || '').trim()
+					if (!code) {
+						uni.showToast({ title: '未识别到二维码内容', icon: 'none' })
+						return
+					}
+					api.joinGroup(code)
+						.then(() => {
+							uni.showToast({ title: '入团成功', icon: 'success' })
+						})
+						.catch((error) => {
+							uni.showToast({
+								title: error.message || '入团失败',
+								icon: 'none'
+							})
+						})
 				},
 				fail: () => {
 					uni.showToast({

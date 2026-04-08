@@ -82,6 +82,7 @@ function request(options) {
 
 // 导出请求方法
 export default {
+	baseUrl: BASE_URL,
 	get(url, data, options = {}) {
 		return request({
 			url,
@@ -115,4 +116,3 @@ export default {
 		})
 	}
 }
-

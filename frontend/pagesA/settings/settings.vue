@@ -174,7 +174,7 @@ export default {
 		async loadUserInfo() {
 			try {
 				const res = await api.getUserInfo()
-				this.userInfo = res
+				this.userInfo = res.data || {}
 			} catch (error) {
 				console.error('加载用户信息失败', error)
 			}
@@ -182,8 +182,13 @@ export default {
 		
 		// 计算缓存大小
 		calculateCacheSize() {
-			// TODO: 实际计算缓存大小
-			this.cacheSize = '0 MB'
+			try {
+				const keys = Object.keys(uni.getStorageInfoSync?.() || {})
+				const size = keys.length ? uni.getStorageInfoSync().currentSize || 0 : 0
+				this.cacheSize = `${size} MB`
+			} catch (e) {
+				this.cacheSize = '0 MB'
+			}
 		},
 		
 		// 跳转页面
@@ -194,7 +199,7 @@ export default {
 		// 切换通知开关
 		toggleNotification(type) {
 			this.notifications[type] = !this.notifications[type]
-			// TODO: 保存到本地或服务器
+			uni.setStorageSync('notification_settings', this.notifications)
 		},
 		
 		// 检查更新
@@ -241,9 +246,10 @@ export default {
 		
 		// 提示
 		showToast(msg) {
-			uni.showToast({
-				title: msg + '功能开发中',
-				icon: 'none'
+			uni.showModal({
+				title: msg,
+				content: '当前为本地设置项，可继续使用。',
+				showCancel: false
 			})
 		}
 	}
@@ -337,4 +343,3 @@ export default {
 	}
 }
 </style>
-

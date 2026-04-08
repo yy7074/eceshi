@@ -263,6 +263,8 @@ export default {
 				'unpaid': '待支付',
 				'paid': '待确认',
 				'confirmed': '待实验',
+				'accepted': '待实验',
+				'sample_received': '已签收',
 				'testing': '实验中',
 				'completed': '已完成',
 				'cancelled': '已取消'
@@ -289,38 +291,22 @@ export default {
 		
 		// 支付订单
 		async payOrder(order) {
-			uni.showLoading({ title: '正在跳转...' })
+			uni.showLoading({ title: '正在支付...' })
 			
 			try {
-				// 创建支付
-				const res = await api.createPayment({
+				const res = await api.creditPay({
 					order_id: order.id,
-					payment_method: 'wechat'
+					amount: order.total_fee
 				})
 				
 				uni.hideLoading()
-				
-				// 调起微信支付
-				uni.requestPayment({
-					provider: 'wxpay',
-					timeStamp: res.data.timeStamp,
-					nonceStr: res.data.nonceStr,
-					package: res.data.package,
-					signType: res.data.signType,
-					paySign: res.data.paySign,
-					success: () => {
-						uni.showToast({ title: '支付成功', icon: 'success' })
-						this.loadOrders(true)
-					},
-					fail: () => {
-						uni.showToast({ title: '支付取消', icon: 'none' })
-					}
-				})
+				uni.showToast({ title: res.message || '信用支付成功', icon: 'success' })
+				this.loadOrders(true)
 			} catch (e) {
 				uni.hideLoading()
 				console.error('支付失败', e)
 				uni.showToast({
-					title: e.message || '支付失败',
+					title: e.message || e.detail || '支付失败',
 					icon: 'none'
 				})
 			}
@@ -373,31 +359,52 @@ export default {
 		},
 		
 		// 下载报告
-		downloadReport(order) {
+		async downloadReport(order) {
 			uni.showLoading({ title: '准备下载...' })
-			
-			setTimeout(() => {
-				uni.hideLoading()
-				uni.showModal({
-					title: '报告下载',
-					content: '检测报告已生成，请选择操作',
-					confirmText: '下载',
-					cancelText: '预览',
-					success: (res) => {
-						if (res.confirm) {
-							uni.showToast({ title: '报告下载中...', icon: 'loading' })
-							setTimeout(() => {
-								uni.showToast({ title: '下载成功', icon: 'success' })
-							}, 2000)
-						} else {
-							// 跳转到报告页面
-							uni.navigateTo({
-								url: '/pagesA/report/report'
+			try {
+				const res = await api.getReportByOrder(order.id)
+				const report = res.data || {}
+				const reportUrl = report.file_url || order.report_url
+
+				if (!reportUrl) {
+					uni.hideLoading()
+					uni.showModal({
+						title: '报告下载',
+						content: '当前订单暂未生成可下载的报告。',
+						showCancel: false
+					})
+					return
+				}
+
+				const downloadUrl = reportUrl.startsWith('http')
+					? reportUrl
+					: `${api.baseUrl}${reportUrl}`
+
+				uni.downloadFile({
+					url: downloadUrl,
+					success: (downloadRes) => {
+						uni.hideLoading()
+						if (downloadRes.statusCode === 200) {
+							uni.openDocument({
+								filePath: downloadRes.tempFilePath,
+								showMenu: true
 							})
+							return
 						}
+						uni.showToast({ title: '下载失败', icon: 'none' })
+					},
+					fail: () => {
+						uni.hideLoading()
+						uni.showToast({ title: '下载失败', icon: 'none' })
 					}
 				})
-			}, 1000)
+			} catch (e) {
+				uni.hideLoading()
+				uni.showToast({
+					title: e.message || '报告暂未生成',
+					icon: 'none'
+				})
+			}
 		},
 		
 		// 回到首页

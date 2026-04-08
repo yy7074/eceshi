@@ -121,6 +121,8 @@
 </template>
 
 <script>
+import api from '@/utils/api.js'
+
 export default {
 	data() {
 		return {
@@ -173,7 +175,7 @@ export default {
 				sourceType: ['album', 'camera'],
 				success: (res) => {
 					this.form.avatar = res.tempFilePaths[0]
-					// TODO: 上传到服务器
+					// 头像上传可在这里接入后端文件接口
 				}
 			})
 		},
@@ -191,7 +193,7 @@ export default {
 		// 显示地区选择器
 		showRegionPicker() {
 			uni.showToast({
-				title: '地区选择功能开发中',
+				title: '请直接填写所在地区',
 				icon: 'none'
 			})
 		},
@@ -252,29 +254,29 @@ export default {
 			try {
 				uni.showLoading({ title: '创建中...' })
 				
-			// 调用API创建团队
-			await api.createGroup({
-				name: this.form.unitName,
-				avatar: this.form.avatar,
-				unit_type: this.form.unitType,
-				region: this.form.region,
-				address: this.form.address,
-				leader_name: this.form.leaderName,
-				leader_phone: this.form.leaderPhone,
-				leader_email: this.form.email
-			})
+				// 调用API创建团队
+				await api.createGroup({
+					name: this.form.unitName,
+					avatar: this.form.avatar,
+					unit_type: this.form.unitType,
+					region: this.form.region,
+					address: this.form.address,
+					leader_name: this.leaderName,
+					leader_phone: this.leaderPhone,
+					leader_email: this.form.email
+				})
 			
-			uni.hideLoading()
+				uni.hideLoading()
 			
-			uni.showToast({
-				title: '创建成功',
-				icon: 'success',
-				duration: 2000
-			})
+				uni.showToast({
+					title: '创建成功',
+					icon: 'success',
+					duration: 2000
+				})
 			
-			setTimeout(() => {
-				uni.navigateBack()
-			}, 2000)
+				setTimeout(() => {
+					uni.navigateBack()
+				}, 2000)
 			} catch (error) {
 				uni.hideLoading()
 				console.error('创建失败', error)

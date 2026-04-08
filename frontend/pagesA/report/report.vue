@@ -81,32 +81,7 @@ export default {
 		return {
 			searchKeyword: '',
 			filterStatus: 'all',
-			reports: [
-				{
-					id: 1,
-					orderNo: 'ORD2025120100001',
-					projectName: 'X射线衍射分析(XRD)',
-					completedAt: '2025-12-01',
-					status: 'ready',
-					reportUrl: ''
-				},
-				{
-					id: 2,
-					orderNo: 'ORD2025112800002',
-					projectName: '扫描电子显微镜(SEM)',
-					completedAt: '2025-11-30',
-					status: 'ready',
-					reportUrl: ''
-				},
-				{
-					id: 3,
-					orderNo: 'ORD2025112500003',
-					projectName: '傅里叶变换红外光谱(FT-IR)',
-					completedAt: '',
-					status: 'pending',
-					reportUrl: ''
-				}
-			],
+			reports: [],
 			loading: false
 		}
 	},
@@ -138,21 +113,29 @@ export default {
 		async loadReports() {
 			this.loading = true
 			try {
-				// 调用API获取报告列表
-				const res = await api.getOrders({ status: 'completed', page: 1, page_size: 50 })
-				const orders = res.data?.items || []
-				
-				this.reports = orders.map(order => ({
-					id: order.id,
-					orderNo: order.order_no,
-					projectName: order.project_name,
-					completedAt: order.completed_at?.slice(0, 10) || '',
-					status: order.report_generated ? 'ready' : 'pending',
-					reportUrl: order.report_url || ''
+				const res = await api.getReports({
+					page: 1,
+					page_size: 50
+				})
+				const items = res.data?.items || []
+
+				this.reports = items.map(report => ({
+					id: report.id,
+					orderId: report.order_id,
+					orderNo: report.order_no,
+					projectName: report.project_name,
+					completedAt: report.completed_at || report.created_at || '',
+					status: report.status === 'completed' ? 'ready' : 'pending',
+					statusText: report.status_text || '',
+					reportUrl: report.file_url || ''
 				}))
 			} catch (e) {
 				console.error('加载报告失败', e)
-				// 保留演示数据
+				this.reports = []
+				uni.showToast({
+					title: '加载报告失败',
+					icon: 'none'
+				})
 			} finally {
 				this.loading = false
 			}
@@ -160,9 +143,12 @@ export default {
 		
 		downloadReport(report) {
 			if (report.reportUrl) {
-				// 有报告URL时下载
+				const downloadUrl = report.reportUrl.startsWith('http')
+					? report.reportUrl
+					: `${api.baseUrl}${report.reportUrl}`
+
 				uni.downloadFile({
-					url: report.reportUrl,
+					url: downloadUrl,
 					success: (res) => {
 						if (res.statusCode === 200) {
 							uni.openDocument({
@@ -185,16 +171,20 @@ export default {
 		},
 		
 		previewReport(report) {
+			if (report.reportUrl) {
+				this.downloadReport(report)
+				return
+			}
 			uni.showModal({
 				title: '报告预览',
-				content: `项目：${report.projectName}\n订单号：${report.orderNo}\n完成时间：${report.completedAt}\n\n报告预览功能开发中...`,
+				content: `项目：${report.projectName}\n订单号：${report.orderNo}\n完成时间：${report.completedAt}\n\n报告文件暂未提供可预览地址。`,
 				showCancel: false
 			})
 		},
 		
 		goSampleTrack(report) {
 			uni.navigateTo({
-				url: `/pagesA/sample-track/sample-track?orderId=${report.id}&orderNo=${report.orderNo}`
+				url: `/pagesA/sample-track/sample-track?orderId=${report.orderId || report.id}&orderNo=${report.orderNo}`
 			})
 		}
 	}
@@ -384,4 +374,3 @@ export default {
 	}
 }
 </style>
-

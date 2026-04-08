@@ -74,6 +74,7 @@ export default {
 		return {
 			currentTab: 1, // 默认显示"待使用"
 			tabs: ['活动领券', '待使用', '已使用', '已过期'],
+			availableCoupons: [],
 			coupons: [
 				{
 					id: 1,
@@ -94,8 +95,7 @@ export default {
 		// 过滤后的优惠券
 		filteredCoupons() {
 			if (this.currentTab === 0) {
-				// 活动领券 - 显示可领取的券
-				return []
+				return this.availableCoupons
 			} else if (this.currentTab === 1) {
 				// 待使用
 				return this.coupons.filter(c => c.status === 'available')
@@ -132,19 +132,42 @@ export default {
 		},
 		
 		// 加载优惠券
-		async loadCoupons() {
+	async loadCoupons() {
 			try {
-				const status = this.currentTab === 0 ? 'available' : 
-				               this.currentTab === 1 ? 'available' : 
-				               this.currentTab === 2 ? 'used' : 'expired'
-				
-				const res = await api.getMyCoupons({ status, page: 1, page_size: 50 })
-				
-				// 如果API返回数据，使用API数据
-				if (res.data.items && res.data.items.length > 0) {
-					this.coupons = res.data.items
-				}
-				// 否则保持现有的展示数据用于UI演示
+				const [mineRes, availRes] = await Promise.all([
+					api.getMyCoupons({ page: 1, page_size: 50 }),
+					api.getAvailableCoupons({ page: 1, page_size: 50 })
+				])
+
+				this.coupons = (mineRes.data?.items || []).map(item => ({
+					id: item.id,
+					name: item.coupon_name,
+					amount: item.discount_value,
+					min_amount: 0,
+					expire_date: item.expire_at ? item.expire_at.slice(0, 10) : '',
+					status: item.status === 'unused' ? 'available' : item.status === 'used' ? 'used' : 'expired',
+					type: item.coupon_type,
+					description: item.coupon_name,
+					showDesc: false,
+					raw: item
+				}))
+
+				this.availableCoupons = (availRes.data?.items || []).map(item => ({
+					id: item.id,
+					name: item.name,
+					amount: item.type === 'discount'
+						? `${Math.round((1 - (item.discount_rate || 1)) * 10)}折`
+						: item.type === 'cash'
+							? `¥${item.cash_amount}`
+							: `¥${item.reduction_amount}`,
+					min_amount: item.min_order_amount,
+					expire_date: item.end_time ? item.end_time.slice(0, 10) : '',
+					status: item.is_available ? 'available' : 'expired',
+					type: item.type,
+					description: item.description || item.name,
+					showDesc: false,
+					raw: item
+				}))
 			} catch (error) {
 				console.error('加载优惠券失败', error)
 			}
@@ -174,11 +197,22 @@ export default {
 		},
 		
 		// 去领券
-		goGetCoupons() {
-			uni.showToast({
-				title: '领券功能开发中',
-				icon: 'none'
-			})
+		async goGetCoupons() {
+			const coupon = this.availableCoupons.find(c => c.status === 'available')
+			if (!coupon) {
+				uni.showToast({ title: '暂无可领取优惠券', icon: 'none' })
+				return
+			}
+			try {
+				await api.receiveCoupon(coupon.id)
+				uni.showToast({ title: '领取成功', icon: 'success' })
+				await this.loadCoupons()
+			} catch (e) {
+				uni.showToast({
+					title: e.message || '领取失败',
+					icon: 'none'
+				})
+			}
 		},
 		
 		// 获取优惠券样式类

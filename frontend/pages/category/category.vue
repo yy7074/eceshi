@@ -163,9 +163,15 @@ export default {
 		
 		// 顶部筛选
 		handleTopFilter(type) {
-			uni.showToast({
-				title: '筛选功能开发中',
-				icon: 'none'
+			const keywordMap = {
+				recommend: '',
+				structure: '结构',
+				composition: '成分',
+				chemical: '化学'
+			}
+			const keyword = keywordMap[type] || ''
+			uni.navigateTo({
+				url: `/pages/search/search${keyword ? `?keyword=${encodeURIComponent(keyword)}` : ''}`
 			})
 		},
 		
@@ -179,9 +185,8 @@ export default {
 		
 		// 搜索
 		goSearch() {
-			uni.showToast({
-				title: '搜索功能开发中',
-				icon: 'none'
+			uni.navigateTo({
+				url: '/pages/search/search'
 			})
 		},
 		

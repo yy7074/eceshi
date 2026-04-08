@@ -59,13 +59,14 @@ export default {
 			messages: [
 				{
 					id: 1,
-					content: '您好！欢迎咨询科研检测服务平台，我是您的专属客服，请问有什么可以帮助您的？',
+					content: '您好！欢迎咨询科研检测服务平台，请直接描述您的问题。',
 					isUser: false,
 					time: '刚刚'
 				}
 			],
 			inputText: '',
 			scrollTop: 0,
+			sessionId: null,
 			quickQuestions: [
 				'如何下单？',
 				'检测周期多久？',
@@ -76,7 +77,38 @@ export default {
 			]
 		}
 	},
+	async onLoad() {
+		await this.loadSession()
+		await this.loadHistory()
+	},
 	methods: {
+		async loadSession() {
+			try {
+				const res = await api.getChatSession()
+				this.sessionId = res.data?.session_id || null
+			} catch (e) {
+				console.error('获取会话失败', e)
+			}
+		},
+
+		async loadHistory() {
+			try {
+				const res = await api.getChatHistory()
+				const items = res.data?.items || []
+				if (items.length > 0) {
+					this.messages = items.map(item => ({
+						id: item.id,
+						content: item.content,
+						isUser: item.sender_type === 'user',
+						time: (item.created_at || '').slice(11, 16) || '刚刚'
+					}))
+				}
+				this.scrollToBottom()
+			} catch (e) {
+				console.error('加载聊天记录失败', e)
+			}
+		},
+
 		sendMessage() {
 			if (!this.inputText.trim()) return
 			
@@ -93,10 +125,7 @@ export default {
 			
 			this.scrollToBottom()
 			
-			// 模拟客服回复
-			setTimeout(() => {
-				this.handleAutoReply(content)
-			}, 1000)
+			this.handleReply(content)
 		},
 		
 		sendQuickQuestion(question) {
@@ -104,32 +133,33 @@ export default {
 			this.sendMessage()
 		},
 		
-		handleAutoReply(question) {
-			let reply = '感谢您的咨询，客服正在为您处理，请稍候...'
-			
-			// 简单的自动回复匹配
-			if (question.includes('下单')) {
-				reply = '下单流程：\n1. 浏览检测项目，选择需要的服务\n2. 点击"立即预约"填写样品信息\n3. 确认订单并完成支付\n4. 按指引寄送样品即可'
-			} else if (question.includes('周期') || question.includes('多久')) {
-				reply = '常规检测周期为3-5个工作日，具体以项目详情页显示为准。加急服务请联系人工客服。'
-			} else if (question.includes('报告')) {
-				reply = '检测完成后，您可以在"订单详情"页面下载电子版报告，也可以选择邮寄纸质报告（额外收费）。'
-			} else if (question.includes('发票')) {
-				reply = '支付完成后，您可以在"我的发票"页面申请开具发票。支持电子发票和纸质发票，电子发票即时发送，纸质发票3-5个工作日寄出。'
-			} else if (question.includes('优惠') || question.includes('活动')) {
-				reply = '当前优惠活动：\n1. 新用户首单立减50元\n2. 热门检测项目6折起\n3. 充值满1000送150测试费\n\n更多优惠请关注首页公告！'
-			} else if (question.includes('退款')) {
-				reply = '退款规则：\n1. 未寄送样品的订单可全额退款\n2. 已寄送未检测的订单扣除物流费用后退款\n3. 检测中或已完成的订单不支持退款\n\n如需退款，请在订单详情页申请。'
+		async handleReply(question) {
+			try {
+				const res = await api.sendChatMessage({
+					content: question,
+					message_type: 'text'
+				})
+				const reply = res.data?.auto_reply
+				if (reply) {
+					this.messages.push({
+						id: Date.now(),
+						content: reply,
+						isUser: false,
+						time: this.formatTime(new Date())
+					})
+					this.scrollToBottom()
+					return
+				}
+				await this.loadHistory()
+			} catch (e) {
+				this.messages.push({
+					id: Date.now(),
+					content: '消息已发送，客服会尽快回复您。',
+					isUser: false,
+					time: this.formatTime(new Date())
+				})
+				this.scrollToBottom()
 			}
-			
-			this.messages.push({
-				id: Date.now(),
-				content: reply,
-				isUser: false,
-				time: this.formatTime(new Date())
-			})
-			
-			this.scrollToBottom()
 		},
 		
 		scrollToBottom() {
@@ -139,7 +169,7 @@ export default {
 		},
 		
 		loadMore() {
-			// 加载更多历史消息
+			this.loadHistory()
 		},
 		
 		formatTime(date) {
@@ -314,4 +344,3 @@ export default {
 	}
 }
 </style>
-

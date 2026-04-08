@@ -190,6 +190,7 @@ export default {
 			// 计算指示器位置
 			const tabWidth = 150 // 每个tab的宽度（rpx）
 			this.indicatorLeft = (index * tabWidth + 25) + 'rpx'
+			this.loadGoods()
 		},
 		
 		// 积分明细
@@ -253,9 +254,11 @@ export default {
 		
 		// 查看商品详情
 		viewGoodsDetail(item) {
-			uni.showToast({
-				title: '商品详情功能开发中',
-				icon: 'none'
+			uni.showModal({
+				title: item.name,
+				content: `所需积分：${item.points}积分\n分类：${item.category}\n${item.description || ''}`,
+				showCancel: false,
+				confirmText: '我知道了'
 			})
 		},
 		

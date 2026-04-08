@@ -54,10 +54,10 @@
 			<!-- 成员列表 -->
 			<view class="members-card">
 				<view class="members-header">
-					<text class="members-title">参团成员（{{ group.members.length }}）</text>
+					<text class="members-title">参团成员（{{ group.members ? group.members.length : 0 }}）</text>
 				</view>
 				<view class="members-list">
-					<view v-for="(member, index) in group.members" :key="index" class="member-item">
+					<view v-for="(member, index) in safeMembers" :key="index" class="member-item">
 						<image :src="member.avatar || generateAvatar(member.nickname)" mode="aspectFill" class="member-avatar"></image>
 						<view class="member-info">
 							<text class="member-name">{{ member.nickname }}</text>
@@ -79,6 +79,8 @@
 </template>
 
 <script>
+import api from '@/utils/api.js'
+
 export default {
 	data() {
 		return {
@@ -94,6 +96,9 @@ export default {
 		progressPercent() {
 			if (!this.group.required_members) return 0
 			return Math.min(100, (this.group.current_members / this.group.required_members * 100))
+		},
+		safeMembers() {
+			return Array.isArray(this.group.members) ? this.group.members : []
 		}
 	},
 	
@@ -113,7 +118,7 @@ export default {
 	},
 	
 	methods: {
-	// 加载团体详情
+		// 加载团体详情
 	async loadGroupDetail() {
 		try {
 			this.loading = true
@@ -148,7 +153,7 @@ export default {
 			
 			const userInfo = uni.getStorageSync('userInfo') || {}
 			this.isLeader = this.group.leader_id === userInfo.id
-			this.isMember = this.group.members && this.group.members.some(m => m.id === userInfo.id)
+			this.isMember = this.safeMembers.some(m => m.id === userInfo.id)
 			
 			this.loading = false
 		} catch (error) {
@@ -163,6 +168,10 @@ export default {
 		
 		// 加入团体
 		joinGroup() {
+			if (!this.group.invite_code) {
+				uni.showToast({ title: '当前团体暂无邀请码', icon: 'none' })
+				return
+			}
 			uni.showModal({
 				title: '确认参团',
 				content: `确定要加入此团购吗？团购价¥${this.group.group_price}`,
@@ -178,33 +187,32 @@ export default {
 	async doJoinGroup() {
 		try {
 			uni.showLoading({ title: '加入中...' })
-			
+
 			// 调用API加入团体（使用邀请码方式）
-			await api.joinGroup(this.groupId.toString())
-			
+			await api.joinGroup(this.group.invite_code)
+
 			uni.hideLoading()
 			uni.showToast({
 				title: '加入成功',
 				icon: 'success'
 			})
-			
+
 			// 刷新详情
 			this.loadGroupDetail()
 		} catch (error) {
-				uni.hideLoading()
-				console.error('加入失败', error)
-				uni.showToast({
-					title: error.message || '加入失败',
-					icon: 'none'
-				})
-			}
-		},
+			uni.hideLoading()
+			console.error('加入失败', error)
+			uni.showToast({
+				title: error.message || '加入失败',
+				icon: 'none'
+			})
+		}
+	},
 		
 		// 去支付
 		goPay() {
-			uni.showToast({
-				title: '支付功能开发中',
-				icon: 'none'
+			uni.navigateTo({
+				url: '/pages/order/order?status=paid'
 			})
 		},
 		
@@ -479,4 +487,3 @@ export default {
 	font-weight: bold;
 }
 </style>
-

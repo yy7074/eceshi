@@ -332,18 +332,17 @@ export default {
 
 				const res = await api.repayDebt(data)
 
-				if (res.data) {
-					if (res.data.status === 'success') {
-						uni.showToast({ title: '还款成功', icon: 'success' })
-						this.$refs.repayPopup.close()
-						this.loadCreditInfo()
-						this.loadDebtList()
-					} else if (res.data.payment_url) {
-						// 跳转支付
-						uni.showToast({ title: '请完成支付', icon: 'none' })
-						// TODO: 调用支付
+					if (res.data) {
+						if (res.data.status === 'success') {
+							uni.showToast({ title: '还款成功', icon: 'success' })
+							this.$refs.repayPopup.close()
+							this.loadCreditInfo()
+							this.loadDebtList()
+						} else if (res.data.payment_url) {
+							// 跳转支付
+							uni.showToast({ title: '请完成支付', icon: 'none' })
+						}
 					}
-				}
 			} catch (e) {
 				console.error('还款失败', e)
 				uni.showToast({ title: e.message || '还款失败', icon: 'none' })
@@ -367,6 +366,7 @@ export default {
 
 		// 提交提额申请
 		async submitLimitApply() {
+			if (this.applying) return
 			if (!this.applyForm.requested_limit) {
 				uni.showToast({ title: '请输入申请额度', icon: 'none' })
 				return

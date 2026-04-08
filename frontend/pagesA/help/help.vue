@@ -63,51 +63,102 @@
 </template>
 
 <script>
+import api from '@/utils/api.js'
+
 export default {
 	data() {
 		return {
 			searchKeyword: '',
 			activeCategory: null,
-			categories: [
-				{ id: 1, name: '新手指南', icon: '📖', color: '#e6f7ff' },
-				{ id: 2, name: '下单流程', icon: '🛒', color: '#fff7e6' },
-				{ id: 3, name: '支付问题', icon: '💳', color: '#f6ffed' },
-				{ id: 4, name: '样品寄送', icon: '📦', color: '#fff0f6' },
-				{ id: 5, name: '报告获取', icon: '📊', color: '#f9f0ff' },
-				{ id: 6, name: '发票问题', icon: '🧾', color: '#e6fffb' },
-				{ id: 7, name: '账户相关', icon: '👤', color: '#fffbe6' },
-				{ id: 8, name: '更多问题', icon: '❓', color: '#f5f5f5' }
-			],
+			categories: [],
 			quickQuestions: [
 				{ id: 1, title: '如何注册账号？', content: '点击登录页面，输入手机号获取验证码即可完成注册。' },
 				{ id: 2, title: '如何下单检测？', content: '选择检测项目后，点击"立即预约"，填写样品信息并支付即可。' },
 				{ id: 3, title: '检测周期多久？', content: '常规检测3-5个工作日，具体以项目详情页显示为准。' },
 				{ id: 4, title: '如何获取检测报告？', content: '检测完成后，可在"订单详情"中下载电子版报告。' }
 			],
-			articles: []
+			articles: [],
+			loading: false
 		}
 	},
+	onLoad() {
+		this.loadCategories()
+		this.loadHotArticles()
+	},
 	methods: {
-		searchArticles() {
+		async loadCategories() {
+			try {
+				const res = await api.getHelpCategories()
+				this.categories = (res.data?.items || []).map((cat, index) => ({
+					id: cat.id,
+					name: cat.name,
+					icon: cat.icon || '❓',
+					color: ['#e6f7ff', '#fff7e6', '#f6ffed', '#fff0f6', '#f9f0ff', '#e6fffb', '#fffbe6', '#f5f5f5'][index % 8]
+				}))
+			} catch (e) {
+				console.error('加载帮助分类失败', e)
+			}
+		},
+		async loadHotArticles() {
+			try {
+				const res = await api.getHelpArticles({ is_hot: true, page: 1, page_size: 10 })
+				this.articles = (res.data?.items || []).map(item => ({
+					id: item.id,
+					title: item.title,
+					content: item.content || ''
+				}))
+			} catch (e) {
+				console.error('加载帮助文章失败', e)
+			}
+		},
+		async searchArticles() {
 			if (!this.searchKeyword.trim()) return
-			uni.showToast({ title: '搜索功能开发中', icon: 'none' })
+			try {
+				this.loading = true
+				const res = await api.getHelpArticles({ keyword: this.searchKeyword.trim(), page: 1, page_size: 20 })
+				this.articles = (res.data?.items || []).map(item => ({
+					id: item.id,
+					title: item.title,
+					content: item.content || ''
+				}))
+				this.activeCategory = { name: `搜索结果：${this.searchKeyword.trim()}` }
+			} catch (e) {
+				uni.showToast({ title: '搜索失败', icon: 'none' })
+			} finally {
+				this.loading = false
+			}
 		},
-		selectCategory(cat) {
+		async selectCategory(cat) {
 			this.activeCategory = cat
-			// 加载该分类下的文章
-			this.articles = [
-				{ id: 1, title: `${cat.name} - 问题1`, content: '这是问题1的详细解答...' },
-				{ id: 2, title: `${cat.name} - 问题2`, content: '这是问题2的详细解答...' },
-				{ id: 3, title: `${cat.name} - 问题3`, content: '这是问题3的详细解答...' }
-			]
+			try {
+				const res = await api.getHelpArticles({ category_id: cat.id, page: 1, page_size: 20 })
+				this.articles = (res.data?.items || []).map(item => ({
+					id: item.id,
+					title: item.title,
+					content: item.content || ''
+				}))
+			} catch (e) {
+				uni.showToast({ title: '加载失败', icon: 'none' })
+			}
 		},
-		showAnswer(item) {
-			uni.showModal({
-				title: item.title,
-				content: item.content,
-				showCancel: false,
-				confirmText: '我知道了'
-			})
+		async showAnswer(item) {
+			try {
+				const res = await api.getHelpArticleDetail(item.id)
+				const detail = res.data || item
+				uni.showModal({
+					title: detail.title,
+					content: detail.content,
+					showCancel: false,
+					confirmText: '我知道了'
+				})
+			} catch (e) {
+				uni.showModal({
+					title: item.title,
+					content: item.content,
+					showCancel: false,
+					confirmText: '我知道了'
+				})
+			}
 		},
 		goChat() {
 			uni.navigateTo({ url: '/pagesA/chat/chat' })
@@ -283,4 +334,3 @@ export default {
 	}
 }
 </style>
-

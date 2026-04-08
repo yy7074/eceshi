@@ -110,6 +110,8 @@
 </template>
 
 <script>
+import api from '@/utils/api.js'
+
 export default {
 	data() {
 		return {
@@ -142,11 +144,12 @@ export default {
 		// 加载订单信息
 		async loadOrderInfo() {
 			try {
-				// TODO: 调用API获取订单信息
+				const res = await api.getOrderDetail(this.orderId)
+				const order = res.data || {}
 				this.orderInfo = {
-					project_name: '项目名称',
-					lab_name: '实验室名称',
-					project_image: ''
+					project_name: order.project_name || '',
+					lab_name: order.lab_name || '',
+					project_image: order.project_image || order.cover_image || ''
 				}
 			} catch (error) {
 				console.error('加载订单信息失败', error)
@@ -201,10 +204,7 @@ export default {
 		
 		try {
 			uni.showLoading({ title: '提交中...' })
-			
-			// TODO: 上传评价图片到服务器
-			const uploadedImages = this.images // 这里应该上传图片获取URL
-			
+
 			// 提交评价
 			await api.createReview({
 				order_id: parseInt(this.orderId),
@@ -212,7 +212,7 @@ export default {
 				quality_rating: this.ratings.quality,
 				logistics_rating: this.ratings.logistics,
 				content: this.content.trim() || null,
-				images: uploadedImages,
+				images: this.images,
 				tags: this.selectedTags,
 				is_anonymous: this.anonymous
 			})
@@ -472,4 +472,3 @@ export default {
 	}
 }
 </style>
-

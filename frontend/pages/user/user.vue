@@ -322,15 +322,13 @@ export default {
 			})
 		},
 		
-	// 账户详情
+		// 账户详情
 	goAccountDetail(type) {
 		// 根据类型跳转到对应页面
 		switch(type) {
 			case 'credit':
-				// 可用信用 - 暂无页面，显示提示
-				uni.showToast({
-					title: '功能开发中',
-					icon: 'none'
+				uni.navigateTo({
+					url: '/pagesA/debt/debt'
 				})
 				break
 			case 'prepaid':
@@ -346,16 +344,13 @@ export default {
 				})
 				break
 			case 'debt':
-				// 个人欠款 - 暂无页面，显示提示
-				uni.showToast({
-					title: '功能开发中',
-					icon: 'none'
+				uni.navigateTo({
+					url: '/pagesA/debt/debt'
 				})
 				break
 			default:
-				uni.showToast({
-					title: '功能开发中',
-					icon: 'none'
+				uni.navigateTo({
+					url: '/pagesA/help/help'
 				})
 		}
 	},

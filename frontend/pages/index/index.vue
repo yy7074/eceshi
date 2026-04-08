@@ -315,9 +315,8 @@
 					})
 					break
 				default:
-					uni.showToast({
-						title: '功能开发中',
-						icon: 'none'
+					uni.navigateTo({
+						url: '/pagesA/help/help'
 					})
 			}
 		},
@@ -382,7 +381,7 @@
 			} else if (banner.title.includes('新用户')) {
 				uni.navigateTo({ url: '/pagesA/coupon/coupon' })
 			} else {
-				uni.showToast({ title: '活动详情加载中', icon: 'none' })
+				uni.navigateTo({ url: '/pagesA/notice/notice' })
 			}
 		},
 		showAnnouncement(ann) {

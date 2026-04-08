@@ -160,6 +160,7 @@ export default {
 				// 调用API搜索
 				const res = await api.getProjects({
 					keyword: this.keyword,
+					sort: this.sortOptions[this.currentSort]?.value || 'default',
 					page: 1,
 					page_size: 20
 				})
@@ -189,8 +190,11 @@ export default {
 		
 		// 高亮关键词
 		highlightKeyword(text) {
-			// TODO: 实现关键词高亮
-			return text
+			if (!this.keyword.trim()) return text
+			return text.replace(
+				new RegExp(this.keyword, 'ig'),
+				match => `【${match}】`
+			)
 		},
 		
 		// 显示排序菜单
@@ -551,4 +555,3 @@ export default {
 	}
 }
 </style>
-

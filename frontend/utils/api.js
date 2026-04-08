@@ -505,6 +505,11 @@ export default {
 	getHelpArticles(params) {
 		return request.get('/api/v1/help/articles', params)
 	},
+
+	// 获取帮助文章详情
+	getHelpArticleDetail(articleId) {
+		return request.get(`/api/v1/help/articles/${articleId}`)
+	},
 	
 	// ========== 公告相关 ==========
 	
@@ -521,6 +526,11 @@ export default {
 	// ========== 客服相关 ==========
 	
 	// 获取聊天历史
+	getChatSession() {
+		return request.get('/api/v1/chat/session')
+	},
+
+	// 获取聊天历史
 	getChatHistory() {
 		return request.get('/api/v1/chat/history')
 	},
@@ -536,7 +546,17 @@ export default {
 	getReports(params) {
 		return request.get('/api/v1/reports/list', params)
 	},
-	
+
+	// 获取单个报告详情
+	getReportDetail(reportId) {
+		return request.get(`/api/v1/reports/${reportId}`)
+	},
+
+	// 根据订单获取报告
+	getReportByOrder(orderId) {
+		return request.get(`/api/v1/reports/order/${orderId}`)
+	},
+
 	// 下载报告
 	downloadReport(orderId) {
 		return request.get(`/api/v1/reports/${orderId}/download`)
@@ -935,4 +955,3 @@ export default {
 		return request.get('/api/v1/admin/reports/finance-summary', { year, month })
 	}
 }
-

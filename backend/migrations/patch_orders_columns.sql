@@ -32,7 +32,8 @@ ALTER TABLE orders ADD COLUMN started_at DATETIME COMMENT '开始实验时间';
 ALTER TABLE orders ADD COLUMN completed_at DATETIME COMMENT '完成时间';
 ALTER TABLE orders ADD COLUMN cancelled_at DATETIME COMMENT '取消时间';
 ALTER TABLE orders ADD COLUMN remark TEXT COMMENT '用户备注';
+ALTER TABLE orders ADD COLUMN admin_test_requirements TEXT COMMENT '后台修改后的测试条件/要求';
+ALTER TABLE orders ADD COLUMN admin_notes_to_lab TEXT COMMENT '后台给实验室的备注事项';
 ALTER TABLE orders ADD COLUMN cancel_reason VARCHAR(200) COMMENT '取消原因';
 ALTER TABLE orders ADD COLUMN is_urgent TINYINT(1) DEFAULT 0 COMMENT '是否加急';
 ALTER TABLE orders ADD COLUMN estimated_completion_time DATETIME COMMENT '预计完成时间';
-

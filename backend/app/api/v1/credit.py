@@ -17,7 +17,7 @@ from app.models.credit import (
     CreditRecord, CreditDebt, Repayment, CreditLimitApplication,
     CreditTransactionType, CreditTransactionStatus, RepaymentStatus
 )
-from app.models.order import Order
+from app.models.order import Order, OrderStatusHistory
 from app.schemas.credit import (
     CreditInfoResponse, CreditPayRequest, RepaymentRequest,
     CreditLimitApplicationRequest
@@ -176,6 +176,25 @@ async def credit_pay(
     # 更新用户已用额度
     current_user.used_credit = current_user.used_credit + request.amount
     balance_after = current_user.credit_limit - current_user.used_credit
+
+    # 更新订单支付状态
+    order.credit_amount = request.amount
+    order.paid_fee = (order.paid_fee or Decimal("0")) + request.amount
+    order.payment_method = "credit"
+    order.payment_status = "paid"
+    order.status = "confirmed"
+    order.paid_at = datetime.now()
+    order.payment_time = datetime.now()
+
+    history = OrderStatusHistory(
+        order_id=order.id,
+        from_status="pending_payment",
+        to_status="confirmed",
+        operator_id=current_user.id,
+        operator_type="user",
+        remark="信用支付成功"
+    )
+    db.add(history)
 
     # 创建交易记录
     record = CreditRecord(

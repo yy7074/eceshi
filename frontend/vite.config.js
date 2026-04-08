@@ -1,10 +1,17 @@
 import { defineConfig } from 'vite'
 import uni from '@dcloudio/vite-plugin-uni'
+import path from 'node:path'
+
+const inputDir = process.cwd()
+process.env.UNI_INPUT_DIR = process.env.UNI_INPUT_DIR || inputDir
+process.env.UNI_CLI_CONTEXT = process.env.UNI_CLI_CONTEXT || inputDir
+process.env.VITE_ROOT_DIR = process.env.VITE_ROOT_DIR || inputDir
+process.env.UNI_PLATFORM = process.env.UNI_PLATFORM || 'h5'
 
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [
-    uni.default ? uni.default() : uni()
+    uni.default ? uni.default({ viteLegacyOptions: false }) : uni({ viteLegacyOptions: false })
   ],
   base: '/h5/',
   server: {
@@ -37,4 +44,3 @@ export default defineConfig({
     exclude: ['vue-demi']
   }
 })
-

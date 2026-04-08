@@ -11,6 +11,8 @@ from datetime import datetime, timedelta
 from pydantic import BaseModel
 
 import json
+import csv
+import io
 
 from app.core.database import get_db
 from app.core.response import Response
@@ -2445,6 +2447,8 @@ async def get_sales_stats(
 ):
     """获取销售统计数据"""
     try:
+        status_filter = ["paid", "confirmed", "processing", "assigned", "testing", "completed"]
+
         # 解析日期
         if start_date:
             start_dt = datetime.strptime(start_date, "%Y-%m-%d")
@@ -2460,25 +2464,64 @@ async def get_sales_stats(
         query = db.query(Order).filter(
             Order.created_at >= start_dt,
             Order.created_at <= end_dt,
-            Order.status.in_(["confirmed", "processing", "completed"])
+            Order.status.in_(status_filter)
         )
+
+        if staff_id:
+            query = query.filter(Order.assigned_user_id == staff_id)
         
         # 销售统计汇总
         total_orders = query.count()
         total_revenue = query.with_entities(func.sum(Order.total_fee)).scalar() or Decimal("0")
         avg_order_value = float(total_revenue / total_orders) if total_orders > 0 else 0
-        
-        # 销售排名（暂时返回空）
-        ranking = []
+
+        total_paid = query.with_entities(func.sum(Order.paid_fee)).scalar() or Decimal("0")
+        completed_orders = query.filter(Order.status == "completed").count()
+        pending_orders = query.filter(Order.status.in_(["paid", "confirmed", "processing", "assigned", "testing"])).count()
+
+        ranking_query = db.query(
+            Order.assigned_user_id.label("staff_id"),
+            User.nickname.label("staff_name"),
+            func.count(Order.id).label("order_count"),
+            func.sum(Order.total_fee).label("total_amount"),
+            func.sum(Order.paid_fee).label("paid_amount")
+        ).outerjoin(
+            User, User.id == Order.assigned_user_id
+        ).filter(
+            Order.created_at >= start_dt,
+            Order.created_at <= end_dt,
+            Order.assigned_user_id.isnot(None),
+            Order.status.in_(status_filter)
+        )
+
+        if staff_id:
+            ranking_query = ranking_query.filter(Order.assigned_user_id == staff_id)
+
+        ranking = ranking_query.group_by(
+            Order.assigned_user_id,
+            User.nickname
+        ).order_by(desc("total_amount")).all()
         
         return Response.success(data={
             "summary": {
                 "total_orders": total_orders,
                 "total_revenue": float(total_revenue),
                 "avg_order_value": avg_order_value,
+                "total_paid": float(total_paid),
+                "completed_orders": completed_orders,
+                "pending_orders": pending_orders,
                 "period": f"{start_dt.strftime('%Y-%m-%d')} 至 {end_dt.strftime('%Y-%m-%d')}"
             },
-            "ranking": ranking
+            "ranking": [
+                {
+                    "staff_id": r.staff_id,
+                    "staff_name": r.staff_name or "未命名",
+                    "order_count": r.order_count or 0,
+                    "total_amount": float(r.total_amount or 0),
+                    "paid_amount": float(r.paid_amount or 0)
+                }
+                for r in ranking
+            ]
         })
     except Exception as e:
         print(f"获取销售统计失败: {str(e)}")
@@ -2487,6 +2530,9 @@ async def get_sales_stats(
                 "total_orders": 0,
                 "total_revenue": 0,
                 "avg_order_value": 0,
+                "total_paid": 0,
+                "completed_orders": 0,
+                "pending_orders": 0,
                 "period": ""
             },
             "ranking": []
@@ -2500,10 +2546,62 @@ async def export_sales_data(
     db: Session = Depends(get_db),
     current_admin: User = Depends(get_current_admin_user)
 ):
-    """导出销售数据（暂时返回空文件）"""
-    from fastapi.responses import Response as FastAPIResponse
-    # TODO: 实现Excel导出功能
-    return FastAPIResponse(content="", media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    """导出销售数据（CSV）"""
+    from fastapi.responses import StreamingResponse
+    from datetime import datetime as dt
+
+    status_filter = ["paid", "confirmed", "processing", "assigned", "testing", "completed"]
+    query = db.query(Order).filter(Order.status.in_(status_filter))
+
+    if start_date:
+        try:
+            query = query.filter(Order.created_at >= dt.strptime(start_date, "%Y-%m-%d"))
+        except ValueError:
+            pass
+
+    if end_date:
+        try:
+            query = query.filter(Order.created_at <= dt.strptime(end_date, "%Y-%m-%d"))
+        except ValueError:
+            pass
+
+    orders = query.order_by(desc(Order.created_at)).limit(10000).all()
+    rows = []
+    for o in orders:
+        rows.append({
+            "订单号": o.order_no,
+            "用户ID": o.user_id,
+            "项目名称": o.project_name,
+            "实验室名称": o.lab_name,
+            "指派人ID": o.assigned_user_id,
+            "订单状态": o.status,
+            "支付状态": o.payment_status,
+            "项目费用": float(o.project_fee or 0),
+            "加急费用": float(o.urgent_fee or 0),
+            "运费": float(o.shipping_fee or 0),
+            "优惠金额": float(o.discount_amount or 0),
+            "总金额": float(o.total_fee or 0),
+            "已支付": float(o.paid_fee or 0),
+            "是否加急": "是" if o.is_urgent else "否",
+            "创建时间": o.created_at.strftime("%Y-%m-%d %H:%M:%S") if o.created_at else "",
+            "支付时间": o.paid_at.strftime("%Y-%m-%d %H:%M:%S") if o.paid_at else "",
+            "完成时间": o.completed_at.strftime("%Y-%m-%d %H:%M:%S") if o.completed_at else ""
+        })
+
+    output = io.StringIO()
+    if rows:
+        writer = csv.DictWriter(output, fieldnames=rows[0].keys())
+        writer.writeheader()
+        writer.writerows(rows)
+
+    csv_bytes = ("\ufeff" + output.getvalue()).encode("utf-8")
+    return StreamingResponse(
+        io.BytesIO(csv_bytes),
+        media_type="text/csv; charset=utf-8",
+        headers={
+            "Content-Disposition": f'attachment; filename=sales_{start_date or "all"}_{end_date or "all"}.csv'
+        }
+    )
 
 
 # ==================== 二维码推广 ====================
@@ -5500,6 +5598,31 @@ async def get_franchisees(
             "created_at": f.created_at.isoformat() if f.created_at else None
         } for f in franchisees]
     })
+
+
+@router.put("/franchise/franchisees/{franchisee_id}/status", summary="修改加盟商状态")
+async def update_franchisee_status(
+    franchisee_id: int,
+    status: str = Body(..., embed=True, description="状态: pending/contacted/approved/rejected"),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """修改加盟商状态，支持启用/停用式状态流转"""
+    from app.models.franchise import FranchiseApplication
+
+    valid_status = {"pending", "contacted", "approved", "rejected"}
+    if status not in valid_status:
+        raise HTTPException(status_code=400, detail="状态值不合法")
+
+    franchisee = db.query(FranchiseApplication).filter(FranchiseApplication.id == franchisee_id).first()
+    if not franchisee:
+        raise HTTPException(status_code=404, detail="加盟商不存在")
+
+    franchisee.status = status
+    franchisee.staff_id = current_admin.id
+    db.commit()
+
+    return Response.success(message="加盟商状态更新成功", data={"status": franchisee.status})
 
 
 @router.put("/franchise/applications/{app_id}/approve", summary="批准加盟申请")

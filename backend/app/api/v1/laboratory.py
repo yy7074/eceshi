@@ -270,9 +270,7 @@ async def get_my_laboratory(
     current_user: User = Depends(get_current_user)
 ):
     """获取当前用户管理的实验室信息"""
-    lab = db.query(Laboratory).filter(
-        Laboratory.admin_user_id == current_user.id
-    ).first()
+    lab, _, _ = _get_managed_lab_context(db, current_user)
 
     if not lab:
         raise HTTPException(status_code=404, detail="您暂无管理的实验室")
@@ -301,9 +299,7 @@ async def get_my_equipments(
     current_user: User = Depends(get_current_user)
 ):
     """获取当前用户管理的实验室的设备列表"""
-    lab = db.query(Laboratory).filter(
-        Laboratory.admin_user_id == current_user.id
-    ).first()
+    lab, _, _ = _get_managed_lab_context(db, current_user)
 
     if not lab:
         raise HTTPException(status_code=404, detail="您暂无管理的实验室")
@@ -346,9 +342,7 @@ async def add_equipment(
     current_user: User = Depends(get_current_user)
 ):
     """为我的实验室添加设备"""
-    lab = db.query(Laboratory).filter(
-        Laboratory.admin_user_id == current_user.id
-    ).first()
+    lab, _, _ = _get_managed_lab_context(db, current_user)
 
     if not lab:
         raise HTTPException(status_code=404, detail="您暂无管理的实验室")
@@ -383,9 +377,7 @@ async def update_equipment(
     current_user: User = Depends(get_current_user)
 ):
     """更新设备信息"""
-    lab = db.query(Laboratory).filter(
-        Laboratory.admin_user_id == current_user.id
-    ).first()
+    lab, _, _ = _get_managed_lab_context(db, current_user)
 
     if not lab:
         raise HTTPException(status_code=404, detail="您暂无管理的实验室")
@@ -420,9 +412,7 @@ async def delete_equipment(
     current_user: User = Depends(get_current_user)
 ):
     """删除设备"""
-    lab = db.query(Laboratory).filter(
-        Laboratory.admin_user_id == current_user.id
-    ).first()
+    lab, _, _ = _get_managed_lab_context(db, current_user)
 
     if not lab:
         raise HTTPException(status_code=404, detail="您暂无管理的实验室")
@@ -447,9 +437,7 @@ async def get_my_staff(
     current_user: User = Depends(get_current_user)
 ):
     """获取当前用户管理的实验室的技术人员列表"""
-    lab = db.query(Laboratory).filter(
-        Laboratory.admin_user_id == current_user.id
-    ).first()
+    lab, _, _ = _get_managed_lab_context(db, current_user)
 
     if not lab:
         raise HTTPException(status_code=404, detail="您暂无管理的实验室")
@@ -485,9 +473,7 @@ async def add_staff(
     current_user: User = Depends(get_current_user)
 ):
     """为我的实验室添加技术人员"""
-    lab = db.query(Laboratory).filter(
-        Laboratory.admin_user_id == current_user.id
-    ).first()
+    lab, _, _ = _get_managed_lab_context(db, current_user)
 
     if not lab:
         raise HTTPException(status_code=404, detail="您暂无管理的实验室")
@@ -527,6 +513,31 @@ class UploadReportRequest(BaseModel):
     remark: Optional[str] = None
 
 
+def _get_managed_lab_context(db: Session, current_user: User):
+    """获取当前用户管理/所属实验室上下文。"""
+    lab = db.query(Laboratory).filter(
+        Laboratory.admin_user_id == current_user.id
+    ).first()
+    if lab:
+        return lab, None, True
+
+    staff = db.query(LabStaff).filter(
+        LabStaff.user_id == current_user.id,
+        LabStaff.is_active == True
+    ).first()
+    if staff:
+        lab = db.query(Laboratory).filter(
+            Laboratory.id == staff.laboratory_id
+        ).first()
+        return lab, staff, False
+
+    return None, None, False
+
+
+def _is_valid_report_type(report_type: str) -> bool:
+    return report_type in {"test_report", "raw_data", "analysis"}
+
+
 @router.get("/my/orders", summary="获取实验室订单列表")
 async def get_lab_orders(
     page: int = Query(1, ge=1),
@@ -542,9 +553,7 @@ async def get_lab_orders(
     - 实验室技术人员: 仅查看指派给自己的订单
     """
     # 首先检查是否为实验室管理员
-    lab = db.query(Laboratory).filter(
-        Laboratory.admin_user_id == current_user.id
-    ).first()
+    lab, _, _ = _get_managed_lab_context(db, current_user)
 
     is_lab_admin = lab is not None
 
@@ -625,25 +634,7 @@ async def get_lab_order_detail(
     - 实验室管理员: 可查看该实验室所有订单
     - 实验室技术人员: 仅可查看指派给自己的订单
     """
-    # 首先检查是否为实验室管理员
-    lab = db.query(Laboratory).filter(
-        Laboratory.admin_user_id == current_user.id
-    ).first()
-
-    is_lab_admin = lab is not None
-    staff = None
-
-    # 如果不是管理员，检查是否为实验室技术人员
-    if not is_lab_admin:
-        staff = db.query(LabStaff).filter(
-            LabStaff.user_id == current_user.id,
-            LabStaff.is_active == True
-        ).first()
-
-        if staff:
-            lab = db.query(Laboratory).filter(
-                Laboratory.id == staff.laboratory_id
-            ).first()
+    lab, staff, is_lab_admin = _get_managed_lab_context(db, current_user)
 
     if not lab:
         raise HTTPException(status_code=404, detail="您暂无管理的实验室或非实验室人员")
@@ -741,9 +732,7 @@ async def accept_order(
     current_user: User = Depends(get_current_user)
 ):
     """实验室接受订单"""
-    lab = db.query(Laboratory).filter(
-        Laboratory.admin_user_id == current_user.id
-    ).first()
+    lab, _, _ = _get_managed_lab_context(db, current_user)
 
     if not lab:
         raise HTTPException(status_code=404, detail="您暂无管理的实验室")
@@ -790,9 +779,7 @@ async def reject_order(
     current_user: User = Depends(get_current_user)
 ):
     """实验室拒绝订单"""
-    lab = db.query(Laboratory).filter(
-        Laboratory.admin_user_id == current_user.id
-    ).first()
+    lab, _, _ = _get_managed_lab_context(db, current_user)
 
     if not lab:
         raise HTTPException(status_code=404, detail="您暂无管理的实验室")
@@ -839,9 +826,7 @@ async def start_testing(
     current_user: User = Depends(get_current_user)
 ):
     """开始检测实验"""
-    lab = db.query(Laboratory).filter(
-        Laboratory.admin_user_id == current_user.id
-    ).first()
+    lab, _, _ = _get_managed_lab_context(db, current_user)
 
     if not lab:
         raise HTTPException(status_code=404, detail="您暂无管理的实验室")
@@ -885,9 +870,7 @@ async def upload_report(
     current_user: User = Depends(get_current_user)
 ):
     """上传检测报告或原始数据"""
-    lab = db.query(Laboratory).filter(
-        Laboratory.admin_user_id == current_user.id
-    ).first()
+    lab, _, _ = _get_managed_lab_context(db, current_user)
 
     if not lab:
         raise HTTPException(status_code=404, detail="您暂无管理的实验室")
@@ -902,6 +885,9 @@ async def upload_report(
 
     if order.status not in ["testing", "data_uploaded"]:
         raise HTTPException(status_code=400, detail="订单状态不允许此操作")
+
+    if not _is_valid_report_type(data.report_type):
+        raise HTTPException(status_code=400, detail="报告类型不合法")
 
     # 创建报告记录
     report = Report(
@@ -936,7 +922,16 @@ async def upload_report(
     db.commit()
     db.refresh(report)
 
-    return Response.success(data={"report_id": report.id}, message="报告上传成功")
+    return Response.success(data={
+        "report_id": report.id,
+        "report_no": report.report_no,
+        "report_type": report.report_type,
+        "file_url": report.file_url,
+        "file_name": report.file_name,
+        "status": report.status,
+        "uploader_id": report.uploader_id,
+        "created_at": report.created_at.isoformat() if report.created_at else None
+    }, message="报告上传成功")
 
 
 @router.post("/my/orders/{order_id}/complete", summary="完成检测")
@@ -947,9 +942,7 @@ async def complete_testing(
     current_user: User = Depends(get_current_user)
 ):
     """标记检测完成"""
-    lab = db.query(Laboratory).filter(
-        Laboratory.admin_user_id == current_user.id
-    ).first()
+    lab, _, _ = _get_managed_lab_context(db, current_user)
 
     if not lab:
         raise HTTPException(status_code=404, detail="您暂无管理的实验室")

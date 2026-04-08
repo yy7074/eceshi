@@ -151,15 +151,23 @@ export default {
 			
 			try {
 				uni.showLoading({ title: '提交中...' })
-				
-				// TODO: 上传图片
-				// TODO: 提交反馈
-				
+				const record = {
+					id: Date.now(),
+					type: this.selectedType,
+					typeText: this.types.find(t => t.value === this.selectedType)?.label || '',
+					status: 'pending',
+					statusText: '待处理',
+					content: this.content.trim(),
+					images: [...this.images],
+					contact: this.contact.trim(),
+					time: this.formatTime(new Date())
+				}
+				const history = uni.getStorageSync('feedback_history') || []
+				history.unshift(record)
+				uni.setStorageSync('feedback_history', history.slice(0, 20))
+
 				uni.hideLoading()
-				uni.showToast({
-					title: '反馈功能开发中',
-					icon: 'none'
-				})
+				uni.showToast({ title: '提交成功', icon: 'success' })
 				
 				// 清空表单
 				this.selectedType = ''
@@ -181,8 +189,7 @@ export default {
 		// 加载历史反馈
 		async loadHistory() {
 			try {
-				// TODO: 调用API获取历史反馈
-				this.historyList = []
+				this.historyList = uni.getStorageSync('feedback_history') || []
 			} catch (error) {
 				console.error('加载历史反馈失败', error)
 			}
@@ -190,10 +197,20 @@ export default {
 		
 		// 查看详情
 		viewDetail(item) {
-			uni.showToast({
-				title: '详情功能开发中',
-				icon: 'none'
+			uni.showModal({
+				title: item.typeText,
+				content: `${item.content}\n\n状态：${item.statusText}\n时间：${item.time}`,
+				showCancel: false
 			})
+		},
+
+		formatTime(date) {
+			const y = date.getFullYear()
+			const m = String(date.getMonth() + 1).padStart(2, '0')
+			const d = String(date.getDate()).padStart(2, '0')
+			const h = String(date.getHours()).padStart(2, '0')
+			const min = String(date.getMinutes()).padStart(2, '0')
+			return `${y}-${m}-${d} ${h}:${min}`
 		}
 	}
 }
@@ -456,4 +473,3 @@ export default {
 	}
 }
 </style>
-

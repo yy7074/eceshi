@@ -24,11 +24,11 @@
 			</view>
 			<view class="type-item" :class="{ active: uploadType === 'sample' }" @click="uploadType = 'sample'">
 				<text class="type-icon">📦</text>
-				<text class="type-name">样品图片</text>
+				<text class="type-name">原始数据</text>
 			</view>
 			<view class="type-item" :class="{ active: uploadType === 'other' }" @click="uploadType = 'other'">
 				<text class="type-icon">📎</text>
-				<text class="type-name">其他文件</text>
+				<text class="type-name">分析说明</text>
 			</view>
 		</view>
 		
@@ -96,20 +96,20 @@ export default {
 	computed: {
 		uploadTypeText() {
 			const texts = {
-				sample: '样品图片',
+				sample: '原始数据',
 				data: '原始数据',
 				report: '检测报告',
-				other: '其他文件'
+				other: '分析说明'
 			}
 			return texts[this.uploadType] || '文件'
 		},
 		reportType() {
-			// 映射到后端report_type
+			// 后端只接受 test_report/raw_data/analysis
 			const typeMap = {
-				sample: 'sample_photo',
+				sample: 'raw_data',
 				data: 'raw_data',
 				report: 'test_report',
-				other: 'other'
+				other: 'analysis'
 			}
 			return typeMap[this.uploadType] || 'raw_data'
 		}
@@ -565,4 +565,3 @@ export default {
 	}
 }
 </style>
-
