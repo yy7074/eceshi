@@ -3,8 +3,8 @@
 		<!-- 顶部装饰 -->
 		<view class="header">
 			<view class="logo">🔬</view>
-			<text class="title">科研检测服务平台</text>
-			<text class="subtitle">一站式科研检测服务</text>
+			<text class="title">博才科研百测</text>
+			<text class="subtitle">一站式博才科研百测服务</text>
 		</view>
 		
 		<!-- 登录表单 -->

@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     """应用配置"""
     
     # 应用配置
-    APP_NAME: str = "科研检测服务平台"
+    APP_NAME: str = "博才科研百测"
     APP_VERSION: str = "1.0.0"
     VERSION: str = "1.0.0"  # 兼容性
     DEBUG: bool = True
@@ -56,7 +56,7 @@ class Settings(BaseSettings):
     # 阿里云短信配置
     SMS_ACCESS_KEY: str = ""
     SMS_SECRET_KEY: str = ""
-    SMS_SIGN_NAME: str = "科研检测"
+    SMS_SIGN_NAME: str = "博才科研百测"
     SMS_TEMPLATE_ID: str = ""  # 验证码短信模板ID
     SMS_REGION: str = "cn-hangzhou"
     
@@ -87,4 +87,3 @@ class Settings(BaseSettings):
 
 # 创建全局配置实例
 settings = Settings()
-

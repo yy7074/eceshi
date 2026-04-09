@@ -169,7 +169,7 @@ export default {
 	onShareAppMessage() {
 		const userInfo = uni.getStorageSync('userInfo') || {}
 		return {
-			title: '我在科研检测服务平台发现了超好用的检测服务！注册即享优惠！',
+			title: '我在博才科研百测发现了超好用的检测服务！注册即享优惠！',
 			path: `/pages/index/index?inviteUserId=${userInfo.id}`
 		}
 	},

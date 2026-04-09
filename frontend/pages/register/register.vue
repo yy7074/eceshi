@@ -2,7 +2,7 @@
 	<view class="register-container">
 		<view class="header">
 			<text class="title">用户注册</text>
-			<text class="subtitle">欢迎加入科研检测服务平台</text>
+			<text class="subtitle">欢迎加入博才科研百测</text>
 		</view>
 		
 		<view class="form-container">

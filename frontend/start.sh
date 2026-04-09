@@ -1,7 +1,7 @@
 #!/bin/bash
 
 echo "================================"
-echo "  科研检测服务平台 - 小程序启动"
+echo "  博才科研百测 - 小程序启动"
 echo "================================"
 echo ""
 
@@ -28,7 +28,7 @@ case $choice in
     1)
         echo ""
         echo "🌐 启动H5开发服务器..."
-        echo "📍 后端API地址: https://catdog.dachaonet.com ✅ HTTPS"
+        echo "📍 后端API地址: https://www.keyanbaice.com ✅ HTTPS"
         echo "📱 前端访问地址: http://localhost:5173"
         echo ""
         echo "💡 提示："
@@ -53,4 +53,3 @@ case $choice in
         exit 1
         ;;
 esac
-

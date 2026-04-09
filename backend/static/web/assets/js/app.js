@@ -1,4 +1,4 @@
-// 科研检测服务平台 - Web端应用
+// 博才科研百测 - Web端应用
 const { createApp } = Vue
 const { ElMessage, ElMessageBox } = ElementPlus
 
@@ -197,7 +197,7 @@ const HomeView = {
             
             <!-- 默认英雄区（无Banner时显示） -->
             <div class="hero-section" v-else>
-                <h1 class="hero-title">科研检测服务平台</h1>
+                <h1 class="hero-title">博才科研百测</h1>
                 <p class="hero-subtitle">专业 · 高效 · 可靠</p>
                 <div class="hero-actions">
                     <el-button type="primary" size="large" @click="$emit('go-projects')">浏览检测项目</el-button>
@@ -1360,8 +1360,8 @@ const AboutView = {
         <div class="about-view">
             <div class="about-section">
                 <h2>关于我们</h2>
-                <p>科研检测服务平台致力于为广大科研工作者提供专业、高效、可靠的检测服务。</p>
-                <p>我们拥有先进的检测设备和专业的技术团队，能够满足各类科研检测需求。</p>
+                <p>博才科研百测致力于为广大科研工作者提供专业、高效、可靠的检测服务。</p>
+                <p>我们拥有先进的检测设备和专业的技术团队，能够满足各类博才科研百测需求。</p>
             </div>
 
             <div class="about-section">
@@ -1373,8 +1373,8 @@ const AboutView = {
 
             <div class="about-section">
                 <h2>关注我们</h2>
-                <p><strong>微信公众号：</strong>ceshi</p>
-                <p><strong>微信小程序：</strong>科研检测服务平台</p>
+                <p><strong>微信公众号：</strong>博才科研百测</p>
+                <p><strong>微信小程序：</strong>博才科研百测</p>
             </div>
         </div>
     `
@@ -1851,7 +1851,7 @@ const ChatView = {
                         created_at: m.created_at || '刚刚'
                     }))
                 } else if (!this.messages.length) {
-                    this.messages = [{ id: 0, content: '您好！欢迎咨询科研检测服务平台，请问有什么可以帮助您的？', is_user: false, created_at: '刚刚' }]
+                    this.messages = [{ id: 0, content: '您好！欢迎咨询博才科研百测，请问有什么可以帮助您的？', is_user: false, created_at: '刚刚' }]
                 }
             } catch (error) {
                 if (!this.messages.length) this.messages = [{ id: 0, content: '您好！欢迎咨询，请问有什么可以帮助您的？', is_user: false, created_at: '刚刚' }]
@@ -2273,7 +2273,7 @@ const ContractsView = {
                     <p><strong>签订日期：</strong>${contract.signed_at}</p>
                     <p><strong>有效期至：</strong>${contract.expired_at}</p>
                     <hr style="margin: 16px 0; border-color: #f0f0f0">
-                    <p style="color: #8c8c8c">甲方：科研检测服务平台</p>
+                    <p style="color: #8c8c8c">甲方：博才科研百测</p>
                     <p style="color: #8c8c8c">乙方：用户</p>
                     <p style="margin-top: 12px">根据《中华人民共和国合同法》及相关法律法规，甲乙双方本着平等互利的原则，就检测服务事宜达成如下协议...</p>
                 </div>`,
@@ -2305,7 +2305,7 @@ const FranchiseView = {
             <div class="franchise-banner">
                 <div class="banner-content">
                     <h1>🤝 成为合作伙伴</h1>
-                    <p>携手共赢，共创科研检测服务新未来</p>
+                    <p>携手共赢，共创博才科研百测服务新未来</p>
                 </div>
             </div>
             
@@ -2746,5 +2746,4 @@ createApp({
 })
 .use(ElementPlus)
 .mount('#app')
-
 

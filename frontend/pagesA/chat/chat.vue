@@ -59,7 +59,7 @@ export default {
 			messages: [
 				{
 					id: 1,
-					content: '您好！欢迎咨询科研检测服务平台，请直接描述您的问题。',
+					content: '您好！欢迎咨询博才科研百测，请直接描述您的问题。',
 					isUser: false,
 					time: '刚刚'
 				}

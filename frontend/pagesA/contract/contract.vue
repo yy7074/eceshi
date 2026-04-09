@@ -125,7 +125,7 @@ export default {
 		showContractDetail(contract) {
 			uni.showModal({
 				title: contract.title,
-				content: `合同编号：${contract.contract_no}\n关联订单：${contract.order_no}\n签订日期：${contract.signed_at}\n有效期至：${contract.expired_at}\n\n甲方：科研检测服务平台\n乙方：用户\n\n根据相关法律法规，甲乙双方就检测服务事宜达成协议...`,
+				content: `合同编号：${contract.contract_no}\n关联订单：${contract.order_no}\n签订日期：${contract.signed_at}\n有效期至：${contract.expired_at}\n\n甲方：博才科研百测\n乙方：用户\n\n根据相关法律法规，甲乙双方就检测服务事宜达成协议...`,
 				showCancel: false,
 				confirmText: '关闭'
 			})

@@ -3,7 +3,7 @@
 		{
 			"path": "pages/index/index",
 			"style": {
-				"navigationBarTitleText": "科研检测",
+				"navigationBarTitleText": "博才科研百测",
 				"enablePullDownRefresh": false
 			}
 		},
@@ -297,7 +297,7 @@
 	},
 	"globalStyle": {
 		"navigationBarTextStyle": "black",
-		"navigationBarTitleText": "ceshi",
+		"navigationBarTitleText": "博才科研百测",
 		"navigationBarBackgroundColor": "#ffffff",
 		"backgroundColor": "#f8f8f8"
 	},
@@ -306,4 +306,3 @@
 		"list": []
 	}
 }
-
