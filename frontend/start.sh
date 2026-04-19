@@ -41,10 +41,10 @@ case $choice in
     2)
         echo ""
         echo "📱 编译微信小程序..."
-        echo "📍 输出目录: unpackage/dist/dev/mp-weixin"
+        echo "📍 输出目录: dist/dev/mp-weixin"
         echo ""
         echo "💡 提示："
-        echo "  - 编译完成后，使用微信开发者工具打开 unpackage/dist/dev/mp-weixin 目录"
+        echo "  - 编译完成后，使用微信开发者工具打开 dist/dev/mp-weixin 目录"
         echo ""
         npm run dev:mp-weixin
         ;;

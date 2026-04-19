@@ -11,6 +11,42 @@ RED='\033[0;31m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
+# 优先使用项目虚拟环境，避免误用系统 Python
+BACKEND_PYTHON="python3"
+if [ -x "backend/venv/bin/python" ]; then
+    BACKEND_PYTHON="$(cd backend && pwd)/venv/bin/python"
+elif [ -x "backend/venv/bin/python3" ]; then
+    BACKEND_PYTHON="$(cd backend && pwd)/venv/bin/python3"
+fi
+
+BACKEND_HOST="127.0.0.1"
+DEFAULT_BACKEND_PORT="8000"
+
+get_effective_database_url() {
+    local env_file="backend/.env"
+    if [ -f "$env_file" ]; then
+        local url
+        url=$(grep '^DATABASE_URL=' "$env_file" | cut -d= -f2-)
+        if [ -n "$url" ]; then
+            printf '%s' "${url/@localhost:/@127.0.0.1:}"
+            return 0
+        fi
+    fi
+    return 1
+}
+
+is_backend_healthy() {
+    local port=$1
+    local health_code
+    local root_response
+    health_code=$(curl --noproxy '*' -s -o /dev/null -w "%{http_code}" "http://$BACKEND_HOST:$port/health" 2>/dev/null)
+    if [ "$health_code" != "200" ]; then
+        return 1
+    fi
+    root_response=$(curl --noproxy '*' -s "http://$BACKEND_HOST:$port/" 2>/dev/null)
+    echo "$root_response" | grep -q '"status":"running"'
+}
+
 # 检查后端服务是否运行
 check_backend() {
     echo "1️⃣ 检查后端服务状态..."
@@ -21,7 +57,7 @@ check_backend() {
     BACKEND_PORT=""
     
     for port in "${PORTS[@]}"; do
-        if lsof -Pi :$port -sTCP:LISTEN -t >/dev/null 2>&1; then
+        if lsof -Pi :$port -sTCP:LISTEN -t >/dev/null 2>&1 && is_backend_healthy "$port"; then
             BACKEND_RUNNING=true
             BACKEND_PORT=$port
             echo -e "   ${GREEN}✅ 后端服务正在运行 (端口: $port)${NC}"
@@ -45,7 +81,12 @@ check_backend() {
         
         # 启动服务（后台运行）
         echo "   正在启动后端服务..."
-        nohup python3 -m app.main > server.log 2>&1 &
+        EFFECTIVE_DATABASE_URL=$(get_effective_database_url || true)
+        if [ -n "$EFFECTIVE_DATABASE_URL" ]; then
+            nohup env DATABASE_URL="$EFFECTIVE_DATABASE_URL" "$BACKEND_PYTHON" -m uvicorn app.main:app --host "$BACKEND_HOST" --port "$DEFAULT_BACKEND_PORT" > server.log 2>&1 &
+        else
+            nohup "$BACKEND_PYTHON" -m uvicorn app.main:app --host "$BACKEND_HOST" --port "$DEFAULT_BACKEND_PORT" > server.log 2>&1 &
+        fi
         echo $! > server.pid
         
         # 等待服务启动
@@ -55,15 +96,16 @@ check_backend() {
         if ps -p $(cat server.pid) > /dev/null 2>&1; then
             # 等待服务完全启动
             sleep 2
-            echo -e "   ${GREEN}✅ 后端服务启动成功${NC}"
-            BACKEND_RUNNING=true
-            # 尝试检测端口
-            for port in "${PORTS[@]}"; do
-                if lsof -Pi :$port -sTCP:LISTEN -t >/dev/null 2>&1; then
-                    BACKEND_PORT=$port
-                    break
-                fi
-            done
+            if is_backend_healthy "$DEFAULT_BACKEND_PORT"; then
+                echo -e "   ${GREEN}✅ 后端服务启动成功${NC}"
+                BACKEND_RUNNING=true
+                BACKEND_PORT=$DEFAULT_BACKEND_PORT
+            else
+                echo -e "   ${RED}❌ 后端服务进程已启动，但健康检查未通过${NC}"
+                echo "   请查看日志: backend/server.log"
+                cd ..
+                return 1
+            fi
         else
             echo -e "   ${RED}❌ 后端服务启动失败${NC}"
             echo "   请查看日志: backend/server.log"
@@ -75,10 +117,10 @@ check_backend() {
     fi
     
     if [ -z "$BACKEND_PORT" ]; then
-        BACKEND_PORT=3000  # 默认端口
+        BACKEND_PORT=$DEFAULT_BACKEND_PORT
     fi
     
-    BASE_URL="http://localhost:$BACKEND_PORT"
+    BASE_URL="http://$BACKEND_HOST:$BACKEND_PORT"
     echo "   服务地址: $BASE_URL"
     echo ""
     
@@ -93,7 +135,7 @@ test_api() {
     
     # 测试健康检查
     echo "   📍 测试健康检查接口..."
-    HEALTH=$(curl -s -w "\nHTTP_CODE:%{http_code}" "$base_url/health" 2>/dev/null)
+    HEALTH=$(curl --noproxy '*' -s -w "\nHTTP_CODE:%{http_code}" "$base_url/health" 2>/dev/null)
     HTTP_CODE=$(echo "$HEALTH" | grep "HTTP_CODE" | cut -d: -f2)
     RESPONSE=$(echo "$HEALTH" | sed '/HTTP_CODE/d')
     
@@ -107,7 +149,7 @@ test_api() {
     
     # 测试根路由
     echo "   📍 测试根路由..."
-    ROOT=$(curl -s -w "\nHTTP_CODE:%{http_code}" "$base_url/" 2>/dev/null)
+    ROOT=$(curl --noproxy '*' -s -w "\nHTTP_CODE:%{http_code}" "$base_url/" 2>/dev/null)
     HTTP_CODE=$(echo "$ROOT" | grep "HTTP_CODE" | cut -d: -f2)
     RESPONSE=$(echo "$ROOT" | sed '/HTTP_CODE/d')
     
@@ -121,7 +163,7 @@ test_api() {
     
     # 测试项目分类
     echo "   📍 测试项目分类接口..."
-    CATEGORIES=$(curl -s -w "\nHTTP_CODE:%{http_code}" "$base_url/api/v1/projects/categories" 2>/dev/null)
+    CATEGORIES=$(curl --noproxy '*' -s -w "\nHTTP_CODE:%{http_code}" "$base_url/api/v1/projects/categories" 2>/dev/null)
     HTTP_CODE=$(echo "$CATEGORIES" | grep "HTTP_CODE" | cut -d: -f2)
     RESPONSE=$(echo "$CATEGORIES" | sed '/HTTP_CODE/d')
     
@@ -135,7 +177,7 @@ test_api() {
     
     # 测试项目列表
     echo "   📍 测试项目列表接口..."
-    PROJECTS=$(curl -s -w "\nHTTP_CODE:%{http_code}" "$base_url/api/v1/projects/list?page=1&page_size=2" 2>/dev/null)
+    PROJECTS=$(curl --noproxy '*' -s -w "\nHTTP_CODE:%{http_code}" "$base_url/api/v1/projects/list?page=1&page_size=2" 2>/dev/null)
     HTTP_CODE=$(echo "$PROJECTS" | grep "HTTP_CODE" | cut -d: -f2)
     RESPONSE=$(echo "$PROJECTS" | sed '/HTTP_CODE/d')
     

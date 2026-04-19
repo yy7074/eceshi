@@ -315,11 +315,19 @@
 			
 			// 微信登录
 			wechatLogin() {
+				if (this.loading) {
+					return
+				}
+				if (!this.agreed) {
+					return uni.showToast({ title: '请先阅读并同意用户协议', icon: 'none' })
+				}
 				// #ifdef MP-WEIXIN
+				this.loading = true
 				uni.login({
 					provider: 'weixin',
 					success: async (loginRes) => {
 						try {
+							console.log('微信登录 code', loginRes.code)
 							const res = await api.wechatLogin(loginRes.code)
 							
 							// 保存登录信息
@@ -350,6 +358,8 @@
 								title: '微信登录失败',
 								icon: 'none'
 							})
+						} finally {
+							this.loading = false
 						}
 					},
 					fail: (error) => {
@@ -358,6 +368,7 @@
 							title: '微信授权失败',
 							icon: 'none'
 						})
+						this.loading = false
 					}
 				})
 				// #endif
@@ -600,4 +611,3 @@
 		}
 	}
 </style>
-

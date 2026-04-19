@@ -4,10 +4,10 @@
   "description": "博才科研百测-前端",
   "type": "module",
   "scripts": {
-    "dev:h5": "vite",
-    "dev:mp-weixin": "vite build --watch --mode development",
-    "build:h5": "vite build",
-    "build:mp-weixin": "vite build"
+    "dev:h5": "UNI_PLATFORM=h5 vite",
+    "dev:mp-weixin": "UNI_PLATFORM=mp-weixin vite build --watch --mode development",
+    "build:h5": "UNI_PLATFORM=h5 vite build",
+    "build:mp-weixin": "UNI_PLATFORM=mp-weixin vite build"
   },
   "dependencies": {
     "@dcloudio/uni-app": "^3.0.0-4020420240930001",
