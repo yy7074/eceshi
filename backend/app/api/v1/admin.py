@@ -2783,7 +2783,7 @@ async def get_certifications_admin(
                 "education_level": c.education_level.value if c.education_level else None,
                 "university": c.university,
                 "department": c.department,
-                "supervisor": c.supervisor,
+                "supervisor": c.supervisor or c.supervisor_name,
                 "enrollment_year": c.enrollment_year,
                 "graduation_year": c.graduation_year,
                 "company": c.company,
@@ -2793,7 +2793,7 @@ async def get_certifications_admin(
                 "reject_reason": c.reject_reason,
                 "id_card_front": c.id_card_front,
                 "id_card_back": c.id_card_back,
-                "student_card": c.student_card,
+                "student_card": c.student_card or c.student_card_photo,
                 "created_at": c.created_at.isoformat() if c.created_at else None,
                 "reviewed_at": c.reviewed_at.isoformat() if c.reviewed_at else None
             }
@@ -2830,7 +2830,7 @@ async def get_certification_detail_admin(
         "education_level": cert.education_level.value if cert.education_level else None,
         "university": cert.university,
         "department": cert.department,
-        "supervisor": cert.supervisor,
+        "supervisor": cert.supervisor or cert.supervisor_name,
         "enrollment_year": cert.enrollment_year,
         "graduation_year": cert.graduation_year,
         "company": cert.company,
@@ -2840,7 +2840,7 @@ async def get_certification_detail_admin(
         "reject_reason": cert.reject_reason,
         "id_card_front": cert.id_card_front,
         "id_card_back": cert.id_card_back,
-        "student_card": cert.student_card,
+        "student_card": cert.student_card or cert.student_card_photo,
         "created_at": cert.created_at.isoformat() if cert.created_at else None,
         "reviewed_at": cert.reviewed_at.isoformat() if cert.reviewed_at else None
     })
@@ -5987,7 +5987,7 @@ async def admin_get_options(
     items = []
     for opt in options:
         project = db.query(Project).filter(Project.id == opt.project_id).first() if opt.project_id else None
-        category = db.query(Category).filter(Category.id == opt.category_id).first() if opt.category_id else None
+        category = db.query(ProjectCategory).filter(ProjectCategory.id == opt.category_id).first() if opt.category_id else None
         items.append({
             "id": opt.id,
             "project_id": opt.project_id,
@@ -6137,6 +6137,23 @@ async def admin_update_option(
     option = db.query(ProjectOption).filter(ProjectOption.id == option_id).first()
     if not option:
         raise HTTPException(status_code=404, detail="选项不存在")
+
+    target_project_id = data.project_id if data.project_id is not None else option.project_id
+    target_category_id = data.category_id if data.category_id is not None else option.category_id
+    target_parent_id = data.parent_id if data.parent_id is not None else option.parent_id
+
+    if not target_project_id and not target_category_id:
+        raise HTTPException(status_code=400, detail="必须指定关联项目或分类")
+
+    if target_parent_id:
+        parent = db.query(ProjectOption).filter(ProjectOption.id == target_parent_id).first()
+        if not parent:
+            raise HTTPException(status_code=404, detail="父选项不存在")
+        parent_type = parent.option_type.value if isinstance(parent.option_type, OptionType) else parent.option_type
+        if parent_type == "input":
+            raise HTTPException(status_code=400, detail="输入类型选项不能作为父选项")
+        if parent.id == option_id:
+            raise HTTPException(status_code=400, detail="父选项不能选择自己")
 
     # 如果更改为input类型，检查是否有子选项
     if data.option_type and data.option_type.value == "input":

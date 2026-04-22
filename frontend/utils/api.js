@@ -4,6 +4,8 @@
 import request from './request.js'
 
 export default {
+	baseUrl: request.baseUrl,
+
 	// ========== 认证相关 ==========
 	
 	// 发送短信验证码
@@ -30,7 +32,12 @@ export default {
 	wechatLogin(code) {
 		return request.post('/api/v1/auth/wechat-login', { code })
 	},
-	
+
+	// 扫码登录确认（小程序端扫码后调用）
+	confirmQrcodeLogin(data) {
+		return request.post('/api/v1/auth/qrcode/confirm', data)
+	},
+
 	// ========== 用户相关 ==========
 	
 	// 获取当前用户信息
@@ -360,6 +367,21 @@ export default {
 		return request.post('/api/v1/invites/withdraw', null, {
 			params: { amount }
 		})
+	},
+
+	// 获取我的推广二维码
+	getInviteQrcodes(params) {
+		return request.get('/api/v1/invites/qrcode/list', params)
+	},
+
+	// 生成推广二维码
+	createInviteQrcode(data) {
+		return request.post('/api/v1/invites/qrcode/create', data)
+	},
+
+	// 删除推广二维码
+	deleteInviteQrcode(id) {
+		return request.delete(`/api/v1/invites/qrcode/${id}`)
 	},
 	
 	// ========== 团队功能相关 ==========

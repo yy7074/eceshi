@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="280" height="180" viewBox="0 0 280 180">
+  <rect width="280" height="180" fill="#f5f7fa"/>
+  <g transform="translate(140,90)" fill="#b0b7bd" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif">
+    <path d="M-28-18 h56 a6 6 0 0 1 6 6 v36 a6 6 0 0 1 -6 6 h-56 a6 6 0 0 1 -6-6 v-36 a6 6 0 0 1 6-6 z M-18-6 a4 4 0 1 1 8 0 a4 4 0 1 1 -8 0 z M-28 22 l16-18 l10 10 l14-16 l16 24 z" fill="#d1d5db"/>
+    <text font-size="14" dy="40">暂无图片</text>
+  </g>
+</svg>

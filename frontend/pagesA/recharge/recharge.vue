@@ -78,11 +78,11 @@
 			<text class="arrow">→</text>
 		</view>
 		
-		<!-- 支付方式 -->
-		<view class="payment-section">
+		<!-- 支付方式（暂不开放充值，统一使用信用支付） -->
+		<view class="payment-section" v-if="false">
 			<view class="section-title">支付方式</view>
 			<view class="payment-list">
-				<view 
+				<view
 					class="payment-item"
 					:class="{ active: paymentMethod === 'wechat' }"
 					@click="selectPayment('wechat')"
@@ -219,39 +219,11 @@ export default {
 		},
 		
 		async doRecharge() {
-			if (!this.finalAmount || this.finalAmount < 0.01) {
-				uni.showToast({ title: '请输入充值金额', icon: 'none' })
-				return
-			}
-			
-			if (this.finalAmount > 50000) {
-				uni.showToast({ title: '单笔充值不能超过50000元', icon: 'none' })
-				return
-			}
-			
-			try {
-				uni.showLoading({ title: '正在创建订单...' })
-				
-				const res = await api.createRecharge({
-					amount: this.finalAmount,
-					payment_method: this.paymentMethod
-				})
-				
-				uni.hideLoading()
-				
-				// 调起微信支付
-				if (this.paymentMethod === 'wechat') {
-					this.wechatPay(res.data)
-				}
-				
-			} catch (error) {
-				uni.hideLoading()
-				console.error('创建充值订单失败', error)
-				uni.showToast({
-					title: error.data?.message || '创建订单失败',
-					icon: 'none'
-				})
-			}
+			uni.showModal({
+				title: '提示',
+				content: '充值功能暂未开放，目前所有订单统一使用信用支付',
+				showCancel: false
+			})
 		},
 		
 		wechatPay(payData) {

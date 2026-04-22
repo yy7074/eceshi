@@ -54,48 +54,74 @@
 				<text class="section-title">身份信息</text>
 
 				<!-- 身份类型 -->
-				<view class="form-item" @click="showIdentityPicker = true">
-					<text class="label"><text class="required">*</text>身份类型</text>
-					<view class="picker-value">
-						<text :class="form.identity_type ? '' : 'placeholder'">
-							{{ getIdentityLabel(form.identity_type) || '请选择身份类型' }}
-						</text>
-						<text class="arrow">></text>
+				<picker mode="selector" :range="identityLabels" :value="identityIndex" @change="onIdentityChange">
+					<view class="form-item">
+						<text class="label"><text class="required">*</text>身份类型</text>
+						<view class="picker-value">
+							<text :class="form.identity_type ? '' : 'placeholder'">
+								{{ getIdentityLabel(form.identity_type) || '请选择身份类型' }}
+							</text>
+							<text class="arrow">></text>
+						</view>
 					</view>
-				</view>
+				</picker>
 
 				<!-- 学历（学生/老师显示） -->
-				<view class="form-item" @click="showEducationPicker = true" v-if="['student', 'teacher'].includes(form.identity_type)">
-					<text class="label"><text class="required">*</text>学历</text>
-					<view class="picker-value">
-						<text :class="form.education_level ? '' : 'placeholder'">
-							{{ getEducationLabel(form.education_level) || '请选择学历' }}
-						</text>
-						<text class="arrow">></text>
+				<picker
+					v-if="['student', 'teacher'].includes(form.identity_type)"
+					mode="selector"
+					:range="educationLabels"
+					:value="educationIndex"
+					@change="onEducationChange"
+				>
+					<view class="form-item">
+						<text class="label"><text class="required">*</text>学历</text>
+						<view class="picker-value">
+							<text :class="form.education_level ? '' : 'placeholder'">
+								{{ getEducationLabel(form.education_level) || '请选择学历' }}
+							</text>
+							<text class="arrow">></text>
+						</view>
 					</view>
-				</view>
+				</picker>
 
 				<!-- 入学年份（学生显示） -->
-				<view class="form-item" @click="showEnrollYearPicker = true" v-if="form.identity_type === 'student'">
-					<text class="label">入学年份</text>
-					<view class="picker-value">
-						<text :class="form.enrollment_year ? '' : 'placeholder'">
-							{{ form.enrollment_year || '请选择入学年份' }}
-						</text>
-						<text class="arrow">></text>
+				<picker
+					v-if="form.identity_type === 'student'"
+					mode="selector"
+					:range="yearOptions"
+					:value="enrollmentYearIndex"
+					@change="onEnrollmentYearChange"
+				>
+					<view class="form-item">
+						<text class="label">入学年份</text>
+						<view class="picker-value">
+							<text :class="form.enrollment_year ? '' : 'placeholder'">
+								{{ form.enrollment_year || '请选择入学年份' }}
+							</text>
+							<text class="arrow">></text>
+						</view>
 					</view>
-				</view>
+				</picker>
 
 				<!-- 预计毕业年份（学生显示） -->
-				<view class="form-item" @click="showGradYearPicker = true" v-if="form.identity_type === 'student'">
-					<text class="label">预计毕业</text>
-					<view class="picker-value">
-						<text :class="form.graduation_year ? '' : 'placeholder'">
-							{{ form.graduation_year || '请选择毕业年份' }}
-						</text>
-						<text class="arrow">></text>
+				<picker
+					v-if="form.identity_type === 'student'"
+					mode="selector"
+					:range="yearOptions"
+					:value="graduationYearIndex"
+					@change="onGraduationYearChange"
+				>
+					<view class="form-item">
+						<text class="label">预计毕业</text>
+						<view class="picker-value">
+							<text :class="form.graduation_year ? '' : 'placeholder'">
+								{{ form.graduation_year || '请选择毕业年份' }}
+							</text>
+							<text class="arrow">></text>
+						</view>
 					</view>
-				</view>
+				</picker>
 			</view>
 
 			<!-- 单位信息 -->
@@ -103,15 +129,17 @@
 				<text class="section-title">单位信息</text>
 
 				<!-- 省份 -->
-				<view class="form-item" @click="showProvincePicker = true">
-					<text class="label"><text class="required">*</text>所在省份</text>
-					<view class="picker-value">
-						<text :class="form.province ? '' : 'placeholder'">
-							{{ form.province || '请选择省份' }}
-						</text>
-						<text class="arrow">></text>
+				<picker mode="selector" :range="provinceOptions" :value="provinceIndex" @change="onProvinceChange">
+					<view class="form-item">
+						<text class="label"><text class="required">*</text>所在省份</text>
+						<view class="picker-value">
+							<text :class="form.province ? '' : 'placeholder'">
+								{{ form.province || '请选择省份' }}
+							</text>
+							<text class="arrow">></text>
+						</view>
 					</view>
-				</view>
+				</picker>
 
 				<!-- 城市 -->
 				<view class="form-item">
@@ -224,97 +252,6 @@
 			</view>
 		</view>
 
-		<!-- 身份类型选择器 -->
-		<uni-popup ref="identityPopup" type="bottom">
-			<view class="picker-popup">
-				<view class="picker-header">
-					<text class="picker-cancel" @click="$refs.identityPopup.close()">取消</text>
-					<text class="picker-title">选择身份类型</text>
-					<text class="picker-confirm" @click="confirmIdentity">确定</text>
-				</view>
-				<view class="picker-content">
-					<view
-						class="picker-option"
-						v-for="item in identityOptions"
-						:key="item.value"
-						:class="{ active: tempIdentity === item.value }"
-						@click="tempIdentity = item.value"
-					>
-						<text>{{ item.label }}</text>
-						<text class="check" v-if="tempIdentity === item.value">✓</text>
-					</view>
-				</view>
-			</view>
-		</uni-popup>
-
-		<!-- 学历选择器 -->
-		<uni-popup ref="educationPopup" type="bottom">
-			<view class="picker-popup">
-				<view class="picker-header">
-					<text class="picker-cancel" @click="$refs.educationPopup.close()">取消</text>
-					<text class="picker-title">选择学历</text>
-					<text class="picker-confirm" @click="confirmEducation">确定</text>
-				</view>
-				<view class="picker-content">
-					<view
-						class="picker-option"
-						v-for="item in educationOptions"
-						:key="item.value"
-						:class="{ active: tempEducation === item.value }"
-						@click="tempEducation = item.value"
-					>
-						<text>{{ item.label }}</text>
-						<text class="check" v-if="tempEducation === item.value">✓</text>
-					</view>
-				</view>
-			</view>
-		</uni-popup>
-
-		<!-- 省份选择器 -->
-		<uni-popup ref="provincePopup" type="bottom">
-			<view class="picker-popup">
-				<view class="picker-header">
-					<text class="picker-cancel" @click="$refs.provincePopup.close()">取消</text>
-					<text class="picker-title">选择省份</text>
-					<text class="picker-confirm" @click="confirmProvince">确定</text>
-				</view>
-				<view class="picker-content picker-scroll">
-					<view
-						class="picker-option"
-						v-for="item in provinceOptions"
-						:key="item"
-						:class="{ active: tempProvince === item }"
-						@click="tempProvince = item"
-					>
-						<text>{{ item }}</text>
-						<text class="check" v-if="tempProvince === item">✓</text>
-					</view>
-				</view>
-			</view>
-		</uni-popup>
-
-		<!-- 年份选择器 -->
-		<uni-popup ref="yearPopup" type="bottom">
-			<view class="picker-popup">
-				<view class="picker-header">
-					<text class="picker-cancel" @click="$refs.yearPopup.close()">取消</text>
-					<text class="picker-title">选择年份</text>
-					<text class="picker-confirm" @click="confirmYear">确定</text>
-				</view>
-				<view class="picker-content picker-scroll">
-					<view
-						class="picker-option"
-						v-for="year in yearOptions"
-						:key="year"
-						:class="{ active: tempYear === year }"
-						@click="tempYear = year"
-					>
-						<text>{{ year }}年</text>
-						<text class="check" v-if="tempYear === year">✓</text>
-					</view>
-				</view>
-			</view>
-		</uni-popup>
 	</view>
 </template>
 
@@ -342,19 +279,6 @@ export default {
 			},
 			submitting: false,
 
-			// 选择器相关
-			showIdentityPicker: false,
-			showEducationPicker: false,
-			showProvincePicker: false,
-			showEnrollYearPicker: false,
-			showGradYearPicker: false,
-
-			tempIdentity: 'student',
-			tempEducation: '',
-			tempProvince: '',
-			tempYear: '',
-			currentYearField: '',
-
 			// 选项数据
 			identityOptions: [
 				{ value: 'student', label: '学生' },
@@ -378,6 +302,27 @@ export default {
 		}
 	},
 	computed: {
+		identityLabels() {
+			return this.identityOptions.map(item => item.label)
+		},
+		educationLabels() {
+			return this.educationOptions.map(item => item.label)
+		},
+		identityIndex() {
+			return Math.max(0, this.identityOptions.findIndex(item => item.value === this.form.identity_type))
+		},
+		educationIndex() {
+			return Math.max(0, this.educationOptions.findIndex(item => item.value === this.form.education_level))
+		},
+		provinceIndex() {
+			return Math.max(0, this.provinceOptions.findIndex(item => item === this.form.province))
+		},
+		enrollmentYearIndex() {
+			return Math.max(0, this.yearOptions.findIndex(item => item === this.form.enrollment_year))
+		},
+		graduationYearIndex() {
+			return Math.max(0, this.yearOptions.findIndex(item => item === this.form.graduation_year))
+		},
 		yearOptions() {
 			const currentYear = new Date().getFullYear()
 			const years = []
@@ -387,44 +332,42 @@ export default {
 			return years
 		}
 	},
-	watch: {
-		showIdentityPicker(val) {
-			if (val) {
-				this.tempIdentity = this.form.identity_type || 'student'
-				this.$refs.identityPopup.open()
-			}
-		},
-		showEducationPicker(val) {
-			if (val) {
-				this.tempEducation = this.form.education_level || ''
-				this.$refs.educationPopup.open()
-			}
-		},
-		showProvincePicker(val) {
-			if (val) {
-				this.tempProvince = this.form.province || ''
-				this.$refs.provincePopup.open()
-			}
-		},
-		showEnrollYearPicker(val) {
-			if (val) {
-				this.currentYearField = 'enrollment_year'
-				this.tempYear = this.form.enrollment_year || ''
-				this.$refs.yearPopup.open()
-			}
-		},
-		showGradYearPicker(val) {
-			if (val) {
-				this.currentYearField = 'graduation_year'
-				this.tempYear = this.form.graduation_year || ''
-				this.$refs.yearPopup.open()
-			}
-		}
-	},
 	onLoad() {
 		this.loadCertInfo()
 	},
 	methods: {
+		onIdentityChange(e) {
+			const item = this.identityOptions[Number(e.detail.value)]
+			if (!item) return
+			this.form.identity_type = item.value
+			if (!['student', 'teacher'].includes(item.value)) {
+				this.form.education_level = ''
+				this.form.enrollment_year = ''
+				this.form.graduation_year = ''
+				this.form.supervisor_name = ''
+				this.form.student_card_photo = ''
+			}
+		},
+
+		onEducationChange(e) {
+			const item = this.educationOptions[Number(e.detail.value)]
+			if (item) {
+				this.form.education_level = item.value
+			}
+		},
+
+		onProvinceChange(e) {
+			this.form.province = this.provinceOptions[Number(e.detail.value)] || ''
+		},
+
+		onEnrollmentYearChange(e) {
+			this.form.enrollment_year = this.yearOptions[Number(e.detail.value)] || ''
+		},
+
+		onGraduationYearChange(e) {
+			this.form.graduation_year = this.yearOptions[Number(e.detail.value)] || ''
+		},
+
 		// 加载认证信息
 		async loadCertInfo() {
 			try {
@@ -446,35 +389,6 @@ export default {
 			} catch (e) {
 				console.error('加载认证信息失败', e)
 			}
-		},
-
-		// 确认身份类型
-		confirmIdentity() {
-			this.form.identity_type = this.tempIdentity
-			this.showIdentityPicker = false
-			this.$refs.identityPopup.close()
-		},
-
-		// 确认学历
-		confirmEducation() {
-			this.form.education_level = this.tempEducation
-			this.showEducationPicker = false
-			this.$refs.educationPopup.close()
-		},
-
-		// 确认省份
-		confirmProvince() {
-			this.form.province = this.tempProvince
-			this.showProvincePicker = false
-			this.$refs.provincePopup.close()
-		},
-
-		// 确认年份
-		confirmYear() {
-			this.form[this.currentYearField] = this.tempYear
-			this.showEnrollYearPicker = false
-			this.showGradYearPicker = false
-			this.$refs.yearPopup.close()
 		},
 
 		// 获取身份类型标签
@@ -525,14 +439,20 @@ export default {
 				const token = uni.getStorageSync('token')
 
 				uni.uploadFile({
-					url: 'https://www.keyanbaice.com/api/v1/upload/image',
+					url: `${api.baseUrl}/api/v1/upload/image`,
 					filePath: filePath,
 					name: 'file',
 					header: {
 						'Authorization': `Bearer ${token}`
 					},
 					success: (uploadRes) => {
-						const data = JSON.parse(uploadRes.data)
+						let data = {}
+						try {
+							data = JSON.parse(uploadRes.data)
+						} catch (e) {
+							uni.showToast({ title: '上传响应异常', icon: 'none' })
+							return
+						}
 						if (data.code === 200) {
 							this.form[field] = data.data.url
 							uni.showToast({ title: '上传成功', icon: 'success' })
@@ -626,7 +546,7 @@ export default {
 				}, 1500)
 			} catch (e) {
 				console.error('提交失败', e)
-				uni.showToast({ title: e.message || '提交失败', icon: 'none' })
+				uni.showToast({ title: e.message || e.detail || '提交失败', icon: 'none' })
 			} finally {
 				this.submitting = false
 			}
@@ -978,62 +898,4 @@ export default {
 	}
 }
 
-/* 选择器弹窗 */
-.picker-popup {
-	background: white;
-	border-radius: 24rpx 24rpx 0 0;
-
-	.picker-header {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		padding: 30rpx;
-		border-bottom: 1rpx solid #f0f0f0;
-
-		.picker-cancel {
-			font-size: 28rpx;
-			color: #999;
-		}
-
-		.picker-title {
-			font-size: 32rpx;
-			font-weight: bold;
-			color: #333;
-		}
-
-		.picker-confirm {
-			font-size: 28rpx;
-			color: #667eea;
-		}
-	}
-
-	.picker-content {
-		padding: 20rpx 0;
-
-		&.picker-scroll {
-			max-height: 600rpx;
-			overflow-y: auto;
-		}
-
-		.picker-option {
-			display: flex;
-			justify-content: space-between;
-			align-items: center;
-			padding: 30rpx;
-
-			&.active {
-				background: #f5f7ff;
-
-				text {
-					color: #667eea;
-				}
-			}
-
-			.check {
-				color: #667eea;
-				font-weight: bold;
-			}
-		}
-	}
-}
 </style>

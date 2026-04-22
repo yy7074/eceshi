@@ -270,6 +270,7 @@ export default {
 	onShow() {
 		// 每次显示页面时刷新数据
 		this.checkLoginStatus()
+		this.loadUserInfo()
 		this.loadBalance()
 	},
 	methods: {
@@ -307,6 +308,17 @@ export default {
 		
 		// 加载余额信息
 		async loadBalance() {
+			const token = uni.getStorageSync('token')
+			if (!token) {
+				this.balance = {
+					available_credit: 0,
+					prepaid_balance: 0,
+					invoice_amount: 0,
+					debt_amount: 0
+				}
+				return
+			}
+
 			try {
 				const res = await api.getBalance()
 				this.balance = res.data || {}
@@ -404,11 +416,11 @@ export default {
 		callService() {
 			uni.showModal({
 				title: '电话咨询',
-				content: '客服电话：400-123-4567\n工作时间：9:00-18:00',
+				content: '客服电话：17819781949\n工作时间：9:00-18:00',
 				confirmText: '拨打',
 				success: (res) => {
 					if (res.confirm) {
-						uni.makePhoneCall({ phoneNumber: '400-123-4567' })
+						uni.makePhoneCall({ phoneNumber: '17819781949' })
 					}
 				}
 			})
@@ -418,7 +430,7 @@ export default {
 		goAbout() {
 			uni.showModal({
 				title: '关于我们',
-				content: '科研百测 - 专业检测服务平台\n\n专注于材料检测、分析测试服务\n服务热线：400-123-4567\n官网：www.keyanbaice.com',
+				content: '科研百测 - 专业检测服务平台\n\n专注于材料检测、分析测试服务\n服务热线：17819781949\n官网：www.keyanbaice.com',
 				showCancel: false
 			})
 		}

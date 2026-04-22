@@ -81,8 +81,8 @@
 			<view class="tips-content">
 				<text>1. 请将样品妥善包装，避免运输过程中损坏</text>
 				<text>2. 建议选择顺丰或圆通等快递</text>
-				<text>3. 收件地址：北京市海淀区科技园xx号</text>
-				<text>4. 收件人：实验室收样组 / 电话：010-12345678</text>
+				<text>3. 收件地址：广州市黄埔区科学大道1号岭南产教融合孵化器科技苑C座502室</text>
+				<text>4. 收件人：实验室收样组 / 电话：17819781949</text>
 			</view>
 			<view class="tips-action" @click="fillExpressNo">
 				<text>填写快递单号</text>

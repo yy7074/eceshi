@@ -166,7 +166,17 @@
 				agreed: false
 			}
 		},
-		onLoad() {
+		onLoad(options) {
+			// 扫码登录：PC 网页生成带参二维码，用户微信扫码打开本页并携带 scene
+			if (options && options.scene) {
+				try {
+					const scene = decodeURIComponent(options.scene)
+					this.handleQrcodeLogin(scene)
+				} catch (e) {
+					this.handleQrcodeLogin(options.scene)
+				}
+				return
+			}
 			// 检查是否已登录
 			const token = uni.getStorageSync('token')
 			if (token) {
@@ -313,6 +323,54 @@
 				}
 			},
 			
+			// PC 网页扫码登录（小程序端流程）
+			handleQrcodeLogin(sessionId) {
+				uni.showModal({
+					title: '扫码登录',
+					content: '您正在授权登录博才科研百测网页端，是否确认？',
+					confirmText: '确认登录',
+					cancelText: '取消',
+					success: (modalRes) => {
+						if (!modalRes.confirm) {
+							uni.switchTab({ url: '/pages/index/index' })
+							return
+						}
+						uni.showLoading({ title: '授权中...' })
+						uni.login({
+							provider: 'weixin',
+							success: async (loginRes) => {
+								try {
+									await api.confirmQrcodeLogin({
+										session_id: sessionId,
+										code: loginRes.code
+									})
+									uni.hideLoading()
+									uni.showModal({
+										title: '登录成功',
+										content: '请回到电脑浏览器继续操作',
+										showCancel: false,
+										success: () => {
+											uni.switchTab({ url: '/pages/index/index' })
+										}
+									})
+								} catch (error) {
+									uni.hideLoading()
+									uni.showToast({
+										title: error.detail || error.message || '登录失败',
+										icon: 'none',
+										duration: 3000
+									})
+								}
+							},
+							fail: () => {
+								uni.hideLoading()
+								uni.showToast({ title: '微信授权失败', icon: 'none' })
+							}
+						})
+					}
+				})
+			},
+
 			// 微信登录
 			wechatLogin() {
 				if (this.loading) {

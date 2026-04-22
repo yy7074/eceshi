@@ -82,7 +82,7 @@ async def update_profile(
     })
 
 
-@router.post("/certification", response_model=CertificationResponse, summary="提交实名认证")
+@router.post("/certification", summary="提交实名认证")
 async def submit_certification(
     request: CertificationRequest,
     current_user: User = Depends(get_current_user),
@@ -133,6 +133,8 @@ async def submit_certification(
     # 创建认证记录
     certification = UserCertification(
         user_id=current_user.id,
+        real_name=request.real_name,
+        id_card=request.id_card,
         identity_type=identity_type_enum,
         education_level=education_level_enum,
         enrollment_year=request.enrollment_year,
@@ -141,8 +143,12 @@ async def submit_certification(
         city=request.city,
         university=request.university,
         department=request.department,
+        supervisor=request.supervisor_name,
         supervisor_name=request.supervisor_name,
         supervisor_title=request.supervisor_title,
+        company=request.company,
+        position=request.position,
+        student_card=request.student_card_photo,
         student_card_photo=request.student_card_photo,
         id_card_front=request.id_card_front,
         id_card_back=request.id_card_back,
@@ -157,7 +163,23 @@ async def submit_certification(
     db.commit()
     db.refresh(certification)
     
-    return certification
+    return Response.success(data={
+        "id": certification.id,
+        "user_id": certification.user_id,
+        "status": certification.status,
+        "real_name": certification.real_name,
+        "identity_type": certification.identity_type.value if certification.identity_type else None,
+        "education_level": certification.education_level.value if certification.education_level else None,
+        "enrollment_year": certification.enrollment_year,
+        "graduation_year": certification.graduation_year,
+        "province": certification.province,
+        "city": certification.city,
+        "university": certification.university,
+        "department": certification.department,
+        "supervisor_name": certification.supervisor_name,
+        "created_at": certification.created_at.isoformat() if certification.created_at else None,
+        "certified_at": certification.certified_at.isoformat() if certification.certified_at else None
+    }, message="认证申请已提交")
 
 
 @router.get("/certification", summary="获取认证信息")
@@ -360,4 +382,3 @@ async def update_user_status(
     db.commit()
     
     return Response.success(message="状态更新成功")
-

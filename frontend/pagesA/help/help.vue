@@ -54,7 +54,7 @@
 				<view class="contact-icon">📞</view>
 				<view class="contact-info">
 					<text class="contact-title">电话咨询</text>
-					<text class="contact-desc">400-123-4567</text>
+					<text class="contact-desc">17819781949</text>
 				</view>
 				<text class="arrow">›</text>
 			</view>
@@ -164,7 +164,7 @@ export default {
 			uni.navigateTo({ url: '/pagesA/chat/chat' })
 		},
 		callPhone() {
-			uni.makePhoneCall({ phoneNumber: '400-123-4567' })
+			uni.makePhoneCall({ phoneNumber: '17819781949' })
 		}
 	}
 }

@@ -15,6 +15,7 @@ from app.models.user import User
 from app.models.sample_group import SampleGroup, SampleItem
 from app.models.project import Project
 from app.models.project_option import ProjectOption, PriceType
+from app.api.v1.orders import calculate_coupon_discount
 from app.schemas.sample_group import (
     SampleGroupCreate, SampleGroupUpdate, SampleGroupResponse, SampleGroupListResponse,
     SampleItemCreate, SampleItemUpdate, SampleItemResponse,
@@ -560,7 +561,11 @@ async def submit_sample_groups(
             all_samples.extend(group.items)
 
         base_amount = Decimal(str(project.price)) * total_sample_count if project else Decimal("0")
-        order_amount = base_amount + total_options_fee
+        subtotal = base_amount + total_options_fee
+        discount_amount = Decimal("0")
+        if data.coupon_id and project:
+            discount_amount, _ = calculate_coupon_discount(db, current_user, project, data.coupon_id, subtotal)
+        order_amount = subtotal - discount_amount
 
         # 创建订单
         order = Order(
@@ -570,7 +575,7 @@ async def submit_sample_groups(
             sample_count=total_sample_count,
             unit_price=project.price if project else Decimal("0"),
             base_amount=base_amount,
-            discount_amount=Decimal("0"),
+            discount_amount=discount_amount,
             options_fee=total_options_fee,
             total_amount=order_amount,
             address_id=data.address_id,
@@ -620,7 +625,11 @@ async def submit_sample_groups(
 
             base_price = Decimal(str(project.price)) * sample_count if project else Decimal("0")
             options_fee = calculate_options_fee(db, group.option_selections, sample_count, base_price)
-            order_amount = base_price + options_fee
+            subtotal = base_price + options_fee
+            discount_amount = Decimal("0")
+            if data.coupon_id and project:
+                discount_amount, _ = calculate_coupon_discount(db, current_user, project, data.coupon_id, subtotal)
+            order_amount = subtotal - discount_amount
 
             # 创建订单
             order = Order(
@@ -630,7 +639,7 @@ async def submit_sample_groups(
                 sample_count=sample_count,
                 unit_price=project.price if project else Decimal("0"),
                 base_amount=base_price,
-                discount_amount=Decimal("0"),
+                discount_amount=discount_amount,
                 options_fee=options_fee,
                 total_amount=order_amount,
                 address_id=data.address_id,

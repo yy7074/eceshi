@@ -213,7 +213,7 @@ export default {
 		// 联系客服
 		contactService() {
 			uni.makePhoneCall({
-				phoneNumber: '400-123-4567'
+				phoneNumber: '17819781949'
 			})
 		},
 		

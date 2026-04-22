@@ -48,13 +48,20 @@ const api = {
     getCreditInfo: () => axios.get('/api/v1/credit/info'),
     getCreditDebts: (params) => axios.get('/api/v1/credit/debts', { params }),
     applyCreditLimit: (data) => axios.post('/api/v1/credit/limit/apply', data),
+    creditPay: (data) => axios.post('/api/v1/credit/pay', data),
     repayCredit: (data) => axios.post('/api/v1/credit/repay', data),
+
+    // 扫码登录
+    createQrcodeLogin: () => axios.post('/api/v1/auth/qrcode/create'),
+    pollQrcodeLogin: (session_id) => axios.get('/api/v1/auth/qrcode/poll', { params: { session_id } }),
+
     getCreditRecords: (params) => axios.get('/api/v1/credit/records', { params }),
     
     // 项目
     getCategories: () => axios.get('/api/v1/projects/categories'),
     getProjects: (params) => axios.get('/api/v1/projects/list', { params }),
     getProjectDetail: (id) => axios.get(`/api/v1/projects/${id}`),
+    getProjectOptions: (projectId) => axios.get(`/api/v1/project-options/project/${projectId}/options`),
     
     // 订单
     getOrders: (params) => axios.get('/api/v1/orders/list', { params }),
@@ -143,7 +150,7 @@ const api = {
     submitLogistics: (orderId, data) => axios.post(`/api/v1/samples/order/${orderId}/logistics`, data),
     
     // 抽奖
-    getLotteryInfo: () => axios.get('/api/v1/lottery/info'),
+    getLotteryInfo: () => axios.get('/api/v1/lottery/chances'),
     doLottery: () => axios.post('/api/v1/lottery/draw'),
     getLotteryRecords: (params) => axios.get('/api/v1/lottery/records', { params }),
     
@@ -171,6 +178,301 @@ const api = {
     // 快捷回复
     getQuickReplies: () => axios.get('/api/v1/chat/quick-replies'),
     getChatSession: () => axios.get('/api/v1/chat/session')
+}
+
+function flattenWebOptions(options, result = []) {
+    ;(options || []).forEach(option => {
+        result.push(option)
+        flattenWebOptions(option.children || [], result)
+    })
+    return result
+}
+
+function clearWebOptionBranch(selections, option) {
+    if (!option || !option.children) {
+        return
+    }
+    option.children.forEach(child => {
+        delete selections[child.id]
+        clearWebOptionBranch(selections, child)
+    })
+}
+
+function calculateWebOptionFee(optionsTree, selections, sampleCount, basePrice) {
+    const optionMap = {}
+    flattenWebOptions(optionsTree).forEach(option => {
+        optionMap[option.id] = option
+    })
+
+    return Object.values(selections || {}).reduce((total, item) => {
+        if (!item?.selected) {
+            return total
+        }
+        const option = optionMap[item.option_id]
+        if (!option) {
+            return total
+        }
+        const price = Number(option.price || 0)
+        if (!price) {
+            return total
+        }
+        if (option.price_type === 'per_sample') {
+            return total + price * sampleCount
+        }
+        if (option.price_type === 'percentage') {
+            return total + basePrice * (price / 100)
+        }
+        return total + price
+    }, 0)
+}
+
+const WebOptionNode = {
+    name: 'WebOptionNode',
+    emits: ['change'],
+    props: {
+        option: { type: Object, required: true },
+        siblings: { type: Array, default: () => [] },
+        selections: { type: Object, default: () => ({}) },
+        level: { type: Number, default: 0 }
+    },
+    computed: {
+        isSelected() {
+            return !!this.selections[this.option.id]?.selected
+        },
+        hasChildren() {
+            return Array.isArray(this.option.children) && this.option.children.length > 0
+        },
+        isCardType() {
+            return ['single', 'multi'].includes(this.option.option_type)
+        },
+        selectedCheckboxValues() {
+            return (this.option.children || []).filter(child => this.selections[child.id]?.selected).map(child => child.id)
+        },
+        selectedRadioValue() {
+            const selectedChild = (this.option.children || []).find(child => this.selections[child.id]?.selected)
+            return selectedChild ? selectedChild.id : null
+        },
+        selectedDropdownValue() {
+            const selectedChild = (this.option.children || []).find(child => this.selections[child.id]?.selected)
+            return selectedChild ? selectedChild.id : null
+        },
+        inputValue() {
+            return this.selections[this.option.id]?.input_value || ''
+        }
+    },
+    methods: {
+        formatPrice(value) {
+            return Number(value || 0).toFixed(2)
+        },
+        ensureSelection(optionId) {
+            if (!this.selections[optionId]) {
+                this.selections[optionId] = { option_id: optionId, selected: false, input_value: '' }
+            }
+        },
+        toggleCard() {
+            const nextSelected = !this.isSelected
+            if (this.option.option_type === 'single' && nextSelected) {
+                this.siblings.forEach(sibling => {
+                    if (sibling.id !== this.option.id) {
+                        delete this.selections[sibling.id]
+                        clearWebOptionBranch(this.selections, sibling)
+                    }
+                })
+            }
+
+            this.ensureSelection(this.option.id)
+            this.selections[this.option.id].selected = nextSelected
+            this.selections[this.option.id].input_value = ''
+
+            if (!nextSelected) {
+                clearWebOptionBranch(this.selections, this.option)
+            }
+
+            this.$emit('change')
+        },
+        handleInput(value) {
+            this.ensureSelection(this.option.id)
+            this.selections[this.option.id].selected = !!value
+            this.selections[this.option.id].input_value = value || ''
+            this.$emit('change')
+        },
+        handleDropdownChange(value) {
+            ;(this.option.children || []).forEach(child => {
+                if (child.id === value) {
+                    this.selections[child.id] = { option_id: child.id, selected: true, input_value: '' }
+                } else {
+                    delete this.selections[child.id]
+                    clearWebOptionBranch(this.selections, child)
+                }
+            })
+            this.$emit('change')
+        },
+        handleCheckboxGroupChange(values) {
+            ;(this.option.children || []).forEach(child => {
+                if (values.includes(child.id)) {
+                    this.selections[child.id] = { option_id: child.id, selected: true, input_value: '' }
+                } else {
+                    delete this.selections[child.id]
+                    clearWebOptionBranch(this.selections, child)
+                }
+            })
+            this.$emit('change')
+        },
+        handleRadioGroupChange(value) {
+            ;(this.option.children || []).forEach(child => {
+                if (child.id === value) {
+                    this.selections[child.id] = { option_id: child.id, selected: true, input_value: '' }
+                } else {
+                    delete this.selections[child.id]
+                    clearWebOptionBranch(this.selections, child)
+                }
+            })
+            this.$emit('change')
+        }
+    },
+    template: `
+        <div :style="{ marginLeft: (level * 16) + 'px', marginTop: level > 0 ? '12px' : '0' }">
+            <template v-if="option.option_type === 'input'">
+                <div style="margin-bottom: 12px;">
+                    <div style="margin-bottom: 8px; font-weight: 500; color: #303133;">
+                        <span v-if="option.is_required" style="color: #f56c6c; margin-right: 4px;">*</span>{{ option.name }}
+                    </div>
+                    <el-input :model-value="inputValue" :placeholder="option.placeholder || '请输入'" @input="handleInput" />
+                </div>
+            </template>
+            <template v-else-if="option.option_type === 'dropdown'">
+                <div style="margin-bottom: 12px;">
+                    <div style="margin-bottom: 8px; font-weight: 500; color: #303133;">
+                        <span v-if="option.is_required" style="color: #f56c6c; margin-right: 4px;">*</span>{{ option.name }}
+                    </div>
+                    <el-select :model-value="selectedDropdownValue" placeholder="请选择" clearable style="width: 100%" @change="handleDropdownChange">
+                        <el-option v-for="child in option.children || []" :key="child.id" :label="child.name" :value="child.id" />
+                    </el-select>
+                </div>
+            </template>
+            <template v-else-if="option.option_type === 'checkbox_group'">
+                <div style="margin-bottom: 12px;">
+                    <div style="margin-bottom: 8px; font-weight: 500; color: #303133;">
+                        <span v-if="option.is_required" style="color: #f56c6c; margin-right: 4px;">*</span>{{ option.name }}
+                    </div>
+                    <el-checkbox-group :model-value="selectedCheckboxValues" @change="handleCheckboxGroupChange">
+                        <el-checkbox v-for="child in option.children || []" :key="child.id" :label="child.id">
+                            {{ child.name }}
+                            <span v-if="child.price > 0" style="color: #409eff;"> (+¥{{ formatPrice(child.price) }})</span>
+                        </el-checkbox>
+                    </el-checkbox-group>
+                </div>
+            </template>
+            <template v-else-if="option.option_type === 'radio_group'">
+                <div style="margin-bottom: 12px;">
+                    <div style="margin-bottom: 8px; font-weight: 500; color: #303133;">
+                        <span v-if="option.is_required" style="color: #f56c6c; margin-right: 4px;">*</span>{{ option.name }}
+                    </div>
+                    <el-radio-group :model-value="selectedRadioValue" @change="handleRadioGroupChange">
+                        <el-radio v-for="child in option.children || []" :key="child.id" :value="child.id">
+                            {{ child.name }}
+                            <span v-if="child.price > 0" style="color: #409eff;"> (+¥{{ formatPrice(child.price) }})</span>
+                        </el-radio>
+                    </el-radio-group>
+                </div>
+            </template>
+            <template v-else>
+                <div
+                    @click="toggleCard"
+                    :style="{
+                        padding: '12px 14px',
+                        marginBottom: '10px',
+                        borderRadius: '10px',
+                        border: isSelected ? '1px solid #409eff' : '1px solid #dcdfe6',
+                        background: isSelected ? '#ecf5ff' : '#fff',
+                        cursor: 'pointer'
+                    }"
+                >
+                    <div style="display: flex; justify-content: space-between; gap: 12px; align-items: center;">
+                        <div style="font-weight: 500; color: #303133;">
+                            <span v-if="option.is_required" style="color: #f56c6c; margin-right: 4px;">*</span>{{ option.name }}
+                        </div>
+                        <div v-if="option.price > 0" style="color: #409eff; white-space: nowrap;">+¥{{ formatPrice(option.price) }}</div>
+                    </div>
+                </div>
+            </template>
+
+            <div v-if="option.hint_text && (isSelected || option.option_type === 'input')" style="margin: -4px 0 10px; color: #f56c6c; font-size: 12px;">
+                {{ option.hint_text }}
+            </div>
+
+            <div v-if="hasChildren && isSelected && isCardType">
+                <web-option-node
+                    v-for="child in option.children"
+                    :key="child.id"
+                    :option="child"
+                    :siblings="option.children"
+                    :selections="selections"
+                    :level="level + 1"
+                    @change="$emit('change')"
+                />
+            </div>
+        </div>
+    `
+}
+WebOptionNode.components = { WebOptionNode }
+
+const WebDynamicOptionsForm = {
+    name: 'WebDynamicOptionsForm',
+    components: { WebOptionNode },
+    emits: ['change'],
+    props: {
+        optionsTree: { type: Array, default: () => [] }
+    },
+    data() {
+        return {
+            selections: {}
+        }
+    },
+    computed: {
+        groupedOptions() {
+            const groups = {}
+            ;(this.optionsTree || []).forEach(option => {
+                const groupName = option.group_name || '系统配置项'
+                if (!groups[groupName]) {
+                    groups[groupName] = []
+                }
+                groups[groupName].push(option)
+            })
+            return groups
+        }
+    },
+    watch: {
+        optionsTree: {
+            deep: true,
+            handler() {
+                this.selections = {}
+                this.emitChange()
+            }
+        }
+    },
+    methods: {
+        emitChange() {
+            const selections = Object.values(this.selections).filter(item => item?.selected || item?.input_value)
+            this.$emit('change', { selections })
+        }
+    },
+    template: `
+        <div v-if="optionsTree && optionsTree.length > 0">
+            <div v-for="(group, groupName) in groupedOptions" :key="groupName" style="margin-bottom: 18px;">
+                <div style="font-weight: 600; color: #303133; margin-bottom: 10px;">{{ groupName }}</div>
+                <web-option-node
+                    v-for="option in group"
+                    :key="option.id"
+                    :option="option"
+                    :siblings="group"
+                    :selections="selections"
+                    :level="0"
+                    @change="emitChange"
+                />
+            </div>
+        </div>
+    `
 }
 
 // ==================== Vue组件 ====================
@@ -269,7 +571,7 @@ const HomeView = {
                 </div>
                 <div v-else class="projects-grid">
                     <div v-for="project in projects" :key="project.id" class="project-card" @click="$emit('go-detail', project.id)">
-                        <img :src="project.cover_image || 'https://via.placeholder.com/280x180'" class="project-image" alt="">
+                        <img :src="project.cover_image || '/web/assets/images/no-image.svg'" @error="$event.target.src='/web/assets/images/no-image.svg'" class="project-image" alt="">
                         <div class="project-info">
                             <div class="project-name">{{ project.name }}</div>
                             <div class="project-price">
@@ -395,7 +697,7 @@ const ProjectsView = {
             <div v-else>
                 <div class="projects-grid">
                     <div v-for="project in projects" :key="project.id" class="project-card" @click="$emit('go-detail', project.id)">
-                        <img :src="project.cover_image || 'https://via.placeholder.com/280x180'" class="project-image" alt="">
+                        <img :src="project.cover_image || '/web/assets/images/no-image.svg'" @error="$event.target.src='/web/assets/images/no-image.svg'" class="project-image" alt="">
                         <div class="project-info">
                             <div class="project-name">{{ project.name }}</div>
                             <div class="project-price">
@@ -500,7 +802,7 @@ const ProjectDetail = {
                     
                     <div class="detail-main">
                         <div class="detail-images">
-                            <img :src="project.cover_image || 'https://via.placeholder.com/400x400'" class="detail-image" alt="">
+                            <img :src="project.cover_image || '/web/assets/images/no-image.svg'" @error="$event.target.src='/web/assets/images/no-image.svg'" class="detail-image" alt="">
                         </div>
                         <div class="detail-info">
                             <h1>{{ project.name }}</h1>
@@ -538,9 +840,6 @@ const ProjectDetail = {
                         </el-tab-pane>
                         <el-tab-pane label="样品要求" name="sample">
                             <div v-html="project.sample_requirements || '暂无要求'"></div>
-                        </el-tab-pane>
-                        <el-tab-pane label="检测标准" name="standard">
-                            <div v-html="project.testing_standards || '暂无标准'"></div>
                         </el-tab-pane>
                         <el-tab-pane label="用户评价" name="reviews">
                             <div v-if="reviews.length === 0" class="empty-state" style="padding: 40px">
@@ -1243,8 +1542,6 @@ const CreditView = {
                     <el-form-item label="还款方式">
                         <el-radio-group v-model="repayForm.method">
                             <el-radio value="balance">余额还款</el-radio>
-                            <el-radio value="alipay">支付宝</el-radio>
-                            <el-radio value="wechat">微信支付</el-radio>
                         </el-radio-group>
                     </el-form-item>
                 </el-form>
@@ -1366,9 +1663,9 @@ const AboutView = {
 
             <div class="about-section">
                 <h2>联系我们</h2>
-                <p><strong>客服电话：</strong>400-123-4567</p>
+                <p><strong>客服电话：</strong>17819781949</p>
                 <p><strong>邮箱：</strong>service@keyanbaice.com</p>
-                <p><strong>地址：</strong>北京市海淀区科技园</p>
+                <p><strong>地址：</strong>广州市黄埔区科学大道1号岭南产教融合孵化器科技苑C座502室</p>
             </div>
 
             <div class="about-section">
@@ -1398,7 +1695,7 @@ const FavoritesView = {
             </div>
             <div v-else class="projects-grid">
                 <div class="project-card" v-for="item in favorites" :key="item.id" @click="$emit('go-detail', item.project_id)">
-                    <img :src="item.project?.cover_image || 'https://via.placeholder.com/280x180'" class="project-image" alt="">
+                    <img :src="item.project?.cover_image || '/web/assets/images/no-image.svg'" @error="$event.target.src='/web/assets/images/no-image.svg'" class="project-image" alt="">
                     <div class="project-info">
                         <div class="project-name">{{ item.project?.name }}</div>
                         <div class="project-price">
@@ -1580,7 +1877,8 @@ const WalletView = {
             const amount = this.customAmount ? parseFloat(this.customAmount) : this.selectedAmount
             if (!amount || amount <= 0) { ElMessage.error('请选择或输入充值金额'); return }
             this.recharging = true
-            try { await api.createRecharge({ amount, pay_method: 'alipay' }); ElMessage.success('充值请求已提交'); this.loadRecords() } catch (error) {} finally { this.recharging = false }
+            ElMessage.info('充值功能暂未开放，目前所有订单统一使用信用支付')
+            this.recharging = false
         }
     }
 }
@@ -1600,7 +1898,7 @@ const PointsView = {
             <div v-else-if="goods.length === 0" class="empty-state"><div class="empty-icon">🎁</div><div class="empty-text">暂无积分商品</div></div>
             <div v-else class="goods-grid">
                 <div class="goods-card" v-for="item in goods" :key="item.id">
-                    <img :src="item.image || 'https://via.placeholder.com/200'" class="goods-image" alt="">
+                    <img :src="item.image || '/web/assets/images/no-image.svg'" @error="$event.target.src='/web/assets/images/no-image.svg'" class="goods-image" alt="">
                     <div class="goods-info">
                         <div class="goods-name">{{ item.name }}</div>
                         <div class="goods-points">{{ item.points_cost }}积分</div>
@@ -1771,7 +2069,7 @@ const HelpView = {
                 this.articles = [
                     { id: 1, title: '如何注册账号？', content: '<p>1. 点击首页右上角"登录"按钮</p><p>2. 输入手机号获取验证码</p><p>3. 输入验证码完成登录/注册</p>' },
                     { id: 2, title: '如何下单？', content: '<p>1. 浏览检测项目，选择需要的检测服务</p><p>2. 点击"立即预约"填写样品信息</p><p>3. 确认订单并支付</p><p>4. 按照指引寄送样品</p>' },
-                    { id: 3, title: '支持哪些支付方式？', content: '<p>目前支持：</p><ul><li>微信支付</li><li>支付宝支付</li><li>账户余额支付</li></ul>' },
+                    { id: 3, title: '支持哪些支付方式？', content: '<p>当前订单统一使用<strong>信用支付</strong>（根据授信额度先用后付）。如需了解额度，请进入"信用额度"页面查看。</p>' },
                     { id: 4, title: '如何查看检测报告？', content: '<p>1. 登录账号进入"我的订单"</p><p>2. 找到已完成的订单</p><p>3. 点击"下载报告"即可获取检测报告</p>' }
                 ]
             } finally { this.loading = false }
@@ -2413,7 +2711,7 @@ const FranchiseView = {
                     <div class="contact-item">
                         <div class="contact-icon">📞</div>
                         <div class="contact-label">商务热线</div>
-                        <div class="contact-value">400-123-4567</div>
+                        <div class="contact-value">17819781949</div>
                     </div>
                     <div class="contact-item">
                         <div class="contact-icon">📧</div>
@@ -2488,6 +2786,7 @@ createApp({
         HomeView,
         ProjectsView,
         ProjectDetail,
+        WebDynamicOptionsForm,
         OrdersView,
         ProfileView,
         AboutView,
@@ -2518,9 +2817,19 @@ createApp({
             isLogin: false,
             userInfo: {},
             showLogin: false,
+            loginTab: 'qrcode',
             loginForm: { phone: '', sms_code: '' },
             countdown: 0,
             loginLoading: false,
+            // 扫码登录
+            qrcodeSessionId: '',
+            qrcodeImage: '',
+            qrcodeLoading: false,
+            qrcodeError: '',
+            qrcodeExpired: false,
+            qrcodeCountdown: 0,
+            qrcodePollTimer: null,
+            qrcodeCountdownTimer: null,
             showMobileMenu: false,
             // 预约下单
             showBooking: false,
@@ -2544,13 +2853,16 @@ createApp({
             },
             addresses: [],
             availableCoupons: [],
+            bookingOptionsTree: [],
+            bookingOptionSelections: [],
             bookingLoading: false,
             // 支付
             showPayment: false,
             paymentOrder: null,
-            payMethod: 'balance',
+            payMethod: 'credit',
             paymentLoading: false,
             balance: {},
+            creditAvailable: '0.00',
             // 评价
             showReview: false,
             reviewOrder: null,
@@ -2568,25 +2880,44 @@ createApp({
         }
     },
     computed: {
+        bookingBaseAmount() {
+            if (!this.bookingProject) return 0
+            return this.bookingProject.current_price * this.bookingForm.quantity
+        },
+        bookingOptionsFeeEstimate() {
+            if (!this.bookingProject || this.bookingOptionSelections.length === 0) return 0
+            return calculateWebOptionFee(
+                this.bookingOptionsTree,
+                this.bookingOptionSelections,
+                this.bookingForm.quantity,
+                this.bookingBaseAmount
+            )
+        },
+        couponDiscountEstimate() {
+            if (!this.bookingForm.coupon_id) return 0
+            const coupon = this.availableCoupons.find(c => c.id === this.bookingForm.coupon_id)
+            if (!coupon) return 0
+            const subtotal = this.bookingBaseAmount + this.bookingOptionsFeeEstimate
+            if (coupon.coupon_type === 'discount') {
+                return Math.max(0, subtotal * (1 - Number(coupon.discount_value || 1)))
+            }
+            return Math.max(0, Number(coupon.discount_value || 0))
+        },
         orderTotalAmount() {
             if (!this.bookingProject) return 0
-            let basePrice = this.bookingProject.current_price * this.bookingForm.quantity
-            let total = basePrice
+            let total = this.bookingBaseAmount + this.bookingOptionsFeeEstimate
             // 加急费用
             if (this.bookingForm.urgency === 'urgent_48h') {
-                total += basePrice * 0.5
+                total += this.bookingBaseAmount * 0.5
             } else if (this.bookingForm.urgency === 'urgent_24h') {
-                total += basePrice * 1
+                total += this.bookingBaseAmount * 1
             }
             // 纸质报告
             if (this.bookingForm.report_options?.includes('paper_report')) {
                 total += 30
             }
             // 优惠券
-            if (this.bookingForm.coupon_id) {
-                const coupon = this.availableCoupons.find(c => c.id === this.bookingForm.coupon_id)
-                if (coupon) total -= coupon.discount_value
-            }
+            total -= this.couponDiscountEstimate
             return Math.max(0, total).toFixed(2)
         }
     },
@@ -2594,6 +2925,16 @@ createApp({
         this.checkDevice()
         window.addEventListener('resize', this.checkDevice)
         this.checkLogin()
+    },
+    watch: {
+        showLogin(val) {
+            if (val && this.loginTab === 'qrcode') { this.startQrcodeLogin() }
+            else if (!val) { this.stopQrcodePoll() }
+        },
+        loginTab(val) {
+            if (val === 'qrcode' && this.showLogin) { this.startQrcodeLogin() }
+            else if (val !== 'qrcode') { this.stopQrcodePoll() }
+        }
     },
     methods: {
         checkDevice() { this.isMobile = window.innerWidth < 768 },
@@ -2629,13 +2970,23 @@ createApp({
                 coupon_id: null,
                 remark: ''
             }
+            this.bookingOptionsTree = []
+            this.bookingOptionSelections = []
             try {
-                const [addrRes, couponRes] = await Promise.all([api.getAddresses(), api.getMyCoupons('available')])
+                const [addrRes, couponRes, optionRes] = await Promise.all([
+                    api.getAddresses(),
+                    api.getMyCoupons('available'),
+                    api.getProjectOptions(project.id)
+                ])
                 this.addresses = addrRes.data || []
                 this.availableCoupons = couponRes.data?.items || []
+                this.bookingOptionsTree = optionRes.data?.options || []
                 if (this.addresses.length > 0) { const def = this.addresses.find(a => a.is_default) || this.addresses[0]; this.bookingForm.address_id = def.id }
             } catch (error) {}
             this.showBooking = true
+        },
+        handleBookingOptionsChange(payload) {
+            this.bookingOptionSelections = payload?.selections || []
         },
         async submitBooking() {
             if (!this.bookingForm.sample_name) { ElMessage.error('请输入样品名称'); return }
@@ -2643,7 +2994,12 @@ createApp({
             if (!this.bookingForm.address_id) { ElMessage.error('请选择收货地址'); return }
             this.bookingLoading = true
             try {
-                const res = await api.createOrder({ project_id: this.bookingProject.id, ...this.bookingForm })
+                const res = await api.createOrder({
+                    project_id: this.bookingProject.id,
+                    sample_count: this.bookingForm.quantity,
+                    option_selections: this.bookingOptionSelections,
+                    ...this.bookingForm
+                })
                 ElMessage.success('订单创建成功')
                 this.showBooking = false
                 this.paymentOrder = res.data
@@ -2651,34 +3007,35 @@ createApp({
                 this.loadBalance()
             } catch (error) {} finally { this.bookingLoading = false }
         },
-        // 支付
-        async loadBalance() { try { const res = await api.getBalance(); this.balance = res.data } catch (error) {} },
-        openPayment(order) { this.paymentOrder = order; this.payMethod = 'balance'; this.showPayment = true; this.loadBalance() },
+        // 支付（统一信用支付）
+        async loadBalance() {
+            try { const res = await api.getBalance(); this.balance = res.data } catch (error) {}
+            try {
+                const res = await api.getCreditInfo()
+                const info = res.data || {}
+                const limit = Number(info.credit_limit || 0)
+                const used = Number(info.used_credit || 0)
+                this.creditAvailable = (limit - used).toFixed(2)
+            } catch (error) { this.creditAvailable = '0.00' }
+        },
+        openPayment(order) { this.paymentOrder = order; this.payMethod = 'credit'; this.showPayment = true; this.loadBalance() },
         async submitPayment() {
             this.paymentLoading = true
             try {
-                if (this.payMethod === 'balance') {
-                    await api.payWithBalance({ order_id: this.paymentOrder.id })
-                    ElMessage.success('支付成功')
-                    this.showPayment = false
-                    this.currentView = 'orders'
-                    this.loadOrders()
-                } else {
-                    const res = await api.createPayment({ order_id: this.paymentOrder.id, payment_method: this.payMethod })
-                    if (res.data?.pay_url) { 
-                        window.open(res.data.pay_url, '_blank') 
-                        ElMessage.info('请在新窗口完成支付')
-                        this.showPayment = false
-                    } else {
-                        ElMessage.error('支付失败：未获取到支付链接')
-                    }
-                }
+                await api.creditPay({
+                    order_id: this.paymentOrder.id,
+                    amount: this.paymentOrder.total_fee || this.paymentOrder.total_amount
+                })
+                ElMessage.success('信用支付成功')
+                this.showPayment = false
+                this.currentView = 'orders'
+                this.loadOrders()
             } catch (error) {
                 console.error('支付失败:', error)
                 const errorMsg = error.response?.data?.detail || error.message || '支付失败，请稍后重试'
                 ElMessage.error(errorMsg)
-            } finally { 
-                this.paymentLoading = false 
+            } finally {
+                this.paymentLoading = false
             }
         },
         // 评价
@@ -2737,6 +3094,65 @@ createApp({
                 ElMessage.success('登录成功')
             } catch (error) {} finally { this.loginLoading = false }
         },
+
+        // 扫码登录 —— 网页端生成二维码并轮询
+        async startQrcodeLogin() {
+            this.stopQrcodePoll()
+            this.qrcodeLoading = true
+            this.qrcodeError = ''
+            this.qrcodeExpired = false
+            this.qrcodeImage = ''
+            try {
+                const res = await api.createQrcodeLogin()
+                this.qrcodeSessionId = res.data.session_id
+                this.qrcodeImage = res.data.qrcode
+                this.qrcodeCountdown = res.data.expires_in || 300
+                this.qrcodeCountdownTimer = setInterval(() => {
+                    this.qrcodeCountdown--
+                    if (this.qrcodeCountdown <= 0) {
+                        this.stopQrcodePoll()
+                        this.qrcodeExpired = true
+                        this.qrcodeImage = ''
+                    }
+                }, 1000)
+                this.qrcodePollTimer = setInterval(() => this.pollQrcodeStatus(), 2000)
+            } catch (error) {
+                this.qrcodeError = error.response?.data?.detail || '二维码生成失败，请稍后重试'
+            } finally {
+                this.qrcodeLoading = false
+            }
+        },
+        async pollQrcodeStatus() {
+            if (!this.qrcodeSessionId) return
+            try {
+                const res = await api.pollQrcodeLogin(this.qrcodeSessionId)
+                const { status, token, user } = res.data || {}
+                if (status === 'confirmed' && token) {
+                    this.stopQrcodePoll()
+                    localStorage.setItem('token', token)
+                    try {
+                        const userRes = await api.getUserInfo()
+                        localStorage.setItem('userInfo', JSON.stringify(userRes.data))
+                        this.userInfo = userRes.data
+                    } catch (e) {
+                        if (user) { this.userInfo = user; localStorage.setItem('userInfo', JSON.stringify(user)) }
+                    }
+                    this.isLogin = true
+                    this.showLogin = false
+                    ElMessage.success('登录成功')
+                } else if (status === 'expired') {
+                    this.stopQrcodePoll()
+                    this.qrcodeExpired = true
+                    this.qrcodeImage = ''
+                }
+            } catch (error) {
+                // 网络抖动忽略；若连续失败可加计数器
+            }
+        },
+        stopQrcodePoll() {
+            if (this.qrcodePollTimer) { clearInterval(this.qrcodePollTimer); this.qrcodePollTimer = null }
+            if (this.qrcodeCountdownTimer) { clearInterval(this.qrcodeCountdownTimer); this.qrcodeCountdownTimer = null }
+        },
         logout() {
             localStorage.removeItem('token'); localStorage.removeItem('userInfo')
             this.isLogin = false; this.userInfo = {}; this.currentView = 'home'
@@ -2746,4 +3162,3 @@ createApp({
 })
 .use(ElementPlus)
 .mount('#app')
-

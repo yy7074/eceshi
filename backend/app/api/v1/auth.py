@@ -2,6 +2,9 @@
 认证相关API
 用户注册、登录、短信验证码
 """
+import base64
+import json
+import secrets
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from datetime import timedelta
@@ -11,6 +14,7 @@ from app.core.database import get_db
 from app.core.security import verify_password, get_password_hash, create_access_token
 from app.core.response import Response
 from app.core.config import settings
+from app.core.redis_client import get_redis
 from app.models.user import User
 from app.schemas.user import UserRegister, UserLogin, SMSCodeRequest, SMSLoginRequest, WechatLoginRequest, TokenResponse
 from app.services.sms_service import sms_service
@@ -19,11 +23,24 @@ from app.services.wechat_service import wechat_service
 
 router = APIRouter()
 
+QRCODE_SESSION_TTL = 300  # 5 分钟
+QRCODE_REDIS_PREFIX = "qrlogin:"
+
+
+def _qr_key(session_id: str) -> str:
+    return f"{QRCODE_REDIS_PREFIX}{session_id}"
+
 
 class AdminLoginRequest(BaseModel):
     """管理员登录请求"""
     username: str
     password: str
+
+
+class QrcodeConfirmRequest(BaseModel):
+    """小程序扫码后确认登录"""
+    session_id: str
+    code: str
 
 
 @router.post("/send-sms", summary="发送短信验证码")
@@ -397,4 +414,127 @@ async def admin_login(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="用户名或密码错误"
         )
+
+
+@router.post("/qrcode/create", summary="创建扫码登录会话并返回二维码")
+async def create_qrcode_login():
+    """
+    PC 网页端调用。
+    - 生成 session_id
+    - 用 session_id 作为 scene 调微信拿带参小程序码
+    - 返回 session_id + 二维码 base64
+    """
+    session_id = secrets.token_hex(16)  # 32 个 0-9a-f 字符，100% 符合微信 scene 字符集
+    r = get_redis()
+    r.setex(
+        _qr_key(session_id),
+        QRCODE_SESSION_TTL,
+        json.dumps({"status": "pending", "token": None, "user": None}),
+    )
+
+    try:
+        qrcode_bytes = await wechat_service.get_unlimited_qrcode(
+            scene=session_id,
+            page="pages/login/login",
+        )
+    except RuntimeError as e:
+        r.delete(_qr_key(session_id))
+        raise HTTPException(status_code=500, detail=str(e))
+
+    qrcode_b64 = base64.b64encode(qrcode_bytes).decode()
+    # 微信返回通常是 JPEG；用 image/jpeg 前缀，浏览器也能识别其它类型
+    return Response.success(data={
+        "session_id": session_id,
+        "qrcode": f"data:image/jpeg;base64,{qrcode_b64}",
+        "expires_in": QRCODE_SESSION_TTL,
+    })
+
+
+@router.get("/qrcode/poll", summary="网页轮询扫码登录状态")
+async def poll_qrcode_login(session_id: str):
+    """
+    status 值：
+    - pending：等待扫码
+    - confirmed：已扫码并确认，data 里带 token
+    - expired：session 已失效
+    """
+    raw = get_redis().get(_qr_key(session_id))
+    if not raw:
+        return Response.success(data={"status": "expired"})
+    session = json.loads(raw)
+    return Response.success(data=session)
+
+
+@router.post("/qrcode/confirm", summary="小程序扫码后确认登录")
+async def confirm_qrcode_login(
+    request: QrcodeConfirmRequest,
+    db: Session = Depends(get_db),
+):
+    """
+    小程序端 onLoad 拿到 scene（session_id）后调用：
+    1. 用 code 换 openid
+    2. 查/建用户
+    3. 生成 JWT
+    4. 把 token 写回 Redis，网页轮询后拿到
+    """
+    r = get_redis()
+    raw = r.get(_qr_key(request.session_id))
+    if not raw:
+        raise HTTPException(status_code=410, detail="会话已过期，请在网页重新生成二维码")
+    session = json.loads(raw)
+    if session.get("status") == "confirmed":
+        raise HTTPException(status_code=400, detail="该二维码已被使用")
+
+    # 1. code 换 openid
+    session_data = await wechat_service.code_to_session(request.code)
+    if "errcode" in session_data and session_data["errcode"] != 0:
+        raise HTTPException(
+            status_code=400,
+            detail=f"微信登录失败: errcode={session_data.get('errcode')} {session_data.get('errmsg', '')}",
+        )
+    openid = session_data.get("openid")
+    if not openid:
+        raise HTTPException(status_code=400, detail="获取微信 OpenID 失败")
+
+    # 2. 查或建用户
+    user = db.query(User).filter(User.wechat_openid == openid).first()
+    if not user:
+        user = User(
+            wechat_openid=openid,
+            wechat_unionid=session_data.get("unionid"),
+            nickname=f"微信用户{openid[-6:]}",
+            credit_limit=3000.00,
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+
+    if user.status.value != "active":
+        raise HTTPException(status_code=403, detail="账号已被禁用")
+
+    from datetime import datetime
+    user.last_login_at = datetime.utcnow()
+    db.commit()
+
+    # 3. 生成 token
+    token = create_access_token(data={"user_id": user.id, "openid": openid})
+
+    # 4. 写回 Redis（保留剩余 TTL）
+    ttl = r.ttl(_qr_key(request.session_id))
+    if ttl is None or ttl < 0:
+        ttl = 60
+    r.setex(
+        _qr_key(request.session_id),
+        ttl,
+        json.dumps({
+            "status": "confirmed",
+            "token": token,
+            "user": {
+                "user_id": user.id,
+                "nickname": user.nickname,
+                "phone": user.phone,
+            },
+        }),
+    )
+    return Response.success(message="登录成功，请回到网页")
 

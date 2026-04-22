@@ -12,6 +12,28 @@ const PROD_BASE_URL = 'https://www.keyanbaice.com'
 // 根据环境选择API地址
 const BASE_URL = process.env.NODE_ENV === 'development' ? DEV_BASE_URL : PROD_BASE_URL
 
+function buildUrl(url, params) {
+	if (!params || typeof params !== 'object') {
+		return url
+	}
+	const searchParams = new URLSearchParams()
+	Object.entries(params).forEach(([key, value]) => {
+		if (value === undefined || value === null || value === '') {
+			return
+		}
+		if (Array.isArray(value)) {
+			value.forEach(item => searchParams.append(key, item))
+			return
+		}
+		searchParams.append(key, value)
+	})
+	const queryString = searchParams.toString()
+	if (!queryString) {
+		return url
+	}
+	return `${url}${url.includes('?') ? '&' : '?'}${queryString}`
+}
+
 /**
  * 请求封装
  * @param {Object} options 请求配置
@@ -31,14 +53,14 @@ function request(options) {
 		}
 		
 		uni.request({
-			url: BASE_URL + options.url,
+			url: BASE_URL + buildUrl(options.url, options.params),
 			method: options.method || 'GET',
 			data: options.data || {},
 			header: headers,
 			success: (res) => {
 				if (res.statusCode === 200) {
 					// 业务逻辑处理
-					if (res.data.code === 200) {
+					if (res.data.code === 200 || res.data.code === 0) {
 						resolve(res.data)
 					} else {
 						// 业务错误

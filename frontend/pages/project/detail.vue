@@ -216,12 +216,12 @@ export default {
 		contactService() {
 			uni.showModal({
 				title: '联系客服',
-				content: '客服电话：400-123-4567',
+				content: '客服电话：17819781949',
 				confirmText: '拨打电话',
 				success: (res) => {
 					if (res.confirm) {
 						uni.makePhoneCall({
-							phoneNumber: '400-123-4567'
+							phoneNumber: '17819781949'
 						})
 					}
 				}

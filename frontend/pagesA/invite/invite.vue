@@ -120,6 +120,35 @@
 				</view>
 			</view>
 		</view>
+
+		<!-- 推广二维码 -->
+		<view class="reward-panel">
+			<view class="panel-header orange">
+				<text>推广二维码</text>
+				<text class="header-emoji">📣</text>
+			</view>
+			<view class="panel-body">
+				<view class="qrcode-section">
+					<image
+						v-if="latestQrcode"
+						:src="getQrcodeImage(latestQrcode)"
+						class="promo-qrcode"
+						mode="aspectFit"
+						@click="previewPromotionQrcode"
+					/>
+					<view v-else class="promo-qrcode empty">
+						<text>暂无推广码</text>
+					</view>
+					<text class="qrcode-desc">适合线上分享、线下海报和推广抽奖使用</text>
+					<view class="qrcode-actions">
+						<button class="flow-btn orange" @click="createPromotionQrcode" :disabled="qrcodeLoading">
+							{{ qrcodeLoading ? '生成中...' : '生成推广码' }}
+						</button>
+						<button class="flow-btn" v-if="latestQrcode" @click="previewPromotionQrcode">查看大图</button>
+					</view>
+				</view>
+			</view>
+		</view>
 		
 		<!-- 活动规则 -->
 		<view class="text-section">
@@ -157,12 +186,15 @@ export default {
 			myInvites: 0,
 			predictedOrders: 0,
 			predictedRewards: 0,
-			earnedRewards: 0
+			earnedRewards: 0,
+			latestQrcode: null,
+			qrcodeLoading: false
 		}
 	},
 	
 	onLoad() {
 		this.loadInviteData()
+		this.loadInviteQrcodes()
 	},
 	
 	// 分享配置
@@ -193,6 +225,59 @@ export default {
 				this.predictedRewards = 0
 				this.earnedRewards = 0
 			}
+		},
+
+		async loadInviteQrcodes() {
+			try {
+				const res = await api.getInviteQrcodes({ page: 1, page_size: 10 })
+				this.latestQrcode = (res.data?.items || [])[0] || null
+			} catch (error) {
+				console.error('加载推广二维码失败', error)
+				this.latestQrcode = null
+			}
+		},
+
+		async createPromotionQrcode() {
+			try {
+				this.qrcodeLoading = true
+				const res = await api.createInviteQrcode({
+					name: `推广二维码-${Date.now()}`,
+					scene: 'activity'
+				})
+				this.latestQrcode = res.data || null
+				uni.showToast({
+					title: '推广二维码已生成',
+					icon: 'success'
+				})
+			} catch (error) {
+				uni.showToast({
+					title: error.message || error.detail || '生成失败',
+					icon: 'none'
+				})
+			} finally {
+				this.qrcodeLoading = false
+			}
+		},
+
+		getQrcodeImage(item) {
+			if (!item?.qrcode_url) {
+				return ''
+			}
+			if (/^https?:\/\//.test(item.qrcode_url)) {
+				return item.qrcode_url
+			}
+			return `${api.baseUrl}${item.qrcode_url}`
+		},
+
+		previewPromotionQrcode() {
+			if (!this.latestQrcode) {
+				return
+			}
+			const url = this.getQrcodeImage(this.latestQrcode)
+			uni.previewImage({
+				urls: [url],
+				current: url
+			})
 		},
 		
 		// 提现
@@ -249,6 +334,39 @@ export default {
 	align-items: center;
 	position: relative;
 	box-shadow: 0 4rpx 20rpx rgba(0, 0, 0, 0.05);
+}
+
+.qrcode-section {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 20rpx;
+}
+
+.promo-qrcode {
+	width: 320rpx;
+	height: 320rpx;
+	background: #fff7e8;
+	border-radius: 20rpx;
+	padding: 20rpx;
+}
+
+.promo-qrcode.empty {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: #999;
+}
+
+.qrcode-desc {
+	font-size: 24rpx;
+	color: #666;
+	text-align: center;
+}
+
+.qrcode-actions {
+	display: flex;
+	gap: 16rpx;
 }
 
 .card-left {

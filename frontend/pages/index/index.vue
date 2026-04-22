@@ -70,7 +70,14 @@
 		<view class="project-section">
 			<view class="project-grid">
 				<view class="project-card" v-for="item in projects" :key="item.id">
-					<image :src="item.cover_image" mode="aspectFill" class="project-image" :show-menu-by-longpress="true" @click="goProjectDetail(item)"></image>
+					<image
+						:src="item.cover_image"
+						mode="aspectFill"
+						class="project-image"
+						:show-menu-by-longpress="true"
+						@click="goProjectDetail(item)"
+						@error="handleProjectImageError(item)"
+					></image>
 					<view class="project-info">
 						<text class="project-name" @click="goProjectDetail(item)">{{ item.name }}</text>
 						<view class="project-meta">
@@ -130,10 +137,34 @@
 			this.loadAnnouncements()
 		},
 		methods: {
+			normalizeAssetUrl(url, fallback = '') {
+				if (!url) {
+					return fallback
+				}
+				if (/^https?:\/\//i.test(url)) {
+					return url
+				}
+				if (url.startsWith('//')) {
+					return `https:${url}`
+				}
+				if (url.startsWith('/')) {
+					return `${api.baseUrl}${url}`
+				}
+				return `${api.baseUrl}/${url}`
+			},
+
+			getProjectFallbackImage(projectId) {
+				return `https://picsum.photos/400/300?random=${projectId || Date.now()}`
+			},
+
+			handleProjectImageError(item) {
+				item.cover_image = this.getProjectFallbackImage(item.id)
+			},
+
 			async loadBanners() {
 				try {
 					const res = await api.getBanners('home')
-					if (res.code === 0 && res.data?.items?.length > 0) {
+					if ((res.code === 0 || res.code === 200) && res.data?.items?.length > 0) {
 						const bgColors = [
 							'linear-gradient(135deg, #faad14 0%, #fa8c16 100%)',
 							'linear-gradient(135deg, #1890ff 0%, #096dd9 100%)',
@@ -159,7 +190,7 @@
 			async loadAnnouncements() {
 				try {
 					const res = await api.getAnnouncements({ page: 1, page_size: 5 })
-					if (res.code === 0 && res.data?.items?.length > 0) {
+					if ((res.code === 0 || res.code === 200) && res.data?.items?.length > 0) {
 						this.announcements = res.data.items.map(a => ({
 							id: a.id,
 							title: a.title,
@@ -214,8 +245,10 @@
 					// 使用后台返回的项目数据
 					this.projects = projects.map(project => ({
 						...project,
-						// 直接使用后台返回的cover_image
-						cover_image: project.cover_image || `https://picsum.photos/400/300?random=${project.id}`,
+						cover_image: this.normalizeAssetUrl(
+							project.cover_image,
+							this.getProjectFallbackImage(project.id)
+						),
 						lab_name: project.laboratory?.name || '官方实验室',
 						order_count: project.order_count || 0,
 						service_cycle_min: project.service_cycle_min || 3,

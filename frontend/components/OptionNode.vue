@@ -123,7 +123,7 @@
 
 		<!-- 红色提示文字 -->
 		<view class="hint-text" v-if="option.hint_text && (isSelected || option.option_type === 'input')">
-			<text>{{ option.hint_text }}</text>
+			<text class="hint-content">{{ option.hint_text }}</text>
 		</view>
 
 		<!-- 子选项（仅对 single/multi 类型，且在父选项选中时显示） -->
@@ -403,10 +403,6 @@ export default {
 			color: #fff;
 			background: #fff;
 
-			&:has(text) {
-				border-color: #4facfe;
-				background: #4facfe;
-			}
 		}
 
 		.checkbox-label {
@@ -419,6 +415,11 @@ export default {
 			font-size: 24rpx;
 			color: #ff6b6b;
 		}
+	}
+
+	.checkbox-item.checked .checkbox-icon {
+		border-color: #4facfe;
+		background: #4facfe;
 	}
 }
 
@@ -608,7 +609,7 @@ export default {
 	border-radius: 8rpx;
 	border-left: 4rpx solid #ff6b6b;
 
-	text {
+	.hint-content {
 		font-size: 24rpx;
 		color: #ff6b6b;
 		line-height: 1.5;

@@ -51,6 +51,9 @@ class ProjectOptionCreate(ProjectOptionBase):
 
 class ProjectOptionUpdate(BaseModel):
     """更新选项"""
+    project_id: Optional[int] = Field(None, description="关联项目ID")
+    category_id: Optional[int] = Field(None, description="关联分类ID")
+    parent_id: Optional[int] = Field(None, description="父选项ID")
     name: Optional[str] = Field(None, description="选项名称")
     option_type: Optional[OptionTypeEnum] = Field(None, description="选项类型")
     price: Optional[Decimal] = Field(None, description="价格调整")

@@ -179,6 +179,30 @@
 					</view>
 				</view>
 			</view>
+
+			<!-- 优惠券 -->
+			<view class="form-section">
+				<view class="section-title-no-required">优惠券</view>
+				<view v-if="availableCoupons.length > 0" class="coupon-list">
+					<view
+						v-for="coupon in availableCoupons"
+						:key="coupon.id"
+						class="coupon-card"
+						:class="{ active: formData.couponId === coupon.id }"
+						@click="toggleCoupon(coupon.id)"
+					>
+						<view class="coupon-main">
+							<text class="coupon-name">{{ coupon.coupon_name }}</text>
+							<text class="coupon-desc">{{ getCouponSummary(coupon) }}</text>
+						</view>
+						<text class="coupon-select">{{ formData.couponId === coupon.id ? '已选择' : '选择' }}</text>
+					</view>
+				</view>
+				<view v-else class="coupon-empty">
+					<text>暂无可用优惠券</text>
+					<text class="coupon-link" @click="goCouponCenter">去领券</text>
+				</view>
+			</view>
 			
 			<!-- 上传附件 -->
 			<view class="form-section">
@@ -214,6 +238,10 @@
 						<text class="fee-label">选项费用</text>
 						<text class="fee-value">¥{{ optionsFee.toFixed(2) }}</text>
 					</view>
+					<view class="fee-row" v-if="couponDiscount > 0">
+						<text class="fee-label">优惠券</text>
+						<text class="fee-value discount">-¥{{ couponDiscount.toFixed(2) }}</text>
+					</view>
 					<view class="fee-row">
 						<text class="fee-label">配送费用</text>
 						<text class="fee-value">¥{{ deliveryFee.toFixed(2) }}</text>
@@ -225,14 +253,14 @@
 				</view>
 			</view>
 			
-			<!-- 支付方式 -->
-			<view class="form-section">
+			<!-- 支付方式（统一信用支付，不再展示选择） -->
+			<view class="form-section" v-if="false">
 				<view class="section-title">支付方式</view>
 				<view class="payment-methods">
-					<view 
-						class="payment-item" 
+					<view
+						class="payment-item"
 						:class="{ active: formData.paymentMethod === item.value }"
-						v-for="item in paymentMethods" 
+						v-for="item in paymentMethods"
 						:key="item.value"
 						@click="formData.paymentMethod = item.value"
 					>
@@ -287,6 +315,7 @@ export default {
 			sampleMode: 'single',
 			sampleGroups: [],
 			groupsTotalPrice: 0,
+			availableCoupons: [],
 			
 			// 配送和支付选项
 			deliveryMethods: [
@@ -294,7 +323,7 @@ export default {
 				{ value: 'self', label: '上门取样', desc: '部分院校支持，请提前联系确认' }
 			],
 			paymentMethods: [
-				{ value: 'wechat', name: '微信支付', icon: '/static/wechat-pay.svg' }
+				{ value: 'credit', name: '信用支付', icon: '/static/wechat-pay.svg' }
 			],
 			
 			// 选中的地址
@@ -313,17 +342,37 @@ export default {
 				deliveryRemark: '',
 				
 				// 步骤3
+				couponId: null,
 				files: [],
-				paymentMethod: 'wechat'
+				paymentMethod: 'credit'
 			}
 		}
 	},
 	computed: {
-		totalPrice() {
+		subtotalPrice() {
 			if (this.sampleMode === 'group') {
 				return this.groupsTotalPrice + this.deliveryFee
 			}
 			return this.projectPrice * this.formData.sampleCount + this.optionsFee + this.deliveryFee
+		},
+		selectedCoupon() {
+			return this.availableCoupons.find(coupon => coupon.id === this.formData.couponId) || null
+		},
+		couponDiscount() {
+			const coupon = this.selectedCoupon
+			if (!coupon) {
+				return 0
+			}
+			let discount = 0
+			if (coupon.coupon_type === 'discount') {
+				discount = this.subtotalPrice * (1 - Number(coupon.discount_value || 1))
+			} else {
+				discount = Number(coupon.discount_value || 0)
+			}
+			return Math.max(0, Math.min(discount, this.subtotalPrice))
+		},
+		totalPrice() {
+			return Math.max(0, this.subtotalPrice - this.couponDiscount)
 		},
 		effectiveSampleCount() {
 			if (this.sampleMode === 'group') {
@@ -351,6 +400,7 @@ export default {
 		if (!this.selectedAddress) {
 			this.loadDefaultAddress()
 		}
+		this.loadCoupons()
 	},
 	methods: {
 	// 加载项目信息
@@ -406,6 +456,68 @@ export default {
 	handleGroupsChange(data) {
 		this.sampleGroups = data.groups || []
 		this.groupsTotalPrice = data.totalPrice || 0
+	},
+
+	async loadCoupons() {
+		try {
+			const res = await api.getMyCoupons({ status: 'available', page: 1, page_size: 50 })
+			this.availableCoupons = res.data?.items || []
+		} catch (e) {
+			console.error('加载优惠券失败', e)
+			this.availableCoupons = []
+		}
+	},
+
+	toggleCoupon(couponId) {
+		this.formData.couponId = this.formData.couponId === couponId ? null : couponId
+	},
+
+	getCouponSummary(coupon) {
+		if (!coupon) {
+			return ''
+		}
+		if (coupon.coupon_type === 'discount') {
+			const rate = Number(coupon.discount_value || 1)
+			return `${Math.round(rate * 10)}折优惠`
+		}
+		return `立减¥${Number(coupon.discount_value || 0).toFixed(2)}`
+	},
+
+	goCouponCenter() {
+		uni.navigateTo({
+			url: '/pagesA/coupon/coupon'
+		})
+	},
+
+	getDynamicValue(keys) {
+		for (const key of keys) {
+			if (this.optionsFormData[key]) {
+				return this.optionsFormData[key]
+			}
+		}
+		return ''
+	},
+
+	buildOrderSamples(uploadedFiles) {
+		const count = Math.max(1, Number(this.formData.sampleCount || 1))
+		const sampleName = this.getDynamicValue(['样品名称', '样品名', '样品编号', '名称']) || '样品'
+		const sampleType = this.getDynamicValue(['样品类型', '样品类别', '样品状态', '类型'])
+		const sampleDesc = this.getDynamicValue(['样品描述', '样品说明', '样品成分', '描述'])
+		const samples = []
+
+		for (let i = 0; i < count; i++) {
+			samples.push({
+				sample_name: count > 1 ? `${sampleName}${i + 1}` : sampleName,
+				sample_type: sampleType || null,
+				sample_desc: sampleDesc || null,
+				quantity: 1,
+				photos: uploadedFiles,
+				test_params: this.optionsFormData,
+				special_requirements: this.formData.remark
+			})
+		}
+
+		return samples
 	},
 		
 		// 样品数量控制
@@ -505,7 +617,8 @@ export default {
 				projectName: this.projectName,
 				currentStep: this.currentStep,
 				formData: this.formData,
-				selectedAddress: this.selectedAddress
+				selectedAddress: this.selectedAddress,
+				sampleMode: this.sampleMode
 			}
 			uni.setStorageSync('booking_draft', JSON.stringify(draft))
 			uni.showToast({
@@ -524,6 +637,7 @@ export default {
 						this.currentStep = data.currentStep || 1
 						this.formData = data.formData
 						this.selectedAddress = data.selectedAddress
+						this.sampleMode = data.sampleMode || 'single'
 					}
 				}
 			} catch (e) {
@@ -595,6 +709,7 @@ export default {
 						group_ids: groupIds,
 						merge_order: true, // 合并为一个订单
 						address_id: this.formData.addressId,
+						coupon_id: this.formData.couponId,
 						remark: this.formData.remark
 					})
 
@@ -611,6 +726,7 @@ export default {
 				const orderData = {
 					project_id: this.projectId,
 					sample_count: this.formData.sampleCount,
+					samples: this.buildOrderSamples(uploadedFiles),
 					// 动态表单数据
 					form_data: this.optionsFormData,
 					remark: this.formData.remark,
@@ -618,6 +734,7 @@ export default {
 					delivery_method: this.formData.deliveryMethod,
 					delivery_date: this.formData.deliveryDate,
 					delivery_remark: this.formData.deliveryRemark,
+					coupon_id: this.formData.couponId,
 					attachments: uploadedFiles,
 					total_amount: this.totalPrice,
 					option_selections: this.optionSelections
@@ -634,9 +751,10 @@ export default {
 				}
 
 			} catch (e) {
+				console.error('提交订单失败', e)
 				uni.hideLoading()
 				uni.showToast({
-					title: e.message || '提交失败',
+					title: e.message || e.detail || '提交失败',
 					icon: 'none'
 				})
 			}
@@ -680,17 +798,12 @@ export default {
 			})
 		},
 		
-		// 跳转支付
+		// 跳转支付（统一走信用支付页）
 		goPay(orderId) {
-			// 清除草稿
 			uni.removeStorageSync('booking_draft')
-			
-			// 调起支付
-			if (this.formData.paymentMethod === 'wechat') {
-				this.wechatPay(orderId)
-			} else if (this.formData.paymentMethod === 'alipay') {
-				this.alipayPay(orderId)
-			}
+			uni.redirectTo({
+				url: `/pagesA/payment/payment?order_id=${orderId}`
+			})
 		},
 		
 	// 微信支付
@@ -1391,5 +1504,67 @@ export default {
 			border-radius: 20rpx;
 		}
 	}
+}
+
+.coupon-list {
+	display: flex;
+	flex-direction: column;
+	gap: 16rpx;
+}
+
+.coupon-card {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 24rpx;
+	background: #f8fafc;
+	border: 2rpx solid transparent;
+	border-radius: 16rpx;
+
+	&.active {
+		border-color: #4facfe;
+		background: #eef7ff;
+	}
+}
+
+.coupon-main {
+	display: flex;
+	flex-direction: column;
+	gap: 8rpx;
+}
+
+.coupon-name {
+	font-size: 28rpx;
+	color: #333;
+	font-weight: 600;
+}
+
+.coupon-desc {
+	font-size: 24rpx;
+	color: #666;
+}
+
+.coupon-select {
+	font-size: 24rpx;
+	color: #4facfe;
+}
+
+.coupon-empty {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 24rpx;
+	background: #f8fafc;
+	border-radius: 16rpx;
+	font-size: 26rpx;
+	color: #666;
+}
+
+.coupon-link {
+	color: #4facfe;
+}
+
+.discount {
+	color: #ff6b6b;
 }
 </style>

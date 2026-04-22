@@ -174,8 +174,8 @@ async def submit_logistics(
         sender_phone=request.sender_phone or current_user.phone,
         sender_address=request.sender_address,
         receiver_name="科研检测实验室",
-        receiver_phone="400-123-4567",
-        receiver_address="北京市海淀区科技园区xxx号",
+        receiver_phone="17819781949",
+        receiver_address="广州市黄埔区科学大道1号岭南产教融合孵化器科技苑C座502室",
         status="shipped"
     )
     db.add(logistics)
@@ -207,4 +207,3 @@ def get_default_status(order_status: str) -> dict:
         "completed": {"status": "completed", "status_text": "检测完成", "location": "实验室", "operator": "系统"}
     }
     return status_map.get(order_status, {"status": "unknown", "status_text": "未知状态", "location": None, "operator": None})
-

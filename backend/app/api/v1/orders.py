@@ -140,6 +140,40 @@ def calculate_coupon_discount(
     return discount_amount, coupon.name
 
 
+def _pick_form_value(form_data: dict, keys: list[str]) -> Optional[str]:
+    for key in keys:
+        value = form_data.get(key)
+        if value:
+            return str(value)
+    return None
+
+
+def build_samples_from_dynamic_form(request_data: dict) -> list[dict]:
+    form_data = request_data.get("form_data") or {}
+    if not isinstance(form_data, dict):
+        form_data = {}
+
+    sample_count = int(request_data.get("sample_count") or 1)
+    sample_count = max(1, sample_count)
+    attachments = request_data.get("attachments") or []
+    sample_name = _pick_form_value(form_data, ["样品名称", "样品名", "样品编号", "名称"]) or "样品"
+    sample_type = _pick_form_value(form_data, ["样品类型", "样品类别", "样品状态", "类型"])
+    sample_desc = _pick_form_value(form_data, ["样品描述", "样品说明", "样品成分", "描述"])
+
+    samples = []
+    for index in range(sample_count):
+        samples.append({
+            "sample_name": f"{sample_name}{index + 1}" if sample_count > 1 else sample_name,
+            "sample_type": sample_type,
+            "sample_desc": sample_desc,
+            "quantity": 1,
+            "photos": attachments,
+            "test_params": form_data,
+            "special_requirements": request_data.get("remark")
+        })
+    return samples
+
+
 def calculate_options_fee(
     db: Session,
     option_selections: list,
@@ -305,6 +339,9 @@ async def create_order(
             "special_requirements": request_data.get("remark")
         }]
         request_data["samples"] = samples
+    elif "samples" not in request_data and "sample_count" in request_data:
+        # 新版动态选项表单只提交 sample_count + form_data，这里转换为订单样品列表。
+        request_data["samples"] = build_samples_from_dynamic_form(request_data)
     
     # 字段映射
     if "delivery_method" in request_data and "shipping_method" not in request_data:

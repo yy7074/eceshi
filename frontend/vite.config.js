@@ -15,7 +15,7 @@ export default defineConfig(({ mode }) => ({
   plugins: [
     uni.default ? uni.default({ viteLegacyOptions: false }) : uni({ viteLegacyOptions: false })
   ],
-  base: isH5 ? '/h5/' : './',
+  base: isH5 ? '/web/' : './',
   server: isH5
     ? {
         port: 8080,

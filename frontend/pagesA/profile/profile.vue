@@ -123,7 +123,7 @@ export default {
 				const token = uni.getStorageSync('token')
 				
 				uni.uploadFile({
-					url: 'https://catdog.dachaonet.com/api/v1/upload/image',
+					url: `${api.baseUrl}/api/v1/upload/image`,
 					filePath: filePath,
 					name: 'file',
 					header: {
@@ -309,4 +309,3 @@ export default {
 	}
 }
 </style>
-

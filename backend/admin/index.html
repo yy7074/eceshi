@@ -253,6 +253,10 @@
                             <el-icon><user /></el-icon>
                             <span>用户管理</span>
                         </el-menu-item>
+                        <el-menu-item index="certifications">
+                            <el-icon><postcard /></el-icon>
+                            <span>实名认证</span>
+                        </el-menu-item>
                         <el-menu-item index="orders">
                             <el-icon><document /></el-icon>
                             <span>订单管理</span>
@@ -731,6 +735,138 @@
                         </div>
                     </div>
 
+                    <!-- 实名认证审核 -->
+                    <div v-show="activeMenu === 'certifications'">
+                        <div class="page-header" style="display: flex; justify-content: space-between; align-items: center;">
+                            <h3>🪪 实名认证审核</h3>
+                            <el-button type="primary" @click="loadCertifications"><el-icon><refresh /></el-icon> 刷新</el-button>
+                        </div>
+
+                        <div class="content-card">
+                            <div style="margin-bottom: 16px; display: flex; gap: 10px; flex-wrap: wrap;">
+                                <el-input v-model="certSearch" placeholder="搜索姓名/手机号" style="width: 250px;" clearable @keyup.enter="loadCertifications"></el-input>
+                                <el-select v-model="certStatusFilter" placeholder="状态筛选" style="width: 140px;" clearable>
+                                    <el-option label="待审核" value="pending"></el-option>
+                                    <el-option label="已通过" value="approved"></el-option>
+                                    <el-option label="已拒绝" value="rejected"></el-option>
+                                </el-select>
+                                <el-button type="primary" @click="certPage = 1; loadCertifications()">搜索</el-button>
+                            </div>
+
+                            <el-table :data="certList" v-loading="certLoading">
+                                <el-table-column prop="id" label="ID" width="60"></el-table-column>
+                                <el-table-column prop="real_name" label="姓名" width="100"></el-table-column>
+                                <el-table-column prop="id_card" label="身份证号" width="180"></el-table-column>
+                                <el-table-column prop="user_phone" label="手机号" width="120"></el-table-column>
+                                <el-table-column label="身份类型" width="100">
+                                    <template #default="scope">
+                                        <el-tag size="small">{{ getIdentityTypeText(scope.row.identity_type) }}</el-tag>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column prop="university" label="学校/单位" min-width="160" show-overflow-tooltip>
+                                    <template #default="scope">
+                                        {{ scope.row.university || scope.row.company || '-' }}
+                                    </template>
+                                </el-table-column>
+                                <el-table-column label="状态" width="90">
+                                    <template #default="scope">
+                                        <el-tag :type="getCertStatusType(scope.row.status)" size="small">{{ getCertStatusText(scope.row.status) }}</el-tag>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column label="提交时间" width="160">
+                                    <template #default="scope">{{ formatDateTime(scope.row.created_at) }}</template>
+                                </el-table-column>
+                                <el-table-column label="操作" width="200" fixed="right">
+                                    <template #default="scope">
+                                        <el-button link type="primary" size="small" @click="viewCertDetail(scope.row)">查看</el-button>
+                                        <template v-if="scope.row.status === 'pending'">
+                                            <el-button link type="success" size="small" @click="approveCert(scope.row)">通过</el-button>
+                                            <el-button link type="danger" size="small" @click="rejectCert(scope.row)">拒绝</el-button>
+                                        </template>
+                                    </template>
+                                </el-table-column>
+                            </el-table>
+
+                            <div style="margin-top: 16px; display: flex; justify-content: flex-end;">
+                                <el-pagination
+                                    v-model:current-page="certPage"
+                                    v-model:page-size="certPageSize"
+                                    :total="certTotal"
+                                    :page-sizes="[10, 20, 50, 100]"
+                                    layout="total, sizes, prev, pager, next"
+                                    @current-change="loadCertifications"
+                                    @size-change="loadCertifications">
+                                </el-pagination>
+                            </div>
+                        </div>
+
+                        <!-- 认证详情对话框 -->
+                        <el-dialog v-model="certDetailVisible" title="实名认证详情" width="760px">
+                            <div v-if="certDetail">
+                                <el-descriptions :column="2" border>
+                                    <el-descriptions-item label="姓名">{{ certDetail.real_name }}</el-descriptions-item>
+                                    <el-descriptions-item label="身份证号">{{ certDetail.id_card }}</el-descriptions-item>
+                                    <el-descriptions-item label="手机号">{{ certDetail.user_phone }}</el-descriptions-item>
+                                    <el-descriptions-item label="昵称">{{ certDetail.user_nickname || '-' }}</el-descriptions-item>
+                                    <el-descriptions-item label="身份类型">{{ getIdentityTypeText(certDetail.identity_type) }}</el-descriptions-item>
+                                    <el-descriptions-item label="学历">{{ certDetail.education_level || '-' }}</el-descriptions-item>
+                                    <el-descriptions-item label="学校">{{ certDetail.university || '-' }}</el-descriptions-item>
+                                    <el-descriptions-item label="院系">{{ certDetail.department || '-' }}</el-descriptions-item>
+                                    <el-descriptions-item label="导师">{{ certDetail.supervisor || '-' }}</el-descriptions-item>
+                                    <el-descriptions-item label="入学年份">{{ certDetail.enrollment_year || '-' }}</el-descriptions-item>
+                                    <el-descriptions-item label="毕业年份">{{ certDetail.graduation_year || '-' }}</el-descriptions-item>
+                                    <el-descriptions-item label="省份">{{ certDetail.province || '-' }}</el-descriptions-item>
+                                    <el-descriptions-item label="单位">{{ certDetail.company || '-' }}</el-descriptions-item>
+                                    <el-descriptions-item label="职位">{{ certDetail.position || '-' }}</el-descriptions-item>
+                                    <el-descriptions-item label="提交时间">{{ formatDateTime(certDetail.created_at) }}</el-descriptions-item>
+                                    <el-descriptions-item label="审核时间">{{ certDetail.reviewed_at ? formatDateTime(certDetail.reviewed_at) : '-' }}</el-descriptions-item>
+                                    <el-descriptions-item label="状态">
+                                        <el-tag :type="getCertStatusType(certDetail.status)" size="small">{{ getCertStatusText(certDetail.status) }}</el-tag>
+                                    </el-descriptions-item>
+                                    <el-descriptions-item label="拒绝原因" v-if="certDetail.reject_reason">{{ certDetail.reject_reason }}</el-descriptions-item>
+                                </el-descriptions>
+
+                                <div style="margin-top: 20px;">
+                                    <h4 style="margin-bottom: 12px;">证件照片</h4>
+                                    <el-row :gutter="16">
+                                        <el-col :span="8" v-if="certDetail.id_card_front">
+                                            <div style="margin-bottom: 8px; color: #606266;">身份证正面</div>
+                                            <el-image :src="certDetail.id_card_front" :preview-src-list="buildCertPreviewList(certDetail)" fit="contain" style="width: 100%; height: 160px; border: 1px solid #dcdfe6; border-radius: 4px;"></el-image>
+                                        </el-col>
+                                        <el-col :span="8" v-if="certDetail.id_card_back">
+                                            <div style="margin-bottom: 8px; color: #606266;">身份证背面</div>
+                                            <el-image :src="certDetail.id_card_back" :preview-src-list="buildCertPreviewList(certDetail)" fit="contain" style="width: 100%; height: 160px; border: 1px solid #dcdfe6; border-radius: 4px;"></el-image>
+                                        </el-col>
+                                        <el-col :span="8" v-if="certDetail.student_card">
+                                            <div style="margin-bottom: 8px; color: #606266;">学生证/工作证</div>
+                                            <el-image :src="certDetail.student_card" :preview-src-list="buildCertPreviewList(certDetail)" fit="contain" style="width: 100%; height: 160px; border: 1px solid #dcdfe6; border-radius: 4px;"></el-image>
+                                        </el-col>
+                                    </el-row>
+                                    <div v-if="!certDetail.id_card_front && !certDetail.id_card_back && !certDetail.student_card" style="color: #909399; text-align: center; padding: 20px;">
+                                        暂无证件照片
+                                    </div>
+                                </div>
+
+                                <div v-if="certDetail.status === 'pending'" style="margin-top: 24px; padding-top: 20px; border-top: 1px solid #ebeef5;">
+                                    <h4 style="margin-bottom: 12px;">审核操作</h4>
+                                    <el-form label-width="120px">
+                                        <el-form-item label="信用额度（元）">
+                                            <el-input-number v-model="certReviewCreditLimit" :min="0" :step="500" style="width: 200px;"></el-input-number>
+                                            <span style="margin-left: 10px; color: #909399;">通过后自动授予</span>
+                                        </el-form-item>
+                                    </el-form>
+                                </div>
+                            </div>
+                            <template #footer>
+                                <el-button @click="certDetailVisible = false">关闭</el-button>
+                                <template v-if="certDetail && certDetail.status === 'pending'">
+                                    <el-button type="danger" @click="rejectCert(certDetail)">拒绝</el-button>
+                                    <el-button type="success" @click="approveCert(certDetail)">通过认证</el-button>
+                                </template>
+                            </template>
+                        </el-dialog>
+                    </div>
+
                     <!-- 项目管理 -->
                     <div v-show="activeMenu === 'projects'">
                         <div class="page-header">
@@ -1043,12 +1179,12 @@
                                             <el-option label="单选按钮组（横向）" value="radio_group"></el-option>
                                         </el-select>
                                         <div style="font-size: 12px; color: #999; margin-top: 4px;">
-                                            <span v-if="optionForm.option_type === 'single'">卡片式单选，子选项互斥</span>
-                                            <span v-else-if="optionForm.option_type === 'multi'">卡片式多选，可选多个子选项</span>
-                                            <span v-else-if="optionForm.option_type === 'input'">显示为输入框，无子选项</span>
-                                            <span v-else-if="optionForm.option_type === 'dropdown'">下拉选择，适合选项较多时使用</span>
-                                            <span v-else-if="optionForm.option_type === 'checkbox_group'">横向排列的复选框，可多选</span>
-                                            <span v-else-if="optionForm.option_type === 'radio_group'">横向排列的单选按钮，常用于带加价的选项</span>
+                                            <span v-if="optionForm.option_type === 'single'">卡片式单选。适合“样品状态 / 检测模式”这类二选一、多选一场景；选中父项后再展开子项。</span>
+                                            <span v-else-if="optionForm.option_type === 'multi'">卡片式多选。适合“特殊处理 / 附加服务”这类可同时勾选多个项目的场景。</span>
+                                            <span v-else-if="optionForm.option_type === 'input'">显示为输入框。适合“样品名称 / 规格 / 批次号”这类需要人工填写的内容，不能再挂子项。</span>
+                                            <span v-else-if="optionForm.option_type === 'dropdown'">下拉选择。适合选项很多但只允许选一个的场景，如“检测标准版本 / 报告语言”。</span>
+                                            <span v-else-if="optionForm.option_type === 'checkbox_group'">横向复选框组。适合直接平铺几个可多选子项，前端展示更紧凑。</span>
+                                            <span v-else-if="optionForm.option_type === 'radio_group'">横向单选按钮组。适合“加急 / 常规 / 特急”这类互斥服务项，前端会直接平铺选择。</span>
                                         </div>
                                     </el-form-item>
                                     <el-form-item label="行内显示">
@@ -3681,6 +3817,17 @@
                     reviewPage: 1,
                     reviewPageSize: 20,
                     reviewTotal: 0,
+                    // 实名认证审核
+                    certList: [],
+                    certLoading: false,
+                    certSearch: '',
+                    certStatusFilter: 'pending',
+                    certPage: 1,
+                    certPageSize: 20,
+                    certTotal: 0,
+                    certDetailVisible: false,
+                    certDetail: null,
+                    certReviewCreditLimit: 3000,
                     // 团体管理
                     groupList: [],
                     groupLoading: false,
@@ -3977,6 +4124,7 @@
                     else if (index === 'equipment') this.loadEquipment()
                     else if (index === 'finance') this.loadFinanceData()
                     else if (index === 'invoice') this.loadInvoiceList()
+                    else if (index === 'certifications') this.loadCertifications()
                     else if (index === 'customer_service') this.loadChatList()
                     else if (index === 'banners') this.loadBanners()
                     else if (index === 'announcements') this.loadAnnouncements()
@@ -4805,8 +4953,7 @@
                 },
                 showProjectDialog(project = null) {
                     if (project) {
-                        // 编辑项目
-                        this.projectForm = { ...project }
+                        this.loadProjectDetail(project.id)
                     } else {
                         // 新建项目
                         this.projectForm = {
@@ -4822,8 +4969,23 @@
                             is_recommended: false,
                             status: 'active'
                         }
+                        this.projectDialogVisible = true
                     }
-                    this.projectDialogVisible = true
+                },
+                async loadProjectDetail(projectId) {
+                    this.loading = true
+                    try {
+                        const res = await axios.get(
+                            `${this.baseUrl}/api/v1/projects/admin/${projectId}`,
+                            { headers: this.uploadHeaders }
+                        )
+                        this.projectForm = { ...res.data.data }
+                        this.projectDialogVisible = true
+                    } catch (error) {
+                        ElMessage.error(error.response?.data?.detail || '加载项目详情失败')
+                    } finally {
+                        this.loading = false
+                    }
                 },
                 async saveProject() {
                     if (!this.projectForm.name || !this.projectForm.project_no) {

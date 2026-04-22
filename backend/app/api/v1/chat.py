@@ -173,7 +173,7 @@ def get_auto_reply(content: str, db: Session) -> Optional[str]:
             return reply
     
     # 默认回复
-    return "感谢您的咨询，人工客服正在为您接入，请稍候...如有紧急问题，您也可以拨打客服电话：400-123-4567"
+    return "感谢您的咨询，人工客服正在为您接入，请稍候...如有紧急问题，您也可以拨打客服电话：17819781949"
 
 
 @router.get("/quick-replies")
@@ -214,4 +214,3 @@ async def close_session(
         db.commit()
     
     return success_response(message="会话已关闭")
-

@@ -49,7 +49,7 @@
         "template" : "",
         "router" : {
             "mode" : "hash",
-            "base" : "/h5/"
+            "base" : "/web/"
         },
         "devServer" : {
             "port" : 8080,
@@ -67,7 +67,7 @@
                 "enable": true
             }
         },
-        "publicPath": "/h5/",
+        "publicPath": "/web/",
         "sdkConfigs": {
             "maps": {}
         }
