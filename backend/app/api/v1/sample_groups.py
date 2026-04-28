@@ -15,7 +15,12 @@ from app.models.user import User
 from app.models.sample_group import SampleGroup, SampleItem
 from app.models.project import Project
 from app.models.project_option import ProjectOption, PriceType
-from app.api.v1.orders import calculate_coupon_discount, mark_user_coupon_used
+from app.api.v1.orders import (
+    calculate_coupon_discount,
+    get_option_path_name,
+    mark_user_coupon_used,
+    normalize_selection_input_value,
+)
 from app.schemas.sample_group import (
     SampleGroupCreate, SampleGroupUpdate, SampleGroupResponse, SampleGroupListResponse,
     SampleItemCreate, SampleItemUpdate, SampleItemResponse,
@@ -69,6 +74,47 @@ def calculate_options_fee(db: Session, option_selections: List[dict], sample_cou
             total_fee += base_price * price / Decimal("100")
 
     return total_fee
+
+
+def build_order_option_details(
+    db: Session,
+    option_selections: Optional[List[dict]],
+    sample_count: int,
+    base_price: Decimal,
+) -> List[dict]:
+    """生成订单选项快照，兼容单输入和多输入。"""
+    if not option_selections:
+        return []
+
+    details = []
+    for selection in option_selections:
+        option_id = selection.get("option_id") if isinstance(selection, dict) else None
+        if not option_id:
+            continue
+
+        option = db.query(ProjectOption).filter(ProjectOption.id == option_id).first()
+        if not option or not option.is_active:
+            continue
+
+        price = Decimal(str(option.price)) if option.price else Decimal("0")
+        if option.price_type == PriceType.FIXED:
+            calculated_price = price
+        elif option.price_type == PriceType.PER_SAMPLE:
+            calculated_price = price * sample_count
+        elif option.price_type == PriceType.PERCENTAGE:
+            calculated_price = base_price * price / Decimal("100")
+        else:
+            calculated_price = Decimal("0")
+
+        details.append({
+            "option_id": option.id,
+            "option_name": option.name,
+            "option_path": get_option_path_name(db, option),
+            "input_value": normalize_selection_input_value(selection),
+            "calculated_price": calculated_price,
+        })
+
+    return details
 
 
 # ==================== 样品组 CRUD ====================
@@ -601,6 +647,20 @@ async def submit_sample_groups(
             )
             db.add(order_sample)
 
+        # 添加选项选择快照，包含绑定在节点上的单个/多个输入值
+        for group in groups:
+            group_sample_count = sum(item.quantity for item in group.items)
+            group_base_price = Decimal(str(project.price)) * group_sample_count if project else Decimal("0")
+            for detail in build_order_option_details(db, group.option_selections, group_sample_count, group_base_price):
+                db.add(OrderOptionSelection(
+                    order_id=order.id,
+                    option_id=detail["option_id"],
+                    option_name=detail["option_name"],
+                    option_path=detail["option_path"],
+                    input_value=detail["input_value"],
+                    calculated_price=detail["calculated_price"],
+                ))
+
         # 添加选项费用
         if total_options_fee > 0:
             db.add(OrderFee(
@@ -669,6 +729,17 @@ async def submit_sample_groups(
                     remark=item.remark
                 )
                 db.add(order_sample)
+
+            # 添加选项选择快照，包含绑定在节点上的单个/多个输入值
+            for detail in build_order_option_details(db, group.option_selections, sample_count, base_price):
+                db.add(OrderOptionSelection(
+                    order_id=order.id,
+                    option_id=detail["option_id"],
+                    option_name=detail["option_name"],
+                    option_path=detail["option_path"],
+                    input_value=detail["input_value"],
+                    calculated_price=detail["calculated_price"],
+                ))
 
             # 添加选项费用
             if options_fee > 0:

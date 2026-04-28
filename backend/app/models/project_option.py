@@ -63,6 +63,9 @@ class ProjectOption(Base):
     # 提示信息
     hint_text = Column(String(500), comment="红色提示文字")
     placeholder = Column(String(200), comment="输入框占位符（input类型时使用）")
+    allow_children = Column(Boolean, default=True, comment="是否需要/允许展开子选项")
+    requires_input = Column(Boolean, default=False, comment="选中后是否需要填写输入内容")
+    input_mode = Column(String(20), default="single", comment="输入模式: single/multiple")
 
     # 分组和显示配置
     group_name = Column(String(100), comment="分组名称（如：样品信息、测试参数、服务选项）")

@@ -30,19 +30,25 @@ def build_option_tree(options: List[ProjectOption], parent_id: Optional[int] = N
     tree = []
     for opt in options:
         if opt.parent_id == parent_id:
+            option_type = opt.option_type.value if isinstance(opt.option_type, OptionType) else opt.option_type
+            allow_children = bool(opt.allow_children) if opt.allow_children is not None else option_type != "input"
+            requires_input = bool(opt.requires_input) or option_type == "input"
             node = {
                 "id": opt.id,
                 "name": opt.name,
-                "option_type": opt.option_type.value if isinstance(opt.option_type, OptionType) else opt.option_type,
+                "option_type": option_type,
                 "price": float(opt.price) if opt.price else 0,
                 "price_type": opt.price_type.value if isinstance(opt.price_type, PriceType) else opt.price_type,
                 "hint_text": opt.hint_text,
                 "placeholder": opt.placeholder,
+                "allow_children": allow_children,
+                "requires_input": requires_input,
+                "input_mode": opt.input_mode or "single",
                 "group_name": opt.group_name,
                 "display_inline": opt.display_inline if opt.display_inline is not None else False,
                 "is_required": opt.is_required,
                 "sort_order": opt.sort_order or 0,
-                "children": build_option_tree(options, opt.id)
+                "children": build_option_tree(options, opt.id) if allow_children else []
             }
             tree.append(node)
 
@@ -228,6 +234,11 @@ async def get_option_detail(
         "price_type": option.price_type.value if isinstance(option.price_type, PriceType) else option.price_type,
         "hint_text": option.hint_text,
         "placeholder": option.placeholder,
+        "allow_children": bool(option.allow_children) if option.allow_children is not None else True,
+        "requires_input": bool(option.requires_input) or (
+            (option.option_type.value if isinstance(option.option_type, OptionType) else option.option_type) == "input"
+        ),
+        "input_mode": option.input_mode or "single",
         "is_required": option.is_required,
         "path": get_option_path(db, option)
     })

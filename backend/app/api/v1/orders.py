@@ -57,6 +57,23 @@ def calculate_option_price(option: ProjectOption, base_price: Decimal, sample_co
     return Decimal("0")
 
 
+def normalize_selection_input_value(selection) -> Optional[str]:
+    """兼容单输入和多输入，统一转换为可存储的字符串。"""
+    if isinstance(selection, dict):
+        input_values = selection.get("input_values")
+        input_value = selection.get("input_value")
+    else:
+        input_values = getattr(selection, "input_values", None)
+        input_value = getattr(selection, "input_value", None)
+
+    if isinstance(input_values, list):
+        values = [str(value).strip() for value in input_values if str(value).strip()]
+        if values:
+            return json.dumps(values, ensure_ascii=False)
+
+    return input_value
+
+
 def _loads_id_list(raw_value) -> list[int]:
     """将 JSON 文本解析为 ID 列表"""
     if not raw_value:
@@ -203,7 +220,7 @@ def calculate_options_fee(
 
     for selection in option_selections:
         option_id = selection.get("option_id") if isinstance(selection, dict) else selection.option_id
-        input_value = selection.get("input_value") if isinstance(selection, dict) else getattr(selection, "input_value", None)
+        input_value = normalize_selection_input_value(selection)
 
         option = db.query(ProjectOption).filter(
             ProjectOption.id == option_id,

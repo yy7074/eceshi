@@ -33,10 +33,10 @@
           <DynamicOptionsForm
             v-if="optionsTree.length > 0"
             :options-tree="optionsTree"
+            :project-id="projectId"
             :sample-count="getGroupSampleCount(group)"
-            :base-price="basePrice"
             :initial-selections="group.option_selections || []"
-            @change="(selections, fee) => handleOptionsChange(group.id, selections, fee)"
+            @change="data => handleOptionsChange(group.id, data)"
           />
         </template>
       </SampleGroupCard>
@@ -324,9 +324,12 @@ export default {
       }
     },
 
-    async handleOptionsChange(groupId, selections, fee) {
+    async handleOptionsChange(groupId, data) {
       const index = this.groups.findIndex(g => g.id === groupId)
       if (index === -1) return
+
+      const selections = data.selections || []
+      const fee = data.totalOptionsFee || 0
 
       try {
         await api.updateSampleGroup(groupId, { option_selections: selections })

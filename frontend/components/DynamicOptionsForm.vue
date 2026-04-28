@@ -88,6 +88,11 @@ export default {
 		sampleCount: {
 			type: Number,
 			default: 1
+		},
+		// 已保存的选项，用于编辑样品组时回显
+		initialSelections: {
+			type: Array,
+			default: () => []
 		}
 	},
 	data() {
@@ -127,18 +132,28 @@ export default {
 		hasSelections() {
 			return Object.keys(this.selections).some(id => {
 				const sel = this.selections[id]
-				return sel && (sel.selected || sel.input_value)
+				return sel && (sel.selected || sel.input_value || this.normalizeInputValues(sel).length > 0)
 			})
 		},
 		// 格式化的选项选择列表（用于提交）
 		formattedSelections() {
 			const result = []
 			for (const [optionId, data] of Object.entries(this.selections)) {
-				if (data.selected || data.input_value) {
-					result.push({
+				if (data.selected || data.input_value || this.normalizeInputValues(data).length > 0) {
+					const inputValues = this.normalizeInputValues(data)
+					const inputMode = data.input_mode || (inputValues.length > 1 ? 'multiple' : 'single')
+					const inputValue = inputMode === 'multiple'
+						? (inputValues.length > 0 ? JSON.stringify(inputValues) : null)
+						: (data.input_value || inputValues[0] || null)
+					const item = {
 						option_id: parseInt(optionId),
-						input_value: data.input_value || null
-					})
+						input_value: inputValue,
+						input_mode: inputMode
+					}
+					if (inputValues.length > 0) {
+						item.input_values = inputValues
+					}
+					result.push(item)
 				}
 			}
 			return result
@@ -150,15 +165,96 @@ export default {
 		},
 		optionsTree: {
 			handler() {
-				// 选项树变化时重置选择
-				this.selections = {}
+				// 选项树变化时按已保存选项回显
+				this.applyInitialSelections()
 				this.priceDetails = []
 				this.totalOptionsFee = 0
 			},
 			deep: true
+		},
+		initialSelections: {
+			handler() {
+				this.applyInitialSelections()
+			},
+			deep: true
 		}
 	},
+	created() {
+		this.applyInitialSelections()
+	},
 	methods: {
+		optionRequiresInput(option) {
+			return !!(option && (option.requires_input || option.option_type === 'input'))
+		},
+
+		optionAllowsChildren(option) {
+			return !!(option && option.allow_children !== false)
+		},
+
+		getOptionInputMode(option, fallback = 'single') {
+			const mode = (option && option.input_mode) || fallback || 'single'
+			return ['multiple', 'multi'].includes(mode) ? 'multiple' : 'single'
+		},
+
+		normalizeInputValues(data) {
+			if (!data) return []
+			if (Array.isArray(data.input_values)) {
+				return data.input_values.map(value => `${value}`.trim()).filter(Boolean)
+			}
+			if (typeof data.input_value === 'string' && data.input_value.trim()) {
+				const raw = data.input_value.trim()
+				if (raw.startsWith('[')) {
+					try {
+						const parsed = JSON.parse(raw)
+						if (Array.isArray(parsed)) {
+							return parsed.map(value => `${value}`.trim()).filter(Boolean)
+						}
+					} catch (e) {
+						// 兼容旧的普通字符串输入
+					}
+				}
+				return [raw]
+			}
+			return []
+		},
+
+		createSelection(option, overrides = {}) {
+			const inputMode = this.getOptionInputMode(option, overrides.input_mode)
+			return {
+				selected: false,
+				input_value: '',
+				input_values: inputMode === 'multiple' ? [''] : [],
+				input_mode: inputMode,
+				...overrides
+			}
+		},
+
+		ensureSelection(option) {
+			const optionId = option.id
+			if (!this.selections[optionId]) {
+				this.selections[optionId] = this.createSelection(option)
+			}
+			return this.selections[optionId]
+		},
+
+		applyInitialSelections() {
+			const nextSelections = {}
+			;(this.initialSelections || []).forEach(item => {
+				const optionId = item.option_id || item.optionId || item.id
+				if (!optionId) return
+
+				const inputValues = this.normalizeInputValues(item)
+				const inputMode = ['multiple', 'multi'].includes(item.input_mode) || inputValues.length > 1 ? 'multiple' : 'single'
+				nextSelections[optionId] = {
+					selected: true,
+					input_value: inputMode === 'single' ? (item.input_value || inputValues[0] || '') : '',
+					input_values: inputMode === 'multiple' ? (inputValues.length ? inputValues : ['']) : inputValues,
+					input_mode: inputMode
+				}
+			})
+			this.selections = nextSelections
+		},
+
 		// 处理选项选择（单选/多选）
 		handleOptionSelect({ option, selected, siblings, isRadioGroup }) {
 			const optionId = option.id
@@ -171,6 +267,8 @@ export default {
 				siblings.forEach(sibling => {
 					if (sibling.id !== optionId && this.selections[sibling.id]) {
 						this.selections[sibling.id].selected = false
+						this.selections[sibling.id].input_value = ''
+						this.selections[sibling.id].input_values = []
 						// 级联取消子选项
 						this.cancelChildSelections(sibling)
 					}
@@ -178,14 +276,17 @@ export default {
 			}
 
 			// 设置当前选项
-			if (!this.selections[optionId]) {
-				this.$set(this.selections, optionId, { selected: false, input_value: '' })
-			}
-			this.selections[optionId].selected = selected
+			const selection = this.ensureSelection(option)
+			selection.selected = selected
+			selection.input_mode = this.getOptionInputMode(option, selection.input_mode)
 
 			// 如果取消选择，级联取消子选项
 			if (!selected) {
+				selection.input_value = ''
+				selection.input_values = []
 				this.cancelChildSelections(option)
+			} else if (this.optionRequiresInput(option) && selection.input_mode === 'multiple' && (!selection.input_values || !selection.input_values.length)) {
+				selection.input_values = ['']
 			}
 
 			// 触发价格计算
@@ -197,13 +298,18 @@ export default {
 
 		// 处理输入类型选项
 		handleOptionInput({ option, value }) {
-			const optionId = option.id
+			const inputMode = this.getOptionInputMode(option, value && value.input_mode)
+			const selection = this.ensureSelection(option)
 
-			if (!this.selections[optionId]) {
-				this.$set(this.selections, optionId, { selected: true, input_value: '' })
+			selection.selected = true
+			selection.input_mode = inputMode
+			if (value && typeof value === 'object') {
+				selection.input_values = Array.isArray(value.input_values) ? value.input_values : []
+				selection.input_value = value.input_value || ''
+			} else {
+				selection.input_value = value || ''
+				selection.input_values = value ? [value] : []
 			}
-			this.selections[optionId].selected = !!value
-			this.selections[optionId].input_value = value
 
 			// 触发价格计算
 			this.debouncedCalculate()
@@ -219,6 +325,7 @@ export default {
 					if (this.selections[child.id]) {
 						this.selections[child.id].selected = false
 						this.selections[child.id].input_value = ''
+						this.selections[child.id].input_values = []
 					}
 					this.cancelChildSelections(child)
 				})
@@ -249,7 +356,7 @@ export default {
 				const res = await api.calculateOptionsPrice({
 					project_id: this.projectId,
 					sample_count: this.sampleCount,
-					option_selections: this.formattedSelections
+					selections: this.formattedSelections
 				})
 
 				if (res.code === 200 && res.data) {
@@ -288,43 +395,19 @@ export default {
 				options.forEach(option => {
 					const sel = this.selections[option.id]
 					
-					if (option.option_type === 'input' && sel && sel.input_value) {
-						// 输入类型：直接取值
-						formData[option.name] = sel.input_value
-					} else if (option.option_type === 'dropdown' && option.children) {
-						// 下拉类型：找到选中的子选项
-						const selectedChild = option.children.find(c => {
-							const cSel = this.selections[c.id]
-							return cSel && cSel.selected
-						})
-						if (selectedChild) {
-							formData[option.name] = selectedChild.name
+					if (sel && sel.selected) {
+						if (this.optionRequiresInput(option)) {
+							const inputValues = this.normalizeInputValues(sel)
+							formData[option.name] = this.getOptionInputMode(option, sel.input_mode) === 'multiple'
+								? inputValues
+								: (inputValues[0] || sel.input_value || '')
+						} else {
+							formData[option.name] = true
 						}
-					} else if (option.option_type === 'radio_group' && option.children) {
-						// 单选组：找到选中的子选项
-						const selectedChild = option.children.find(c => {
-							const cSel = this.selections[c.id]
-							return cSel && cSel.selected
-						})
-						if (selectedChild) {
-							formData[option.name] = selectedChild.name
-						}
-					} else if (option.option_type === 'checkbox_group' && option.children) {
-						// 复选框组：收集所有选中的子选项
-						const selectedChildren = option.children.filter(c => {
-							const cSel = this.selections[c.id]
-							return cSel && cSel.selected
-						})
-						if (selectedChildren.length > 0) {
-							formData[option.name] = selectedChildren.map(c => c.name)
-						}
-					} else if (sel && sel.selected) {
-						// 卡片式单选/多选
-						formData[option.name] = true
 					}
 
-					// 递归处理子选项
-					if (option.children && ['single', 'multi'].includes(option.option_type)) {
+					// 递归处理子选项，父节点选中且允许展开时继续向下
+					if (option.children && this.optionAllowsChildren(option) && sel && sel.selected) {
 						collectValues(option.children)
 					}
 				})
@@ -353,45 +436,20 @@ export default {
 			
 			const checkRequired = (options) => {
 				options.forEach(option => {
+					const sel = this.selections[option.id]
 					if (option.is_required) {
-						const sel = this.selections[option.id]
-						
-						if (option.option_type === 'input') {
-							if (!sel || !sel.input_value) {
+						if (!sel || !sel.selected) {
+							errors.push(`请选择${option.name}`)
+						} else if (this.optionRequiresInput(option)) {
+							if (this.normalizeInputValues(sel).length === 0) {
 								errors.push(`请填写${option.name}`)
-							}
-						} else if (['dropdown', 'radio_group'].includes(option.option_type)) {
-							// 检查是否有子选项被选中
-							const hasSelected = option.children && option.children.some(c => {
-								const cSel = this.selections[c.id]
-								return cSel && cSel.selected
-							})
-							if (!hasSelected) {
-								errors.push(`请选择${option.name}`)
-							}
-						} else if (option.option_type === 'checkbox_group') {
-							// 复选框组：至少选一个
-							const hasSelected = option.children && option.children.some(c => {
-								const cSel = this.selections[c.id]
-								return cSel && cSel.selected
-							})
-							if (!hasSelected) {
-								errors.push(`请选择${option.name}`)
-							}
-						} else {
-							// 卡片式
-							if (!sel || !sel.selected) {
-								errors.push(`请选择${option.name}`)
 							}
 						}
 					}
 
 					// 递归检查子选项（仅当父选项已选中时）
-					if (option.children && ['single', 'multi'].includes(option.option_type)) {
-						const sel = this.selections[option.id]
-						if (sel && sel.selected) {
-							checkRequired(option.children)
-						}
+					if (option.children && this.optionAllowsChildren(option) && sel && sel.selected) {
+						checkRequired(option.children)
 					}
 				})
 			}

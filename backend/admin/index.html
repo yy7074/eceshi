@@ -1103,6 +1103,15 @@
                                         </el-tag>
                                     </template>
                                 </el-table-column>
+                                <el-table-column label="子项/输入" width="150">
+                                    <template #default="scope">
+                                        <el-tag v-if="scope.row.allow_children !== false" type="success" size="small">子项</el-tag>
+                                        <el-tag v-if="scope.row.requires_input || scope.row.option_type === 'input'" type="warning" size="small" style="margin-left: 4px;">
+                                            {{ scope.row.input_mode === 'multiple' ? '多输入' : '单输入' }}
+                                        </el-tag>
+                                        <span v-if="scope.row.allow_children === false && !(scope.row.requires_input || scope.row.option_type === 'input')" style="color: #ccc;">-</span>
+                                    </template>
+                                </el-table-column>
                                 <el-table-column label="价格" width="120">
                                     <template #default="scope">
                                         <span v-if="scope.row.price > 0">
@@ -1130,7 +1139,7 @@
                                 </el-table-column>
                                 <el-table-column label="操作" width="220" fixed="right">
                                     <template #default="scope">
-                                        <el-button type="success" size="small" @click="addChildOption(scope.row)">添加子选项</el-button>
+                                        <el-button type="success" size="small" :disabled="scope.row.allow_children === false" @click="addChildOption(scope.row)">添加子选项</el-button>
                                         <el-button type="primary" size="small" @click="showOptionDialog(scope.row)">编辑</el-button>
                                         <el-button type="danger" size="small" @click="deleteOption(scope.row.id)">删除</el-button>
                                     </template>
@@ -1201,6 +1210,20 @@
                                         <el-switch v-model="optionForm.display_inline"></el-switch>
                                         <span style="margin-left: 10px; font-size: 12px; color: #999;">标签和控件显示在同一行</span>
                                     </el-form-item>
+                                    <el-form-item label="需要子选项">
+                                        <el-switch v-model="optionForm.allow_children"></el-switch>
+                                        <span style="margin-left: 10px; font-size: 12px; color: #999;">开启后，用户选中该节点才展开下一级</span>
+                                    </el-form-item>
+                                    <el-form-item label="需要输入">
+                                        <el-switch v-model="optionForm.requires_input"></el-switch>
+                                        <span style="margin-left: 10px; font-size: 12px; color: #999;">开启后，用户选中该节点需要填写输入内容</span>
+                                    </el-form-item>
+                                    <el-form-item label="输入模式" v-if="optionForm.requires_input || optionForm.option_type === 'input'">
+                                        <el-radio-group v-model="optionForm.input_mode">
+                                            <el-radio-button label="single">单个输入</el-radio-button>
+                                            <el-radio-button label="multiple">多个输入</el-radio-button>
+                                        </el-radio-group>
+                                    </el-form-item>
                                     <el-form-item label="价格调整">
                                         <el-input-number v-model="optionForm.price" :min="0" :precision="2" style="width: 60%;"></el-input-number>
                                         <el-select v-model="optionForm.price_type" style="width: 38%; margin-left: 2%;">
@@ -1220,7 +1243,7 @@
                                             此文字将在用户选中该选项后以红色显示
                                         </div>
                                     </el-form-item>
-                                    <el-form-item label="占位符" v-if="optionForm.option_type === 'input'">
+                                    <el-form-item label="占位符" v-if="optionForm.requires_input || optionForm.option_type === 'input'">
                                         <el-input v-model="optionForm.placeholder" placeholder="输入框占位符文字"></el-input>
                                     </el-form-item>
                                     <el-form-item label="是否必填">
@@ -3814,7 +3837,7 @@
                     optionPageSize: 50,
                     optionTotal: 0,
                     optionDialogVisible: false,
-                    optionForm: { id: null, project_id: null, category_id: null, parent_id: null, name: '', group_name: '', option_type: 'single', price: 0, price_type: 'fixed', hint_text: '', placeholder: '', is_required: false, sort_order: 0, is_active: true, display_inline: false },
+                    optionForm: { id: null, project_id: null, category_id: null, parent_id: null, name: '', group_name: '', option_type: 'single', price: 0, price_type: 'fixed', hint_text: '', placeholder: '', allow_children: true, requires_input: false, input_mode: 'single', is_required: false, sort_order: 0, is_active: true, display_inline: false },
                     parentOptionList: [],
                     // 优惠券管理
                     couponList: [],
@@ -5139,7 +5162,7 @@
                         this.projectOptions = res.data.data.items || res.data.data.list || []
                         this.optionTotal = res.data.data.total || 0
                         // 加载父选项列表
-                        this.parentOptionList = this.projectOptions.filter(o => o.option_type !== 'input')
+                        this.parentOptionList = this.projectOptions.filter(o => o.allow_children !== false)
                     } catch (error) {
                         console.error('加载选项失败', error)
                         ElMessage.error(error.response?.data?.detail || '加载选项失败')
@@ -5149,7 +5172,13 @@
                 },
                 showOptionDialog(option = null) {
                     if (option) {
-                        this.optionForm = { ...option }
+                        this.optionForm = {
+                            allow_children: true,
+                            requires_input: option.option_type === 'input',
+                            input_mode: 'single',
+                            display_inline: false,
+                            ...option
+                        }
                     } else {
                         this.optionForm = {
                             id: null,
@@ -5163,6 +5192,9 @@
                             price_type: 'fixed',
                             hint_text: '',
                             placeholder: '',
+                            allow_children: true,
+                            requires_input: false,
+                            input_mode: 'single',
                             is_required: false,
                             sort_order: 0,
                             is_active: true,
@@ -5179,6 +5211,9 @@
                     if (!this.optionForm.project_id && !this.optionForm.category_id) {
                         ElMessage.warning('请选择关联项目或分类')
                         return
+                    }
+                    if (this.optionForm.option_type === 'input') {
+                        this.optionForm.requires_input = true
                     }
                     this.loading = true
                     try {
@@ -5226,6 +5261,9 @@
                         price_type: 'fixed',
                         hint_text: '',
                         placeholder: '',
+                        allow_children: true,
+                        requires_input: false,
+                        input_mode: 'single',
                         is_required: false,
                         sort_order: 0,
                         is_active: true,

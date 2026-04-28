@@ -5938,6 +5938,11 @@ def build_admin_option_tree(options: List[ProjectOption], parent_id: Optional[in
                 "price_type": opt.price_type.value if isinstance(opt.price_type, PriceType) else opt.price_type,
                 "hint_text": opt.hint_text,
                 "placeholder": opt.placeholder,
+                "allow_children": bool(opt.allow_children) if opt.allow_children is not None else True,
+                "requires_input": bool(opt.requires_input) or (
+                    (opt.option_type.value if isinstance(opt.option_type, OptionType) else opt.option_type) == "input"
+                ),
+                "input_mode": opt.input_mode or "single",
                 "sort_order": opt.sort_order,
                 "is_required": opt.is_required,
                 "is_active": opt.is_active,
@@ -6002,6 +6007,11 @@ async def admin_get_options(
             "price_type": opt.price_type.value if isinstance(opt.price_type, PriceType) else (opt.price_type or "fixed"),
             "hint_text": opt.hint_text,
             "placeholder": opt.placeholder,
+            "allow_children": bool(opt.allow_children) if opt.allow_children is not None else True,
+            "requires_input": bool(opt.requires_input) or (
+                (opt.option_type.value if isinstance(opt.option_type, OptionType) else opt.option_type) == "input"
+            ),
+            "input_mode": opt.input_mode or "single",
             "group_name": opt.group_name,
             "display_inline": bool(opt.display_inline) if opt.display_inline is not None else False,
             "sort_order": opt.sort_order,
@@ -6081,10 +6091,11 @@ async def admin_create_option(
         if not parent:
             raise HTTPException(status_code=404, detail="父选项不存在")
 
-        # 验证：输入类型选项不能有子选项
+        # 验证：未开启子选项的节点不能作为父选项
         parent_type = parent.option_type.value if isinstance(parent.option_type, OptionType) else parent.option_type
-        if parent_type == "input":
-            raise HTTPException(status_code=400, detail="输入类型选项不能有子选项")
+        parent_allows_children = bool(parent.allow_children) if parent.allow_children is not None else parent_type != "input"
+        if not parent_allows_children:
+            raise HTTPException(status_code=400, detail="父选项未开启子选项配置")
 
         level = parent.level + 1
         path = f"{parent.path}{parent.id}/"
@@ -6108,6 +6119,9 @@ async def admin_create_option(
         price_type=data.price_type.value,
         hint_text=data.hint_text,
         placeholder=data.placeholder,
+        allow_children=data.allow_children,
+        requires_input=data.requires_input or data.option_type.value == "input",
+        input_mode=data.input_mode or "single",
         group_name=data.group_name,
         display_inline=data.display_inline,
         sort_order=data.sort_order,
@@ -6150,26 +6164,35 @@ async def admin_update_option(
         if not parent:
             raise HTTPException(status_code=404, detail="父选项不存在")
         parent_type = parent.option_type.value if isinstance(parent.option_type, OptionType) else parent.option_type
-        if parent_type == "input":
-            raise HTTPException(status_code=400, detail="输入类型选项不能作为父选项")
+        parent_allows_children = bool(parent.allow_children) if parent.allow_children is not None else parent_type != "input"
+        if not parent_allows_children:
+            raise HTTPException(status_code=400, detail="父选项未开启子选项配置")
         if parent.id == option_id:
             raise HTTPException(status_code=400, detail="父选项不能选择自己")
 
-    # 如果更改为input类型，检查是否有子选项
-    if data.option_type and data.option_type.value == "input":
+    # 如果关闭子选项或更改为 legacy input 类型，检查是否已有子选项
+    if (data.allow_children is False) or (data.option_type and data.option_type.value == "input"):
         children = db.query(ProjectOption).filter(ProjectOption.parent_id == option_id).count()
         if children > 0:
-            raise HTTPException(status_code=400, detail="该选项有子选项，不能更改为输入类型")
+            raise HTTPException(status_code=400, detail="该选项有子选项，不能关闭子选项配置")
 
     # 更新字段
     update_data = data.model_dump(exclude_unset=True)
     for key, value in update_data.items():
         if key == "option_type" and value:
             setattr(option, key, value.value)
+            if value.value == "input":
+                option.requires_input = True
         elif key == "price_type" and value:
             setattr(option, key, value.value)
         else:
             setattr(option, key, value)
+
+    option_type = option.option_type.value if isinstance(option.option_type, OptionType) else option.option_type
+    if option_type == "input":
+        option.requires_input = True
+    if not option.input_mode:
+        option.input_mode = "single"
 
     db.commit()
     db.refresh(option)
@@ -6249,11 +6272,12 @@ async def admin_batch_create_options(
             parent = db.query(ProjectOption).filter(ProjectOption.id == data.parent_id).first()
             if parent:
                 parent_type = parent.option_type.value if isinstance(parent.option_type, OptionType) else parent.option_type
-                if parent_type != "input":
+                parent_allows_children = bool(parent.allow_children) if parent.allow_children is not None else parent_type != "input"
+                if parent_allows_children:
                     level = parent.level + 1
                     path = f"{parent.path}{parent.id}/"
                 else:
-                    continue  # 跳过输入类型的子选项
+                    continue  # 跳过未开启子选项配置的父项
             else:
                 continue
 
@@ -6269,6 +6293,11 @@ async def admin_batch_create_options(
             price_type=data.price_type.value,
             hint_text=data.hint_text,
             placeholder=data.placeholder,
+            allow_children=data.allow_children,
+            requires_input=data.requires_input or data.option_type.value == "input",
+            input_mode=data.input_mode or "single",
+            group_name=data.group_name,
+            display_inline=data.display_inline,
             sort_order=data.sort_order,
             is_required=data.is_required,
             is_active=data.is_active
