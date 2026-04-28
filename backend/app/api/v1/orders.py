@@ -79,10 +79,15 @@ def calculate_coupon_discount(
     project: Project,
     coupon_ref_id: Optional[int],
     subtotal: Decimal
-) -> tuple[Decimal, Optional[str]]:
-    """根据用户优惠券或优惠券模板计算真实优惠金额"""
+) -> tuple[Decimal, Optional[str], Optional[UserCoupon]]:
+    """根据用户优惠券或优惠券模板计算真实优惠金额。
+
+    返回 (折扣金额, 优惠券名称, 用户优惠券记录)。
+    user_coupon 为 None 时表示传入的是 Coupon 模板 id，调用方需自行处理；
+    不为 None 时调用方应在订单提交后调用 ``mark_user_coupon_used`` 将其标记为已使用。
+    """
     if not coupon_ref_id:
-        return Decimal("0"), None
+        return Decimal("0"), None, None
 
     now = datetime.now()
     user_coupon = db.query(UserCoupon).filter(
@@ -137,7 +142,16 @@ def calculate_coupon_discount(
             discount_amount = min(discount_amount, Decimal(str(coupon.max_discount_amount)))
 
     discount_amount = max(Decimal("0"), min(discount_amount.quantize(Decimal("0.01")), subtotal))
-    return discount_amount, coupon.name
+    return discount_amount, coupon.name, user_coupon
+
+
+def mark_user_coupon_used(user_coupon: Optional[UserCoupon], order_id: int) -> None:
+    """订单创建成功后，把使用过的用户优惠券标记为已使用，避免重复使用。"""
+    if not user_coupon:
+        return
+    user_coupon.status = UserCouponStatus.USED
+    user_coupon.order_id = order_id
+    user_coupon.used_at = datetime.now()
 
 
 def _pick_form_value(form_data: dict, keys: list[str]) -> Optional[str]:
@@ -267,7 +281,7 @@ async def calculate_order(
     discount_amount = Decimal("0")
     coupon_label = None
     if coupon_id:
-        discount_amount, coupon_label = calculate_coupon_discount(
+        discount_amount, coupon_label, _ = calculate_coupon_discount(
             db, current_user, project, coupon_id, subtotal
         )
 
@@ -427,8 +441,9 @@ async def create_order(
 
     # 优惠金额
     discount_amount = Decimal("0")
+    used_user_coupon: Optional[UserCoupon] = None
     if data.coupon_id:
-        discount_amount, _ = calculate_coupon_discount(
+        discount_amount, _, used_user_coupon = calculate_coupon_discount(
             db, current_user, project, data.coupon_id, subtotal
         )
 
@@ -531,7 +546,10 @@ async def create_order(
         remark="创建订单"
     )
     db.add(history)
-    
+
+    # 把使用过的优惠券标记为已使用，防止重复使用
+    mark_user_coupon_used(used_user_coupon, order.id)
+
     db.commit()
     db.refresh(order)
     

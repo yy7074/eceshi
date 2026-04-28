@@ -32,8 +32,18 @@
 						<text class="coupon-expire">{{ item.expire_date }}到期</text>
 					</view>
 					<view class="coupon-right">
-						<button 
-							v-if="item.status === 'available'"
+						<!-- 领券页签：每张券独立领取 -->
+						<button
+							v-if="currentTab === 0"
+							class="use-btn"
+							:disabled="item.status !== 'available' || receiving === item.id"
+							@click.stop="receiveCoupon(item)"
+						>
+							{{ receiving === item.id ? '领取中' : (item.status === 'available' ? '立即领取' : '已领完') }}
+						</button>
+						<!-- 我的券：可用→去使用 -->
+						<button
+							v-else-if="item.status === 'available'"
 							class="use-btn"
 							@click.stop="useCoupon(item)"
 						>
@@ -61,7 +71,7 @@
 		<view v-else class="empty-state">
 			<text class="empty-icon">🎫</text>
 			<text class="empty-text">{{ getEmptyText() }}</text>
-			<button v-if="currentTab === 0" class="btn-get" @click="goGetCoupons">去领券</button>
+			<button v-if="currentTab !== 0" class="btn-get" @click="switchTab(0)">去领券</button>
 		</view>
 	</view>
 </template>
@@ -75,19 +85,8 @@ export default {
 			currentTab: 1, // 默认显示"待使用"
 			tabs: ['活动领券', '待使用', '已使用', '已过期'],
 			availableCoupons: [],
-			coupons: [
-				{
-					id: 1,
-					name: '首样减免券',
-					amount: 200,
-					min_amount: 0,
-					expire_date: '2025-11-18',
-					status: 'available',
-					type: 'discount',
-					description: '新客户实名认证-首样免单立减200元。适用于所有检测项目，每个账户限用一次。',
-					showDesc: false
-				}
-			]
+			receiving: null,
+			coupons: []
 		}
 	},
 	
@@ -179,39 +178,35 @@ export default {
 			this.$forceUpdate()
 		},
 		
-		// 使用优惠券
+		// 使用优惠券：跳到首页让用户选项目，下单时优惠券会出现在可选列表中
 		useCoupon(item) {
-			// 跳转到首页选择项目
 			uni.showModal({
 				title: '使用优惠券',
-				content: '请选择要使用此优惠券的项目',
-				confirmText: '去选择',
+				content: '请到项目下单页面，在第三步"提交文档和支付"中选择此优惠券',
+				confirmText: '去选项目',
 				success: (res) => {
 					if (res.confirm) {
-						uni.switchTab({
-							url: '/pages/index/index'
-						})
+						uni.switchTab({ url: '/pages/index/index' })
 					}
 				}
 			})
 		},
-		
-		// 去领券
-		async goGetCoupons() {
-			const coupon = this.availableCoupons.find(c => c.status === 'available')
-			if (!coupon) {
-				uni.showToast({ title: '暂无可领取优惠券', icon: 'none' })
-				return
-			}
+
+		// 领取单张优惠券（活动领券页签）
+		async receiveCoupon(item) {
+			if (this.receiving) return
+			this.receiving = item.id
 			try {
-				await api.receiveCoupon(coupon.id)
+				await api.receiveCoupon(item.id)
 				uni.showToast({ title: '领取成功', icon: 'success' })
 				await this.loadCoupons()
 			} catch (e) {
 				uni.showToast({
-					title: e.message || '领取失败',
+					title: e.message || e.detail || '领取失败',
 					icon: 'none'
 				})
+			} finally {
+				this.receiving = null
 			}
 		},
 		

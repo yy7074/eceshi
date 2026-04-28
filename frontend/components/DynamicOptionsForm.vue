@@ -26,7 +26,7 @@
 		<!-- 未分组的选项（兼容旧数据） -->
 		<view class="options-section" v-if="ungroupedOptions.length > 0">
 			<view class="section-title">
-				<text>检测选项</text>
+				<text>{{ groupedOptionsKeys.length > 0 ? '其他选项' : '检测选项' }}</text>
 				<text class="section-tip" v-if="!hasSelections">请选择检测选项</text>
 			</view>
 
@@ -115,6 +115,9 @@ export default {
 				}
 			})
 			return groups
+		},
+		groupedOptionsKeys() {
+			return Object.keys(this.groupedOptions)
 		},
 		// 未分组的选项
 		ungroupedOptions() {

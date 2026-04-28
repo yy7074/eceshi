@@ -86,7 +86,8 @@
 
 			<!-- 无配置时的提示 -->
 			<view class="empty-options" v-if="optionsTree.length === 0 && !optionsLoading">
-				<text class="empty-text">暂无可配置选项</text>
+				<text class="empty-text">该项目暂未配置样品信息/测试参数等选项</text>
+				<text class="empty-tip">如需补充项目相关字段，请联系管理员在后台为此项目添加</text>
 			</view>
 
 			<!-- 备注 -->
@@ -435,11 +436,19 @@ export default {
 				const res = await api.getProjectOptions(this.projectId)
 				if (res.code === 200 && res.data) {
 					this.optionsTree = res.data.options || []
+				} else {
+					this.optionsTree = []
+					console.warn('加载选项接口返回异常', res)
 				}
 			}
 		} catch (e) {
 			console.error('加载项目选项失败', e)
 			this.optionsTree = []
+			uni.showToast({
+				title: '加载选项失败：' + (e.message || e.detail || '请稍后重试'),
+				icon: 'none',
+				duration: 2500
+			})
 		} finally {
 			this.optionsLoading = false
 		}
@@ -1039,6 +1048,14 @@ export default {
 	.empty-text {
 		font-size: 28rpx;
 		color: #999;
+		display: block;
+	}
+
+	.empty-tip {
+		font-size: 24rpx;
+		color: #bbb;
+		display: block;
+		margin-top: 12rpx;
 	}
 }
 

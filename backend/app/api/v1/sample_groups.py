@@ -15,7 +15,7 @@ from app.models.user import User
 from app.models.sample_group import SampleGroup, SampleItem
 from app.models.project import Project
 from app.models.project_option import ProjectOption, PriceType
-from app.api.v1.orders import calculate_coupon_discount
+from app.api.v1.orders import calculate_coupon_discount, mark_user_coupon_used
 from app.schemas.sample_group import (
     SampleGroupCreate, SampleGroupUpdate, SampleGroupResponse, SampleGroupListResponse,
     SampleItemCreate, SampleItemUpdate, SampleItemResponse,
@@ -563,8 +563,9 @@ async def submit_sample_groups(
         base_amount = Decimal(str(project.price)) * total_sample_count if project else Decimal("0")
         subtotal = base_amount + total_options_fee
         discount_amount = Decimal("0")
+        used_user_coupon = None
         if data.coupon_id and project:
-            discount_amount, _ = calculate_coupon_discount(db, current_user, project, data.coupon_id, subtotal)
+            discount_amount, _, used_user_coupon = calculate_coupon_discount(db, current_user, project, data.coupon_id, subtotal)
         order_amount = subtotal - discount_amount
 
         # 创建订单
@@ -614,6 +615,9 @@ async def submit_sample_groups(
             group.status = "submitted"
             group.order_id = order.id
 
+        # 合并订单：优惠券归属第一个生成的订单
+        mark_user_coupon_used(used_user_coupon, order.id)
+
         order_ids.append(order.id)
         total_amount = order_amount
 
@@ -627,8 +631,10 @@ async def submit_sample_groups(
             options_fee = calculate_options_fee(db, group.option_selections, sample_count, base_price)
             subtotal = base_price + options_fee
             discount_amount = Decimal("0")
-            if data.coupon_id and project:
-                discount_amount, _ = calculate_coupon_discount(db, current_user, project, data.coupon_id, subtotal)
+            used_user_coupon_loop = None
+            if data.coupon_id and project and not order_ids:
+                # 多个独立订单时优惠券只能用于首个订单，避免一券多用
+                discount_amount, _, used_user_coupon_loop = calculate_coupon_discount(db, current_user, project, data.coupon_id, subtotal)
             order_amount = subtotal - discount_amount
 
             # 创建订单
@@ -676,6 +682,9 @@ async def submit_sample_groups(
             # 更新样品组状态
             group.status = "submitted"
             group.order_id = order.id
+
+            # 把使用过的优惠券标记为已使用
+            mark_user_coupon_used(used_user_coupon_loop, order.id)
 
             order_ids.append(order.id)
             total_amount += order_amount

@@ -1070,6 +1070,16 @@
                                     <el-icon><plus /></el-icon> 添加选项
                                 </el-button>
                             </div>
+                            <el-alert type="info" :closable="false" show-icon style="margin-bottom: 16px;">
+                                <template #title>
+                                    <div style="font-size: 13px; line-height: 1.6;">
+                                        <strong>选项要在小程序下单页显示，需要满足：</strong>
+                                        ① 选项「关联项目」与目标项目对应 <em>或</em>「关联分类」与项目所属分类一致；
+                                        ② 选项「状态」必须是「启用」；
+                                        ③ 「分组名称」（如：样品信息 / 测试参数 / 服务选项）建议填写，前端会按分组分块展示。
+                                    </div>
+                                </template>
+                            </el-alert>
 
                             <el-table :data="projectOptions" style="width: 100%" v-loading="optionsLoading" row-key="id" default-expand-all>
                                 <el-table-column prop="id" label="ID" width="60"></el-table-column>
@@ -1697,6 +1707,32 @@
                                         <el-option v-for="p in projects" :key="p.id" :label="p.name" :value="p.id"></el-option>
                                     </el-select>
                                     <div style="font-size: 12px; color: #999;">不选则所有项目都可使用</div>
+                                </el-form-item>
+                                <el-form-item label="指定分类">
+                                    <el-select v-model="couponForm.applicable_categories" multiple placeholder="留空表示全部分类可用" style="width: 100%;">
+                                        <el-option v-for="cat in categories" :key="cat.id" :label="cat.name" :value="cat.id"></el-option>
+                                    </el-select>
+                                </el-form-item>
+                                <el-form-item label="折扣上限" v-if="couponForm.type === 'discount'">
+                                    <el-input-number v-model="couponForm.max_discount_amount" :min="0" :precision="2" style="width: 100%;" placeholder="不填表示无上限"></el-input-number>
+                                </el-form-item>
+                                <el-form-item label="生效时间">
+                                    <el-date-picker
+                                        v-model="couponForm.start_time"
+                                        type="datetime"
+                                        value-format="YYYY-MM-DD HH:mm:ss"
+                                        placeholder="不填表示立即生效"
+                                        style="width: 100%;"
+                                    />
+                                </el-form-item>
+                                <el-form-item label="失效时间">
+                                    <el-date-picker
+                                        v-model="couponForm.end_time"
+                                        type="datetime"
+                                        value-format="YYYY-MM-DD HH:mm:ss"
+                                        placeholder="不填表示长期有效"
+                                        style="width: 100%;"
+                                    />
                                 </el-form-item>
                             </el-form>
                             <template #footer>
@@ -4546,11 +4582,31 @@
                 },
                 showCouponDialog(coupon = null) {
                     if (coupon) {
-                        this.couponForm = { ...coupon, applicable_projects: coupon.applicable_projects || [] }
+                        // 后端返回的时间是 ISO 格式（含 T），date-picker 需要 YYYY-MM-DD HH:mm:ss
+                        const fmt = (val) => {
+                            if (!val) return null
+                            return String(val).replace('T', ' ').slice(0, 19)
+                        }
+                        this.couponForm = {
+                            ...coupon,
+                            applicable_projects: coupon.applicable_projects || [],
+                            applicable_categories: coupon.applicable_categories || [],
+                            max_discount_amount: coupon.max_discount_amount ?? null,
+                            start_time: fmt(coupon.start_time),
+                            end_time: fmt(coupon.end_time)
+                        }
                     } else {
-                        this.couponForm = { id: null, name: '', type: 'cash', description: '', cash_amount: 10, discount_rate: 0.9, full_amount: 100, reduction_amount: 10, min_order_amount: 0, total_quantity: 0, valid_days: 30, applicable_projects: [] }
+                        this.couponForm = {
+                            id: null, name: '', type: 'cash', description: '',
+                            cash_amount: 10, discount_rate: 0.9, full_amount: 100, reduction_amount: 10,
+                            min_order_amount: 0, max_discount_amount: null,
+                            total_quantity: 0, valid_days: 30,
+                            applicable_projects: [], applicable_categories: [],
+                            start_time: null, end_time: null
+                        }
                     }
                     if (this.projects.length === 0) this.loadProjects()
+                    if (this.categories.length === 0) this.loadCategories()
                     this.couponDialogVisible = true
                 },
                 async saveCoupon() {
@@ -5266,6 +5322,15 @@
                             headers: this.uploadHeaders
                         })
                         const detail = res.data.data
+                        // test_params 后端是 JSON 对象，el-input 不能直接绑 object，统一转字符串方便编辑
+                        const samples = (detail.samples || []).map(s => ({
+                            ...s,
+                            test_params: s.test_params == null
+                                ? ''
+                                : (typeof s.test_params === 'string'
+                                    ? s.test_params
+                                    : JSON.stringify(s.test_params, null, 0))
+                        }))
                         this.orderDetailForm = {
                             id: detail.id,
                             order_no: detail.order_no,
@@ -5274,7 +5339,7 @@
                             remark: detail.remark || '',
                             admin_test_requirements: detail.admin_test_requirements || '',
                             admin_notes_to_lab: detail.admin_notes_to_lab || '',
-                            samples: detail.samples || [],
+                            samples,
                             options: detail.options || []
                         }
                         if (openDialog) {
@@ -5318,9 +5383,20 @@
                 async saveOrderDetail() {
                     this.orderDetailLoading = true
                     try {
+                        // 把 test_params 字符串解析回对象再提交，解析失败则保留为字符串
+                        const samples = (this.orderDetailForm.samples || []).map(s => {
+                            let tp = s.test_params
+                            if (typeof tp === 'string' && tp.trim()) {
+                                try { tp = JSON.parse(tp) } catch (e) { /* 保留字符串原样 */ }
+                            } else if (typeof tp === 'string' && !tp.trim()) {
+                                tp = null
+                            }
+                            return { ...s, test_params: tp }
+                        })
+                        const payload = { ...this.orderDetailForm, samples }
                         await axios.put(
                             `${this.baseUrl}/api/v1/admin/orders/${this.orderDetailForm.id}`,
-                            this.orderDetailForm,
+                            payload,
                             { headers: this.uploadHeaders }
                         )
                         ElMessage.success('订单修改成功')
@@ -6020,6 +6096,91 @@
                     } catch (error) {
                         ElMessage.error('导出失败，请稍后重试')
                     }
+                },
+                // ==================== 实名认证审核方法 ====================
+                async loadCertifications() {
+                    this.certLoading = true
+                    try {
+                        const res = await axios.get(`${this.baseUrl}/api/v1/admin/certifications`, {
+                            headers: this.uploadHeaders,
+                            params: {
+                                page: this.certPage,
+                                page_size: this.certPageSize,
+                                status: this.certStatusFilter || undefined,
+                                search: this.certSearch || undefined
+                            }
+                        })
+                        this.certList = res.data.data?.items || []
+                        this.certTotal = res.data.data?.total || 0
+                    } catch (error) {
+                        console.error('加载认证列表失败', error)
+                        ElMessage.error(error.response?.data?.detail || '加载失败')
+                    } finally {
+                        this.certLoading = false
+                    }
+                },
+                async viewCertDetail(cert) {
+                    try {
+                        const res = await axios.get(`${this.baseUrl}/api/v1/admin/certifications/${cert.id}`, { headers: this.uploadHeaders })
+                        this.certDetail = res.data.data
+                        this.certReviewCreditLimit = 3000
+                        this.certDetailVisible = true
+                    } catch (error) {
+                        ElMessage.error(error.response?.data?.detail || '加载详情失败')
+                    }
+                },
+                async approveCert(cert) {
+                    try {
+                        await ElMessageBox.confirm(
+                            `确认通过 ${cert.real_name} 的实名认证？将授予 ${this.certReviewCreditLimit} 元信用额度。`,
+                            '通过认证',
+                            { type: 'success', confirmButtonText: '确认通过', cancelButtonText: '取消' }
+                        )
+                        const res = await axios.put(
+                            `${this.baseUrl}/api/v1/admin/certifications/${cert.id}/review`,
+                            { action: 'approve', credit_limit: this.certReviewCreditLimit },
+                            { headers: this.uploadHeaders }
+                        )
+                        ElMessage.success(res.data.message || '认证已通过')
+                        this.certDetailVisible = false
+                        this.loadCertifications()
+                    } catch (error) {
+                        if (error === 'cancel' || error?.action === 'cancel') return
+                        ElMessage.error(error.response?.data?.detail || '操作失败')
+                    }
+                },
+                async rejectCert(cert) {
+                    try {
+                        const { value } = await ElMessageBox.prompt('请输入拒绝原因', '拒绝认证', {
+                            inputPattern: /.+/,
+                            inputErrorMessage: '请输入拒绝原因',
+                            confirmButtonText: '确认拒绝',
+                            cancelButtonText: '取消'
+                        })
+                        await axios.put(
+                            `${this.baseUrl}/api/v1/admin/certifications/${cert.id}/review`,
+                            { action: 'reject', reject_reason: value },
+                            { headers: this.uploadHeaders }
+                        )
+                        ElMessage.success('已拒绝')
+                        this.certDetailVisible = false
+                        this.loadCertifications()
+                    } catch (error) {
+                        if (error === 'cancel' || error?.action === 'cancel') return
+                        ElMessage.error(error.response?.data?.detail || '操作失败')
+                    }
+                },
+                getCertStatusText(status) {
+                    return { pending: '待审核', approved: '已通过', rejected: '已拒绝' }[status] || status
+                },
+                getCertStatusType(status) {
+                    return { pending: 'warning', approved: 'success', rejected: 'danger' }[status] || 'info'
+                },
+                getIdentityTypeText(type) {
+                    return { student: '学生', teacher: '教师', researcher: '科研人员', enterprise: '企业人员', other: '其他' }[type] || type || '-'
+                },
+                buildCertPreviewList(cert) {
+                    return [cert.id_card_front, cert.id_card_back, cert.student_card].filter(Boolean)
                 },
                 // ==================== 发票管理方法 ====================
                 async loadInvoiceList() {
