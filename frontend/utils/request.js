@@ -11,23 +11,55 @@ const DEV_BASE_URL = 'https://www.keyanbaice.com'
 const PROD_BASE_URL = 'https://www.keyanbaice.com'
 // 根据环境选择API地址
 const BASE_URL = process.env.NODE_ENV === 'development' ? DEV_BASE_URL : PROD_BASE_URL
+let isRedirectingToLogin = false
+
+function clearLoginState() {
+	uni.removeStorageSync('token')
+	uni.removeStorageSync('userInfo')
+}
+
+function redirectToLogin() {
+	if (isRedirectingToLogin) {
+		return
+	}
+	const pages = getCurrentPages()
+	const currentPage = pages[pages.length - 1]
+	const currentRoute = currentPage ? `/${currentPage.route}` : ''
+	if (currentRoute === '/pages/login/login') {
+		return
+	}
+
+	isRedirectingToLogin = true
+	setTimeout(() => {
+		uni.reLaunch({
+			url: '/pages/login/login?force=1',
+			complete: () => {
+				setTimeout(() => {
+					isRedirectingToLogin = false
+				}, 500)
+			}
+		})
+	}, 600)
+}
 
 function buildUrl(url, params) {
 	if (!params || typeof params !== 'object') {
 		return url
 	}
-	const searchParams = new URLSearchParams()
+	const queryItems = []
 	Object.entries(params).forEach(([key, value]) => {
 		if (value === undefined || value === null || value === '') {
 			return
 		}
 		if (Array.isArray(value)) {
-			value.forEach(item => searchParams.append(key, item))
+			value.forEach(item => {
+				queryItems.push(`${encodeURIComponent(key)}=${encodeURIComponent(item)}`)
+			})
 			return
 		}
-		searchParams.append(key, value)
+		queryItems.push(`${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
 	})
-	const queryString = searchParams.toString()
+	const queryString = queryItems.join('&')
 	if (!queryString) {
 		return url
 	}
@@ -72,15 +104,12 @@ function request(options) {
 					}
 				} else if (res.statusCode === 401 || (res.statusCode === 403 && res.data && res.data.detail === 'Not authenticated')) {
 					// 未授权或未登录，跳转登录
+					clearLoginState()
 					uni.showToast({
 						title: '请先登录',
 						icon: 'none'
 					})
-					setTimeout(() => {
-						uni.navigateTo({
-							url: '/pages/login/login'
-						})
-					}, 1500)
+					redirectToLogin()
 					reject(res.data)
 				} else {
 					// HTTP错误

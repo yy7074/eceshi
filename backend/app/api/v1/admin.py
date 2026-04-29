@@ -13,12 +13,20 @@ from pydantic import BaseModel
 import json
 import csv
 import io
+import uuid
 
 from app.core.database import get_db
 from app.core.response import Response
 from app.api.v1.deps import get_current_admin_user
 from app.models.user import User, UserStatus, UserCertification
-from app.models.credit import CreditRecord, CreditTransactionType, CreditTransactionStatus
+from app.models.credit import (
+    CreditDebt,
+    CreditRecord,
+    CreditTransactionType,
+    CreditTransactionStatus,
+    Repayment,
+    RepaymentStatus,
+)
 from app.models.project import Project, ProjectCategory, ProjectReview
 from app.models.order import Order, OrderSample, Payment, OrderStatusHistory
 from app.models.coupon import Coupon, UserCoupon, CouponType, CouponStatus
@@ -35,6 +43,110 @@ from app.schemas.project_option import (
 
 
 router = APIRouter()
+
+
+def apply_arrival_amount_to_user_credit(
+    db: Session,
+    user: User,
+    amount: Decimal,
+    payment_method: str,
+    remark: str,
+    operator_id: Optional[int] = None,
+    reference_id: Optional[int] = None,
+) -> dict:
+    """
+    到账金额优先冲销信用欠款，剩余金额进入预付余额。
+    返回 repayment_amount/prepaid_amount，供管理端提示和后续排查。
+    """
+    arrival_amount = Decimal(str(amount or 0))
+    if arrival_amount <= 0:
+        return {
+            "repayment_amount": Decimal("0"),
+            "prepaid_amount": Decimal("0"),
+            "debt_ids": [],
+        }
+
+    remaining_arrival = arrival_amount
+    repayment_amount = Decimal("0")
+    repaid_debt_ids = []
+    balance_before = (user.credit_limit or Decimal("0")) - (user.used_credit or Decimal("0"))
+
+    debts = db.query(CreditDebt).filter(
+        CreditDebt.user_id == user.id,
+        CreditDebt.status != RepaymentStatus.PAID,
+        CreditDebt.remaining_amount > 0,
+    ).order_by(CreditDebt.created_at.asc()).all()
+
+    for debt in debts:
+        if remaining_arrival <= 0:
+            break
+
+        debt_remaining = debt.remaining_amount or Decimal("0")
+        if debt_remaining <= 0:
+            debt.remaining_amount = Decimal("0")
+            debt.status = RepaymentStatus.PAID
+            debt.paid_at = debt.paid_at or datetime.now()
+            continue
+
+        pay_this = min(remaining_arrival, debt_remaining)
+        debt.paid_amount = (debt.paid_amount or Decimal("0")) + pay_this
+        debt.remaining_amount = debt_remaining - pay_this
+
+        if debt.remaining_amount <= 0:
+            debt.remaining_amount = Decimal("0")
+            debt.status = RepaymentStatus.PAID
+            debt.paid_at = datetime.now()
+        else:
+            debt.status = RepaymentStatus.PARTIAL
+
+        remaining_arrival -= pay_this
+        repayment_amount += pay_this
+        repaid_debt_ids.append(debt.id)
+
+    if repayment_amount > 0:
+        user.used_credit = max(
+            Decimal("0"),
+            (user.used_credit or Decimal("0")) - repayment_amount
+        )
+        balance_after = (user.credit_limit or Decimal("0")) - (user.used_credit or Decimal("0"))
+
+        repayment_no = f"RP{datetime.now().strftime('%Y%m%d%H%M%S')}{str(uuid.uuid4())[:6].upper()}"
+        repayment = Repayment(
+            user_id=user.id,
+            repayment_no=repayment_no,
+            amount=repayment_amount,
+            payment_method=payment_method,
+            debt_ids=json.dumps(repaid_debt_ids),
+            status=CreditTransactionStatus.SUCCESS,
+            paid_at=datetime.now(),
+        )
+        db.add(repayment)
+        db.flush()
+
+        credit_record = CreditRecord(
+            user_id=user.id,
+            transaction_type=CreditTransactionType.REPAY,
+            amount=repayment_amount,
+            balance_before=balance_before,
+            balance_after=balance_after,
+            repayment_id=repayment.id,
+            reference_type=payment_method,
+            reference_id=reference_id,
+            operator_id=operator_id,
+            status=CreditTransactionStatus.SUCCESS,
+            remark=remark,
+        )
+        db.add(credit_record)
+
+    prepaid_amount = remaining_arrival
+    if prepaid_amount > 0:
+        user.prepaid_balance = (user.prepaid_balance or Decimal("0")) + prepaid_amount
+
+    return {
+        "repayment_amount": repayment_amount,
+        "prepaid_amount": prepaid_amount,
+        "debt_ids": repaid_debt_ids,
+    }
 
 
 # ========== Pydantic 模型 ==========
@@ -1672,7 +1784,15 @@ async def update_recharge_status_admin(
         user = db.query(User).filter(User.id == record.user_id).first()
         if user:
             actual_amount = record.actual_amount or record.amount
-            user.prepaid_balance = (user.prepaid_balance or 0) + actual_amount
+            apply_arrival_amount_to_user_credit(
+                db=db,
+                user=user,
+                amount=actual_amount,
+                payment_method="recharge",
+                remark=f"充值到账自动冲销信用欠款，充值单号：{record.recharge_no}",
+                operator_id=current_admin.id,
+                reference_id=record.id,
+            )
             record.completed_at = datetime.utcnow()
     
     db.commit()
@@ -6748,15 +6868,93 @@ async def confirm_invoice_recharge(
     record.confirmed_at = datetime.now()
     record.remark = data.remark
 
-    # 将金额充入用户账户
+    arrival_result = {
+        "repayment_amount": Decimal("0"),
+        "prepaid_amount": Decimal("0"),
+        "debt_ids": [],
+    }
+
+    # 到账金额优先冲销信用欠款，剩余进入预付余额
     user = db.query(User).filter(User.id == record.user_id).first()
     if user:
         total_amount = record.amount + (record.bonus_amount or Decimal("0"))
-        user.balance = (user.balance or Decimal("0")) + total_amount
+        arrival_result = apply_arrival_amount_to_user_credit(
+            db=db,
+            user=user,
+            amount=total_amount,
+            payment_method="invoice_recharge",
+            remark=f"开票充值到账自动冲销信用欠款，申请ID：{record.id}",
+            operator_id=current_admin.id,
+            reference_id=record.id,
+        )
 
     db.commit()
 
-    return Response.success(message="开票充值已确认，金额已到账")
+    message = "开票充值已确认"
+    if arrival_result["repayment_amount"] > 0:
+        message += f"，已冲销信用欠款 {arrival_result['repayment_amount']} 元"
+    if arrival_result["prepaid_amount"] > 0:
+        message += f"，剩余 {arrival_result['prepaid_amount']} 元已进入预付余额"
+
+    return Response.success(
+        message=message,
+        data={
+            "repaid_debt_ids": arrival_result["debt_ids"],
+            "repayment_amount": float(arrival_result["repayment_amount"]),
+            "prepaid_amount": float(arrival_result["prepaid_amount"]),
+        }
+    )
+
+
+@router.post("/invoice-recharges/{record_id}/settle-credit", summary="重新冲销开票充值信用欠款")
+async def settle_invoice_recharge_credit(
+    record_id: int,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """用于修复历史已确认到账但未恢复信用额度的开票充值记录。"""
+    record = db.query(InvoiceRechargeRecord).filter(InvoiceRechargeRecord.id == record_id).first()
+    if not record:
+        raise HTTPException(status_code=404, detail="记录不存在")
+    if record.status != InvoiceRechargeStatus.CONFIRMED:
+        raise HTTPException(status_code=400, detail="该开票充值尚未确认到账")
+
+    existing = db.query(CreditRecord).filter(
+        CreditRecord.reference_type == "invoice_recharge",
+        CreditRecord.reference_id == record.id,
+        CreditRecord.transaction_type == CreditTransactionType.REPAY,
+        CreditRecord.status == CreditTransactionStatus.SUCCESS,
+    ).first()
+    if existing:
+        return Response.success(message="该开票充值已冲销过信用欠款，无需重复处理")
+
+    user = db.query(User).filter(User.id == record.user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="用户不存在")
+
+    total_amount = record.amount + (record.bonus_amount or Decimal("0"))
+    arrival_result = apply_arrival_amount_to_user_credit(
+        db=db,
+        user=user,
+        amount=total_amount,
+        payment_method="invoice_recharge",
+        remark=f"历史开票充值到账补冲信用欠款，申请ID：{record.id}",
+        operator_id=current_admin.id,
+        reference_id=record.id,
+    )
+    db.commit()
+
+    return Response.success(
+        message=(
+            f"补冲完成，已冲销信用欠款 {arrival_result['repayment_amount']} 元"
+            f"，剩余入预付余额 {arrival_result['prepaid_amount']} 元"
+        ),
+        data={
+            "repaid_debt_ids": arrival_result["debt_ids"],
+            "repayment_amount": float(arrival_result["repayment_amount"]),
+            "prepaid_amount": float(arrival_result["prepaid_amount"]),
+        }
+    )
 
 
 @router.post("/invoice-recharges/{record_id}/reject", summary="拒绝开票充值")

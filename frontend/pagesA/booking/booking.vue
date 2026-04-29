@@ -725,8 +725,7 @@ export default {
 					uni.hideLoading()
 
 					if (res.code === 200 && res.data.order_ids.length > 0) {
-						// 跳转支付第一个订单
-						this.goPay(res.data.order_ids[0])
+						await this.paySubmittedOrders(res.data.order_ids)
 					}
 					return
 				}
@@ -756,7 +755,7 @@ export default {
 				// 跳转支付
 				if (res.code === 200) {
 					const orderId = res.data.order_id
-					this.goPay(orderId)
+					await this.paySubmittedOrders([orderId])
 				}
 
 			} catch (e) {
@@ -766,6 +765,37 @@ export default {
 					title: e.message || e.detail || '提交失败',
 					icon: 'none'
 				})
+			}
+		},
+
+		async paySubmittedOrders(orderIds) {
+			const ids = (orderIds || []).filter(Boolean)
+			if (ids.length === 0) {
+				return
+			}
+
+			try {
+				for (const orderId of ids) {
+					await api.creditPay({
+						order_id: orderId,
+						amount: this.totalPrice
+					})
+				}
+				uni.showToast({ title: '提交成功，已扣减信用额度', icon: 'success' })
+				setTimeout(() => {
+					uni.redirectTo({
+						url: `/pagesA/order-detail/order-detail?id=${ids[0]}`
+					})
+				}, 1200)
+			} catch (e) {
+				console.error('信用支付失败，转入支付页', e)
+				uni.showToast({
+					title: e.message || e.detail || '订单已创建，请完成支付',
+					icon: 'none'
+				})
+				setTimeout(() => {
+					this.goPay(ids[0])
+				}, 1200)
 			}
 		},
 		

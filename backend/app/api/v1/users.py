@@ -4,9 +4,12 @@
 """
 from fastapi import APIRouter, Depends, HTTPException, status, Body
 from sqlalchemy.orm import Session
+from sqlalchemy import func as sql_func
+from decimal import Decimal
 
 from app.core.database import get_db
 from app.core.response import Response
+from app.models.credit import CreditDebt, RepaymentStatus
 from app.models.user import User, UserCertification, IdentityType, EducationLevel
 from app.schemas.user import UserInfo, UserUpdate, CertificationRequest, CertificationResponse
 from app.api.deps import get_current_user
@@ -223,19 +226,33 @@ async def get_certification(
 
 @router.get("/balance", summary="获取账户余额")
 async def get_balance(
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
     """
     获取账户余额信息
     包括预付余额、信用额度、积分等
     """
+    user = db.query(User).filter(User.id == current_user.id).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="用户不存在")
+
+    used_credit = db.query(sql_func.sum(CreditDebt.remaining_amount)).filter(
+        CreditDebt.user_id == user.id,
+        CreditDebt.status != RepaymentStatus.PAID,
+        CreditDebt.remaining_amount > 0
+    ).scalar() or Decimal("0")
+    if (user.used_credit or Decimal("0")) != used_credit:
+        user.used_credit = used_credit
+        db.commit()
+
     return Response.success(data={
-        "prepaid_balance": float(current_user.prepaid_balance),  # 预付余额
-        "credit_limit": float(current_user.credit_limit),  # 信用额度
-        "used_credit": float(current_user.used_credit),  # 已用信用额度
-        "available_credit": float(current_user.credit_limit - current_user.used_credit),  # 可用信用额度
-        "points_balance": current_user.points_balance,  # 积分余额
-        "membership_level": current_user.membership_level.value  # 会员等级
+        "prepaid_balance": float(user.prepaid_balance or 0),  # 预付余额
+        "credit_limit": float(user.credit_limit or 0),  # 信用额度
+        "used_credit": float(used_credit),  # 已用信用额度
+        "available_credit": float((user.credit_limit or Decimal("0")) - used_credit),  # 可用信用额度
+        "points_balance": user.points_balance,  # 积分余额
+        "membership_level": user.membership_level.value  # 会员等级
     })
 
 

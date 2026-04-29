@@ -28,6 +28,23 @@ from app.api.v1.deps import get_current_user
 router = APIRouter()
 
 
+def get_outstanding_credit(db: Session, user_id: int) -> Decimal:
+    total = db.query(sql_func.sum(CreditDebt.remaining_amount)).filter(
+        CreditDebt.user_id == user_id,
+        CreditDebt.status != RepaymentStatus.PAID,
+        CreditDebt.remaining_amount > 0
+    ).scalar()
+    return Decimal(str(total or 0))
+
+
+def sync_user_used_credit(db: Session, user: User) -> Decimal:
+    used_credit = get_outstanding_credit(db, user.id)
+    if (user.used_credit or Decimal("0")) != used_credit:
+        user.used_credit = used_credit
+        db.flush()
+    return used_credit
+
+
 @router.get("/info", summary="获取信用额度信息")
 async def get_credit_info(
     current_user: User = Depends(get_current_user),
@@ -37,20 +54,20 @@ async def get_credit_info(
     获取当前用户的信用额度信息
     包括：总额度、已用额度、可用额度、总欠款
     """
-    # 计算总欠款
-    total_debt = db.query(sql_func.sum(CreditDebt.remaining_amount)).filter(
-        CreditDebt.user_id == current_user.id,
-        CreditDebt.status != RepaymentStatus.PAID
-    ).scalar() or Decimal('0')
+    user = db.query(User).filter(User.id == current_user.id).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="用户不存在")
 
-    available_credit = current_user.credit_limit - current_user.used_credit
+    total_debt = sync_user_used_credit(db, user)
+    db.commit()
+    available_credit = (user.credit_limit or Decimal("0")) - total_debt
 
     return Response.success(data={
-        "credit_limit": float(current_user.credit_limit),
-        "used_credit": float(current_user.used_credit),
+        "credit_limit": float(user.credit_limit or 0),
+        "used_credit": float(total_debt),
         "available_credit": float(available_credit),
         "total_debt": float(total_debt),
-        "is_certified": current_user.is_certified
+        "is_certified": user.is_certified
     })
 
 
@@ -127,8 +144,12 @@ async def credit_pay(
     4. 更新用户已用额度
     5. 创建交易记录
     """
+    user = db.query(User).filter(User.id == current_user.id).with_for_update().first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="用户不存在")
+
     # 检查认证
-    if not current_user.is_certified:
+    if not user.is_certified:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="请先完成实名认证"
@@ -148,9 +169,23 @@ async def credit_pay(
             detail="无权操作此订单"
         )
 
+    if order.status != "pending_payment" or order.payment_status == "paid":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="订单已支付或状态不正确"
+        )
+
+    amount_to_pay = (order.total_fee or Decimal("0")) - (order.paid_fee or Decimal("0"))
+    if amount_to_pay <= 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="订单无需支付"
+        )
+
     # 检查可用额度
-    available_credit = current_user.credit_limit - current_user.used_credit
-    if request.amount > available_credit:
+    current_used_credit = sync_user_used_credit(db, user)
+    available_credit = (user.credit_limit or Decimal("0")) - current_used_credit
+    if amount_to_pay > available_credit:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"可用额度不足，当前可用: {available_credit}"
@@ -162,9 +197,9 @@ async def credit_pay(
         user_id=current_user.id,
         order_id=order.id,
         order_no=order.order_no,
-        original_amount=request.amount,
+        original_amount=amount_to_pay,
         paid_amount=Decimal('0'),
-        remaining_amount=request.amount,
+        remaining_amount=amount_to_pay,
         status=RepaymentStatus.UNPAID,
         due_date=due_date
     )
@@ -174,12 +209,12 @@ async def credit_pay(
     balance_before = available_credit
 
     # 更新用户已用额度
-    current_user.used_credit = current_user.used_credit + request.amount
-    balance_after = current_user.credit_limit - current_user.used_credit
+    user.used_credit = current_used_credit + amount_to_pay
+    balance_after = (user.credit_limit or Decimal("0")) - user.used_credit
 
     # 更新订单支付状态
-    order.credit_amount = request.amount
-    order.paid_fee = (order.paid_fee or Decimal("0")) + request.amount
+    order.credit_amount = amount_to_pay
+    order.paid_fee = (order.paid_fee or Decimal("0")) + amount_to_pay
     order.payment_method = "credit"
     order.payment_status = "paid"
     order.status = "confirmed"
@@ -200,7 +235,7 @@ async def credit_pay(
     record = CreditRecord(
         user_id=current_user.id,
         transaction_type=CreditTransactionType.CONSUME,
-        amount=request.amount,
+        amount=amount_to_pay,
         balance_before=balance_before,
         balance_after=balance_after,
         order_id=order.id,

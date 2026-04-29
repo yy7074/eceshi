@@ -85,7 +85,7 @@
                     <project-detail v-else-if="currentView === 'detail'" :project-id="currentProjectId" @go-back="currentView = 'projects'" @show-booking="openBooking" @require-login="requireLogin"></project-detail>
                     
                     <!-- 订单列表 -->
-                    <orders-view v-else-if="currentView === 'orders'" @show-payment="openPayment" @show-review="openReview" @show-invoice="openInvoice" @go-sample-track="goToSampleTrack"></orders-view>
+                    <orders-view v-else-if="currentView === 'orders'" :key="ordersRefreshKey" @show-payment="openPayment" @show-review="openReview" @show-invoice="openInvoice" @go-sample-track="goToSampleTrack"></orders-view>
                     
                     <!-- 个人中心 -->
                     <profile-view v-else-if="currentView === 'profile'" @go-orders="currentView = 'orders'" @go-favorites="currentView = 'favorites'" @go-coupons="currentView = 'coupons'" @go-address="currentView = 'address'" @go-wallet="currentView = 'wallet'" @go-points="currentView = 'points'" @go-invoice="currentView = 'invoices'" @go-team="currentView = 'team'" @go-reports="currentView = 'reports'" @go-help="currentView = 'help'" @go-chat="currentView = 'chat'" @go-announcements="currentView = 'announcements'" @go-contracts="currentView = 'contracts'" @go-lottery="currentView = 'lottery'" @go-franchise="currentView = 'franchise'" @go-certification="currentView = 'certification'" @go-credit="currentView = 'credit'" @edit-profile="openEditProfile"></profile-view>
@@ -541,6 +541,6 @@
     </div>
 
     <!-- 应用脚本 -->
-    <script src="/web/assets/js/app.js?v=20260419-credit-qrcode"></script>
+    <script src="/web/assets/js/app.js?v=20260428-credit-order"></script>
 </body>
 </html>

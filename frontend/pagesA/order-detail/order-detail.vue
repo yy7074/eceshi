@@ -93,15 +93,15 @@
 				<view class="section-title">费用明细</view>
 				<view class="fee-row">
 					<text class="label">测试费用</text>
-					<text class="value">¥{{ order.service_amount || '0.00' }}</text>
+					<text class="value">¥{{ formatMoney(getOrderProjectFee(order)) }}</text>
 				</view>
-				<view class="fee-row" v-if="order.delivery_fee">
+				<view class="fee-row" v-if="getOrderShippingFee(order) > 0">
 					<text class="label">配送费用</text>
-					<text class="value">¥{{ order.delivery_fee }}</text>
+					<text class="value">¥{{ formatMoney(getOrderShippingFee(order)) }}</text>
 				</view>
 				<view class="fee-row total">
 					<text class="label">总计</text>
-					<text class="value">¥{{ order.total_amount }}</text>
+					<text class="value">¥{{ formatMoney(getOrderTotal(order)) }}</text>
 				</view>
 			</view>
 			
@@ -155,14 +155,14 @@
 		<!-- 底部操作栏 -->
 		<view class="bottom-bar" v-if="order.id">
 			<button 
-				v-if="order.status === 'unpaid'" 
+				v-if="isPendingPayment(order.status)" 
 				class="btn-action secondary"
 				@click="cancelOrder"
 			>
 				取消订单
 			</button>
 			<button 
-				v-if="order.status === 'unpaid'" 
+				v-if="isPendingPayment(order.status)" 
 				class="btn-action primary"
 				@click="payOrder"
 			>
@@ -242,6 +242,7 @@ export default {
 		getStatusIcon() {
 			const iconMap = {
 				'unpaid': '💳',
+				'pending_payment': '💳',
 				'paid': '⏰',
 				'confirmed': '📝',
 				'testing': '🔬',
@@ -255,6 +256,7 @@ export default {
 		getStatusText() {
 			const statusMap = {
 				'unpaid': '待支付',
+				'pending_payment': '待支付',
 				'paid': '待确认',
 				'confirmed': '待实验',
 				'testing': '实验中',
@@ -268,6 +270,7 @@ export default {
 		getStatusDesc() {
 			const descMap = {
 				'unpaid': '请尽快完成支付',
+				'pending_payment': '请尽快完成支付',
 				'paid': '我们正在确认您的订单',
 				'confirmed': '您的样品正在排队中',
 				'testing': '实验正在进行中，请耐心等待',
@@ -275,6 +278,10 @@ export default {
 				'cancelled': '订单已取消'
 			}
 			return descMap[this.order.status] || ''
+		},
+
+		isPendingPayment(status) {
+			return ['unpaid', 'pending_payment'].includes(status)
 		},
 		
 		// 格式化日期时间
@@ -287,6 +294,32 @@ export default {
 			const h = String(date.getHours()).padStart(2, '0')
 			const m = String(date.getMinutes()).padStart(2, '0')
 			return `${Y}-${M}-${D} ${h}:${m}`
+		},
+
+		getOrderTotal(order) {
+			const amount = order.total_fee !== undefined && order.total_fee !== null
+				? order.total_fee
+				: order.total_amount
+			return Number(amount || 0)
+		},
+
+		getOrderProjectFee(order) {
+			const amount = order.project_fee !== undefined && order.project_fee !== null
+				? order.project_fee
+				: order.service_amount
+			return Number(amount || 0)
+		},
+
+		getOrderShippingFee(order) {
+			const amount = order.shipping_fee !== undefined && order.shipping_fee !== null
+				? order.shipping_fee
+				: order.delivery_fee
+			return Number(amount || 0)
+		},
+
+		formatMoney(amount) {
+			const value = Number(amount)
+			return Number.isFinite(value) ? value.toFixed(2) : '0.00'
 		},
 		
 		// 复制物流单号
@@ -309,7 +342,7 @@ export default {
 			try {
 				const res = await api.creditPay({
 					order_id: this.order.id,
-					amount: this.order.total_fee
+					amount: this.getOrderTotal(this.order)
 				})
 				
 				uni.hideLoading()

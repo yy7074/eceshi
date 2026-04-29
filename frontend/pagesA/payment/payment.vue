@@ -12,7 +12,7 @@
 			</view>
 			<view class="info-row total">
 				<text class="label">支付金额</text>
-				<text class="value price">¥{{ order.total_fee }}</text>
+				<text class="value price">¥{{ formatMoney(orderAmount) }}</text>
 			</view>
 		</view>
 		
@@ -35,7 +35,7 @@
 		<view class="bottom-bar">
 			<view class="total-info">
 				<text class="label">需支付：</text>
-				<text class="price">¥{{ order.total_fee }}</text>
+				<text class="price">¥{{ formatMoney(orderAmount) }}</text>
 			</view>
 				<button class="btn-pay" :loading="paying" @click="confirmPay">
 				{{ paying ? '支付中...' : '信用支付' }}
@@ -59,6 +59,14 @@
 				
 				selectedMethod: 'credit',
 				paying: false
+			}
+		},
+		computed: {
+			orderAmount() {
+				const amount = this.order.total_fee !== undefined && this.order.total_fee !== null
+					? this.order.total_fee
+					: this.order.total_amount
+				return Number(amount || 0)
 			}
 		},
 		onLoad(options) {
@@ -86,7 +94,7 @@
 				try {
 					const data = {
 						order_id: this.orderId,
-						amount: this.order.total_fee
+						amount: this.orderAmount
 					}
 					
 					const res = await api.creditPay(data)
@@ -106,6 +114,11 @@
 				} finally {
 					this.paying = false
 				}
+			},
+
+			formatMoney(amount) {
+				const value = Number(amount)
+				return Number.isFinite(value) ? value.toFixed(2) : '0.00'
 			}
 		}
 	}

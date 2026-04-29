@@ -198,6 +198,38 @@ function clearWebOptionBranch(selections, option) {
     })
 }
 
+function normalizeWebInputMode(mode) {
+    return ['multiple', 'multi'].includes(mode) ? 'multiple' : 'single'
+}
+
+function normalizeWebInputValues(item) {
+    if (!item) {
+        return []
+    }
+    if (Array.isArray(item.input_values)) {
+        return item.input_values
+    }
+    if (item.input_value) {
+        const raw = `${item.input_value}`.trim()
+        if (raw.startsWith('[')) {
+            try {
+                const parsed = JSON.parse(raw)
+                if (Array.isArray(parsed)) {
+                    return parsed
+                }
+            } catch (error) {
+                return [raw]
+            }
+        }
+        return [raw]
+    }
+    return []
+}
+
+function hasWebInputValue(item) {
+    return normalizeWebInputValues(item).some(value => `${value}`.trim())
+}
+
 function calculateWebOptionFee(optionsTree, selections, sampleCount, basePrice) {
     const optionMap = {}
     flattenWebOptions(optionsTree).forEach(option => {
@@ -245,6 +277,15 @@ const WebOptionNode = {
         isCardType() {
             return ['single', 'multi'].includes(this.option.option_type)
         },
+        isGroupType() {
+            return ['dropdown', 'checkbox_group', 'radio_group'].includes(this.option.option_type)
+        },
+        requiresInput() {
+            return !!(this.option.requires_input || this.option.option_type === 'input')
+        },
+        inputMode() {
+            return normalizeWebInputMode(this.option.input_mode || this.selections[this.option.id]?.input_mode || 'single')
+        },
         selectedCheckboxValues() {
             return (this.option.children || []).filter(child => this.selections[child.id]?.selected).map(child => child.id)
         },
@@ -257,17 +298,56 @@ const WebOptionNode = {
             return selectedChild ? selectedChild.id : null
         },
         inputValue() {
-            return this.selections[this.option.id]?.input_value || ''
+            const selection = this.selections[this.option.id]
+            if (selection?.input_value) {
+                return selection.input_value
+            }
+            const values = normalizeWebInputValues(selection)
+            return values.length > 0 ? values[0] : ''
+        },
+        displayInputValues() {
+            const values = normalizeWebInputValues(this.selections[this.option.id])
+            return values.length > 0 ? values : ['']
+        },
+        canShowOwnChildren() {
+            return this.hasChildren && this.isSelected && this.option.allow_children !== false && !this.isGroupType
+        },
+        selectedChildOptions() {
+            return (this.option.children || []).filter(child => {
+                return this.selections[child.id]?.selected &&
+                    child.allow_children !== false &&
+                    Array.isArray(child.children) &&
+                    child.children.length > 0
+            })
         }
     },
     methods: {
         formatPrice(value) {
             return Number(value || 0).toFixed(2)
         },
-        ensureSelection(optionId) {
-            if (!this.selections[optionId]) {
-                this.selections[optionId] = { option_id: optionId, selected: false, input_value: '' }
+        ensureSelection(option) {
+            const optionObj = typeof option === 'object' ? option : { id: option }
+            if (!this.selections[optionObj.id]) {
+                this.selections[optionObj.id] = {
+                    option_id: optionObj.id,
+                    selected: false,
+                    input_value: '',
+                    input_values: [],
+                    input_mode: normalizeWebInputMode(optionObj.input_mode || 'single')
+                }
             }
+            if (!this.selections[optionObj.id].input_mode) {
+                this.selections[optionObj.id].input_mode = normalizeWebInputMode(optionObj.input_mode || 'single')
+            }
+        },
+        setChildSelection(child, selected) {
+            if (selected) {
+                this.ensureSelection(child)
+                this.selections[child.id].selected = true
+                return
+            }
+            delete this.selections[child.id]
+            clearWebOptionBranch(this.selections, child)
         },
         toggleCard() {
             const nextSelected = !this.isSelected
@@ -280,9 +360,12 @@ const WebOptionNode = {
                 })
             }
 
-            this.ensureSelection(this.option.id)
+            this.ensureSelection(this.option)
             this.selections[this.option.id].selected = nextSelected
-            this.selections[this.option.id].input_value = ''
+            if (!nextSelected) {
+                this.selections[this.option.id].input_value = ''
+                this.selections[this.option.id].input_values = []
+            }
 
             if (!nextSelected) {
                 clearWebOptionBranch(this.selections, this.option)
@@ -291,41 +374,53 @@ const WebOptionNode = {
             this.$emit('change')
         },
         handleInput(value) {
-            this.ensureSelection(this.option.id)
-            this.selections[this.option.id].selected = !!value
+            this.ensureSelection(this.option)
+            this.selections[this.option.id].selected = this.option.option_type !== 'input' ? this.isSelected : !!value
             this.selections[this.option.id].input_value = value || ''
+            this.selections[this.option.id].input_values = value ? [value] : []
+            this.selections[this.option.id].input_mode = 'single'
+            this.$emit('change')
+        },
+        handleMultipleInput(index, value) {
+            const values = this.displayInputValues.slice()
+            values.splice(index, 1, value)
+            this.emitMultipleInput(values)
+        },
+        addMultipleInput() {
+            const values = this.displayInputValues.slice()
+            values.push('')
+            this.emitMultipleInput(values)
+        },
+        removeMultipleInput(index) {
+            const values = this.displayInputValues.slice()
+            values.splice(index, 1)
+            this.emitMultipleInput(values.length ? values : [''])
+        },
+        emitMultipleInput(values) {
+            const cleanedValues = values.map(value => value || '')
+            this.ensureSelection(this.option)
+            this.selections[this.option.id].selected = this.option.option_type !== 'input' ? this.isSelected : cleanedValues.some(value => `${value}`.trim())
+            this.selections[this.option.id].input_value = ''
+            this.selections[this.option.id].input_values = cleanedValues
+            this.selections[this.option.id].input_mode = 'multiple'
             this.$emit('change')
         },
         handleDropdownChange(value) {
             ;(this.option.children || []).forEach(child => {
-                if (child.id === value) {
-                    this.selections[child.id] = { option_id: child.id, selected: true, input_value: '' }
-                } else {
-                    delete this.selections[child.id]
-                    clearWebOptionBranch(this.selections, child)
-                }
+                this.setChildSelection(child, child.id === value)
             })
             this.$emit('change')
         },
         handleCheckboxGroupChange(values) {
+            const selectedValues = Array.isArray(values) ? values : []
             ;(this.option.children || []).forEach(child => {
-                if (values.includes(child.id)) {
-                    this.selections[child.id] = { option_id: child.id, selected: true, input_value: '' }
-                } else {
-                    delete this.selections[child.id]
-                    clearWebOptionBranch(this.selections, child)
-                }
+                this.setChildSelection(child, selectedValues.includes(child.id))
             })
             this.$emit('change')
         },
         handleRadioGroupChange(value) {
             ;(this.option.children || []).forEach(child => {
-                if (child.id === value) {
-                    this.selections[child.id] = { option_id: child.id, selected: true, input_value: '' }
-                } else {
-                    delete this.selections[child.id]
-                    clearWebOptionBranch(this.selections, child)
-                }
+                this.setChildSelection(child, child.id === value)
             })
             this.$emit('change')
         }
@@ -337,7 +432,14 @@ const WebOptionNode = {
                     <div style="margin-bottom: 8px; font-weight: 500; color: #303133;">
                         <span v-if="option.is_required" style="color: #f56c6c; margin-right: 4px;">*</span>{{ option.name }}
                     </div>
-                    <el-input :model-value="inputValue" :placeholder="option.placeholder || '请输入'" @input="handleInput" />
+                    <template v-if="inputMode === 'multiple'">
+                        <div v-for="(value, index) in displayInputValues" :key="'input-' + index" style="display: flex; gap: 8px; margin-bottom: 8px;">
+                            <el-input :model-value="value" :placeholder="option.placeholder || ('请输入第' + (index + 1) + '项')" @input="handleMultipleInput(index, $event)" />
+                            <el-button v-if="displayInputValues.length > 1" @click="removeMultipleInput(index)">删除</el-button>
+                        </div>
+                        <el-button type="primary" text @click="addMultipleInput">+ 添加输入项</el-button>
+                    </template>
+                    <el-input v-else :model-value="inputValue" :placeholder="option.placeholder || '请输入'" @input="handleInput" />
                 </div>
             </template>
             <template v-else-if="option.option_type === 'dropdown'">
@@ -401,12 +503,34 @@ const WebOptionNode = {
                 {{ option.hint_text }}
             </div>
 
-            <div v-if="hasChildren && isSelected && isCardType">
+            <div v-if="requiresInput && isSelected && option.option_type !== 'input'" style="margin: -2px 0 12px 0;">
+                <template v-if="inputMode === 'multiple'">
+                    <div v-for="(value, index) in displayInputValues" :key="'selected-input-' + index" style="display: flex; gap: 8px; margin-bottom: 8px;">
+                        <el-input :model-value="value" :placeholder="option.placeholder || ('请输入第' + (index + 1) + '项')" @input="handleMultipleInput(index, $event)" @click.stop />
+                        <el-button v-if="displayInputValues.length > 1" @click.stop="removeMultipleInput(index)">删除</el-button>
+                    </div>
+                    <el-button type="primary" text @click.stop="addMultipleInput">+ 添加输入项</el-button>
+                </template>
+                <el-input v-else :model-value="inputValue" :placeholder="option.placeholder || '请输入'" @input="handleInput" @click.stop />
+            </div>
+
+            <div v-if="canShowOwnChildren">
                 <web-option-node
                     v-for="child in option.children"
                     :key="child.id"
                     :option="child"
                     :siblings="option.children"
+                    :selections="selections"
+                    :level="level + 1"
+                    @change="$emit('change')"
+                />
+            </div>
+            <div v-for="selectedChild in selectedChildOptions" :key="'branch-' + selectedChild.id">
+                <web-option-node
+                    v-for="child in selectedChild.children"
+                    :key="child.id"
+                    :option="child"
+                    :siblings="selectedChild.children"
                     :selections="selections"
                     :level="level + 1"
                     @change="$emit('change')"
@@ -453,7 +577,7 @@ const WebDynamicOptionsForm = {
     },
     methods: {
         emitChange() {
-            const selections = Object.values(this.selections).filter(item => item?.selected || item?.input_value)
+            const selections = Object.values(this.selections).filter(item => item?.selected || item?.input_value || hasWebInputValue(item))
             this.$emit('change', { selections })
         }
     },
@@ -948,7 +1072,7 @@ const OrdersView = {
             <div class="order-filters">
                 <el-radio-group v-model="status" @change="loadOrders">
                     <el-radio-button value="">全部</el-radio-button>
-                    <el-radio-button value="unpaid">待支付</el-radio-button>
+                    <el-radio-button value="pending_payment">待支付</el-radio-button>
                     <el-radio-button value="paid">已支付</el-radio-button>
                     <el-radio-button value="testing">实验中</el-radio-button>
                     <el-radio-button value="completed">已完成</el-radio-button>
@@ -971,13 +1095,13 @@ const OrdersView = {
                     <div class="order-content">
                         <div class="order-project">
                             <div><strong>{{ order.project_name }}</strong></div>
-                            <div>样品：{{ order.sample_name }} × {{ order.quantity }}</div>
+                            <div>样品数量：{{ order.sample_count || order.quantity || 1 }}</div>
                             <div class="order-amount">金额：<span class="price">¥{{ order.total_amount }}</span></div>
-                            <div class="order-time">下单时间：{{ order.created_at?.slice(0, 16).replace('T', ' ') }}</div>
-                        </div>
+                        <div class="order-time">下单时间：{{ order.created_at?.slice(0, 16).replace('T', ' ') }}</div>
+                    </div>
                         <div class="order-actions">
-                            <el-button type="primary" v-if="order.status === 'unpaid'" @click="$emit('show-payment', order)">去支付</el-button>
-                            <el-button v-if="order.status === 'unpaid'" @click="handleCancel(order.id)">取消订单</el-button>
+                            <el-button type="primary" v-if="isPendingPayment(order.status)" @click="$emit('show-payment', order)">去支付</el-button>
+                            <el-button v-if="isPendingPayment(order.status)" @click="handleCancel(order.id)">取消订单</el-button>
                             
                             <!-- 样品追踪 - 支付后可用 -->
                             <el-button v-if="['paid', 'confirmed', 'testing', 'completed'].includes(order.status)" @click="$emit('go-sample-track', order.id)">
@@ -1037,7 +1161,7 @@ const OrdersView = {
                 if (this.status) params.status = this.status
 
                 const res = await api.getOrders(params)
-                this.orders = res.data?.items || []
+                this.orders = res.data?.items || res.data?.list || []
                 this.total = res.data?.total || 0
             } catch (error) {
                 console.error('加载订单失败', error)
@@ -1059,9 +1183,13 @@ const OrdersView = {
                 }
             }
         },
+        isPendingPayment(status) {
+            return ['pending_payment', 'unpaid'].includes(status)
+        },
         getStatusText(status) {
             const map = {
                 'unpaid': '待支付',
+                'pending_payment': '待支付',
                 'paid': '已支付',
                 'confirmed': '已确认',
                 'testing': '实验中',
@@ -1073,6 +1201,7 @@ const OrdersView = {
         getStatusType(status) {
             const map = {
                 'unpaid': 'warning',
+                'pending_payment': 'warning',
                 'paid': 'info',
                 'confirmed': 'primary',
                 'testing': 'primary',
@@ -2816,6 +2945,7 @@ createApp({
             isMobile: false,
             isLogin: false,
             userInfo: {},
+            ordersRefreshKey: 0,
             showLogin: false,
             loginTab: 'qrcode',
             loginForm: { phone: '', sms_code: '' },
@@ -2988,6 +3118,23 @@ createApp({
         handleBookingOptionsChange(payload) {
             this.bookingOptionSelections = payload?.selections || []
         },
+        getOrderPayAmount(order) {
+            return order?.total_fee || order?.total_amount || 0
+        },
+        getOrderId(order) {
+            return order?.id || order?.order_id
+        },
+        async payCreatedOrder(order) {
+            const orderId = this.getOrderId(order)
+            if (!orderId) {
+                throw new Error('订单ID缺失')
+            }
+            await api.creditPay({
+                order_id: orderId,
+                amount: this.getOrderPayAmount(order)
+            })
+            await this.loadBalance()
+        },
         async submitBooking() {
             if (!this.bookingForm.sample_name) { ElMessage.error('请输入样品名称'); return }
             if (!this.bookingForm.sample_type) { ElMessage.error('请选择样品类型'); return }
@@ -3000,11 +3147,20 @@ createApp({
                     option_selections: this.bookingOptionSelections,
                     ...this.bookingForm
                 })
-                ElMessage.success('订单创建成功')
+                const createdOrder = res.data || {}
                 this.showBooking = false
-                this.paymentOrder = res.data
-                this.showPayment = true
-                this.loadBalance()
+                try {
+                    await this.payCreatedOrder(createdOrder)
+                    ElMessage.success('订单提交成功，已使用信用额度支付')
+                    this.paymentOrder = null
+                    this.showPayment = false
+                    this.ordersRefreshKey += 1
+                    this.currentView = 'orders'
+                } catch (payError) {
+                    this.paymentOrder = createdOrder
+                    this.showPayment = true
+                    this.loadBalance()
+                }
             } catch (error) {} finally { this.bookingLoading = false }
         },
         // 支付（统一信用支付）
@@ -3022,14 +3178,11 @@ createApp({
         async submitPayment() {
             this.paymentLoading = true
             try {
-                await api.creditPay({
-                    order_id: this.paymentOrder.id,
-                    amount: this.paymentOrder.total_fee || this.paymentOrder.total_amount
-                })
+                await this.payCreatedOrder(this.paymentOrder)
                 ElMessage.success('信用支付成功')
                 this.showPayment = false
+                this.ordersRefreshKey += 1
                 this.currentView = 'orders'
-                this.loadOrders()
             } catch (error) {
                 console.error('支付失败:', error)
                 const errorMsg = error.response?.data?.detail || error.message || '支付失败，请稍后重试'

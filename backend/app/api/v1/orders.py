@@ -171,6 +171,17 @@ def mark_user_coupon_used(user_coupon: Optional[UserCoupon], order_id: int) -> N
     user_coupon.used_at = datetime.now()
 
 
+def add_order_amount_aliases(data: dict) -> dict:
+    """给旧版前端补充订单金额字段别名。"""
+    total_fee = data.get("total_fee") or 0
+    project_fee = data.get("project_fee") or 0
+    shipping_fee = data.get("shipping_fee") or 0
+    data.setdefault("total_amount", total_fee)
+    data.setdefault("service_amount", project_fee)
+    data.setdefault("delivery_fee", shipping_fee)
+    return data
+
+
 def _pick_form_value(form_data: dict, keys: list[str]) -> Optional[str]:
     for key in keys:
         value = form_data.get(key)
@@ -573,7 +584,7 @@ async def create_order(
     print(f"[订单创建] 订单创建成功: order_id={order.id}, order_no={order.order_no}, total_fee={order.total_fee}")
     
     # 返回完整的订单信息，包括价格和支付所需信息
-    return SuccessResponse(data={
+    order_data = add_order_amount_aliases({
         "id": order.id,  # 修改为 id 字段，与订单列表保持一致
         "order_id": order.id,  # 保留 order_id 以兼容旧代码
         "order_no": order.order_no,
@@ -596,7 +607,8 @@ async def create_order(
         "remark": order.remark,
         "options_details": options_details,
         "created_at": order.created_at.isoformat() if order.created_at else None
-    }, message="订单创建成功")
+    })
+    return SuccessResponse(data=order_data, message="订单创建成功")
 
 
 @router.get("/list")
@@ -622,9 +634,15 @@ async def get_order_list(
     if is_draft is not None:
         query = query.filter(Order.is_draft == is_draft)
 
+    status_aliases = {
+        "unpaid": "pending_payment",
+        "pending": "pending_payment",
+        "pending_pay": "pending_payment",
+    }
+
     # 状态筛选
     if status and status != "all":
-        query = query.filter(Order.status == status)
+        query = query.filter(Order.status == status_aliases.get(status, status))
 
     # 开票状态筛选
     if invoice_status:
@@ -653,9 +671,9 @@ async def get_order_list(
             "invoice_status": order.invoice_status if hasattr(order, 'invoice_status') else "none",
             "payment_status": order.payment_status if hasattr(order, 'payment_status') else "unpaid"
         }
-        items.append(item)
+        items.append(add_order_amount_aliases(item))
 
-    return SuccessResponse(data={"total": total, "list": items})
+    return SuccessResponse(data={"total": total, "items": items, "list": items})
 
 
 @router.get("/drafts")
@@ -716,9 +734,9 @@ async def get_order_detail(
     detail = OrderDetail(
         **order.__dict__,
         samples=samples
-    )
+    ).model_dump(mode="json")
     
-    return SuccessResponse(data=detail)
+    return SuccessResponse(data=add_order_amount_aliases(detail))
 
 
 @router.post("/{order_id}/cancel")

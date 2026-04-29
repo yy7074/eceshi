@@ -11,6 +11,7 @@ set -e
 SERVER="8.148.188.85"
 USER="root"
 REMOTE_DIR="/www/wwwroot/ceshi/backend"
+WEB_STATIC_DIR="/www/wwwroot/eceshi/backend/static/web"
 LOCAL_DIR="$(cd "$(dirname "$0")/backend" && pwd)"
 SSHPASS_PWD="Ceshi@123"
 BACKEND_PORT="3001"
@@ -25,8 +26,14 @@ sshpass -p "$SSHPASS_PWD" rsync -avz --delete \
   --exclude 'venv' \
   --exclude '*.pid' \
   --exclude '.env.backup*' \
+  --exclude 'static/uploads' \
   -e "ssh -o StrictHostKeyChecking=accept-new" \
   "$LOCAL_DIR/" "$USER@$SERVER:$REMOTE_DIR/"
+
+echo ""
+echo "========== 1.1 同步网站静态目录 =========="
+sshpass -p "$SSHPASS_PWD" ssh -o StrictHostKeyChecking=accept-new "$USER@$SERVER" \
+  "if [ -d \"$(dirname "$WEB_STATIC_DIR")\" ]; then mkdir -p \"$WEB_STATIC_DIR\" && rsync -a --delete \"$REMOTE_DIR/static/web/\" \"$WEB_STATIC_DIR/\"; fi"
 
 echo ""
 echo "========== 2. 服务器上安装依赖并重启服务 =========="

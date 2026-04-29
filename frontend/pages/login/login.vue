@@ -177,6 +177,13 @@
 				}
 				return
 			}
+			// 被未认证拦截强制进入登录页时，不再因为旧 token 自动跳走
+			if (options && options.force) {
+				uni.removeStorageSync('token')
+				uni.removeStorageSync('userInfo')
+				return
+			}
+
 			// 检查是否已登录
 			const token = uni.getStorageSync('token')
 			if (token) {

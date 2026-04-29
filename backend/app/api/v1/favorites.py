@@ -1,7 +1,7 @@
 """
 收藏功能API
 """
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Body, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from typing import Optional
 from datetime import datetime
@@ -34,13 +34,50 @@ class ProjectFavorite(Base):
     )
 
 
+def resolve_project_id(query_project_id: Optional[int], payload: Optional[dict] = None) -> int:
+    """兼容 query 参数和网站端 JSON body 传参。"""
+    project_id = query_project_id
+    if project_id is None and isinstance(payload, dict):
+        project_id = payload.get("project_id")
+    if project_id is None:
+        raise HTTPException(status_code=422, detail="缺少项目ID")
+    return int(project_id)
+
+
+def build_favorite_status(db: Session, user_id: int, project_id: int) -> dict:
+    favorite = db.query(ProjectFavorite).filter(
+        ProjectFavorite.user_id == user_id,
+        ProjectFavorite.project_id == project_id
+    ).first()
+    is_favorited = favorite is not None
+    return {
+        "is_favorited": is_favorited,
+        "is_favorite": is_favorited
+    }
+
+
+def remove_favorite_record(db: Session, user_id: int, project_id: int) -> bool:
+    favorite = db.query(ProjectFavorite).filter(
+        ProjectFavorite.user_id == user_id,
+        ProjectFavorite.project_id == project_id
+    ).first()
+    if not favorite:
+        return False
+    db.delete(favorite)
+    db.commit()
+    return True
+
+
 @router.post("/add", summary="收藏项目")
 async def add_favorite(
-    project_id: int = Query(..., description="项目ID"),
+    project_id: Optional[int] = Query(None, description="项目ID"),
+    payload: Optional[dict] = Body(None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """添加项目到收藏"""
+    project_id = resolve_project_id(project_id, payload)
+
     # 检查项目是否存在
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
@@ -71,22 +108,30 @@ async def add_favorite(
 
 @router.delete("/remove", summary="取消收藏")
 async def remove_favorite(
-    project_id: int = Query(..., description="项目ID"),
+    project_id: Optional[int] = Query(None, description="项目ID"),
+    payload: Optional[dict] = Body(None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """取消收藏项目"""
-    favorite = db.query(ProjectFavorite).filter(
-        ProjectFavorite.user_id == current_user.id,
-        ProjectFavorite.project_id == project_id
-    ).first()
-    
-    if not favorite:
+    project_id = resolve_project_id(project_id, payload)
+
+    if not remove_favorite_record(db, current_user.id, project_id):
         return Response.success(message="未收藏该项目")
-    
-    db.delete(favorite)
-    db.commit()
-    
+
+    return Response.success(message="取消收藏成功")
+
+
+@router.delete("/{project_id}", summary="取消收藏（兼容网站端路径）")
+async def remove_favorite_by_path(
+    project_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """兼容网站端 DELETE /favorites/{project_id}。"""
+    if not remove_favorite_record(db, current_user.id, project_id):
+        return Response.success(message="未收藏该项目")
+
     return Response.success(message="取消收藏成功")
 
 
@@ -152,12 +197,14 @@ async def check_favorite(
     db: Session = Depends(get_db)
 ):
     """检查项目是否已收藏"""
-    favorite = db.query(ProjectFavorite).filter(
-        ProjectFavorite.user_id == current_user.id,
-        ProjectFavorite.project_id == project_id
-    ).first()
-    
-    return Response.success(data={
-        "is_favorited": favorite is not None
-    })
+    return Response.success(data=build_favorite_status(db, current_user.id, project_id))
 
+
+@router.get("/check/{project_id}", summary="检查是否已收藏（兼容网站端路径）")
+async def check_favorite_by_path(
+    project_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """兼容网站端 GET /favorites/check/{project_id}。"""
+    return Response.success(data=build_favorite_status(db, current_user.id, project_id))

@@ -39,7 +39,7 @@
 							:disabled="item.status !== 'available' || receiving === item.id"
 							@click.stop="receiveCoupon(item)"
 						>
-							{{ receiving === item.id ? '领取中' : (item.status === 'available' ? '立即领取' : '已领完') }}
+							{{ getReceiveButtonText(item) }}
 						</button>
 						<!-- 我的券：可用→去使用 -->
 						<button
@@ -138,7 +138,10 @@ export default {
 					api.getAvailableCoupons({ page: 1, page_size: 50 })
 				])
 
-				this.coupons = (mineRes.data?.items || []).map(item => ({
+				const myCoupons = mineRes.data?.items || []
+				const receivedCouponIds = new Set(myCoupons.map(item => Number(item.coupon_id)))
+
+				this.coupons = myCoupons.map(item => ({
 					id: item.id,
 					name: item.coupon_name,
 					amount: item.discount_value,
@@ -161,7 +164,7 @@ export default {
 							: `¥${item.reduction_amount}`,
 					min_amount: item.min_order_amount,
 					expire_date: item.end_time ? item.end_time.slice(0, 10) : '',
-					status: item.is_available ? 'available' : 'expired',
+					status: receivedCouponIds.has(Number(item.id)) ? 'received' : (item.is_available ? 'available' : 'expired'),
 					type: item.type,
 					description: item.description || item.name,
 					showDesc: false,
@@ -194,12 +197,14 @@ export default {
 
 		// 领取单张优惠券（活动领券页签）
 		async receiveCoupon(item) {
+			if (item.status !== 'available') return
 			if (this.receiving) return
 			this.receiving = item.id
 			try {
 				await api.receiveCoupon(item.id)
 				uni.showToast({ title: '领取成功', icon: 'success' })
 				await this.loadCoupons()
+				this.currentTab = 1
 			} catch (e) {
 				uni.showToast({
 					title: e.message || e.detail || '领取失败',
@@ -209,10 +214,23 @@ export default {
 				this.receiving = null
 			}
 		},
+
+		getReceiveButtonText(item) {
+			if (this.receiving === item.id) {
+				return '领取中'
+			}
+			if (item.status === 'received') {
+				return '已领取'
+			}
+			if (item.status === 'available') {
+				return '立即领取'
+			}
+			return '已领完'
+		},
 		
 		// 获取优惠券样式类
 		getCouponClass(item) {
-			if (item.status === 'available') {
+			if (item.status === 'available' || item.status === 'received') {
 				return 'available'
 			} else if (item.status === 'used') {
 				return 'used'
@@ -373,6 +391,11 @@ export default {
 	border-radius: 50rpx;
 	font-size: 26rpx;
 	font-weight: bold;
+}
+
+.use-btn[disabled] {
+	color: #999;
+	background: #f2f2f2;
 }
 
 .status-text {

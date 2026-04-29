@@ -110,7 +110,9 @@ async def get_available_coupons(
     for item in items:
         # 检查是否还有库存
         is_available = True
-        if item.total_quantity > 0 and item.received_quantity >= item.total_quantity:
+        total_quantity = item.total_quantity or 0
+        received_quantity = item.received_quantity or 0
+        if total_quantity > 0 and received_quantity >= total_quantity:
             is_available = False
         
         coupon_list.append({
@@ -124,8 +126,8 @@ async def get_available_coupons(
             "reduction_amount": float(item.reduction_amount) if item.reduction_amount else None,
             "min_order_amount": float(item.min_order_amount),
             "valid_days": item.valid_days,
-            "total_quantity": item.total_quantity,
-            "received_quantity": item.received_quantity,
+            "total_quantity": total_quantity,
+            "received_quantity": received_quantity,
             "is_available": is_available,
             "start_time": item.start_time.isoformat() if item.start_time else None,
             "end_time": item.end_time.isoformat() if item.end_time else None
@@ -165,7 +167,9 @@ async def receive_coupon(
         raise HTTPException(status_code=400, detail="优惠券已过期")
     
     # 检查库存
-    if coupon.total_quantity > 0 and coupon.received_quantity >= coupon.total_quantity:
+    total_quantity = coupon.total_quantity or 0
+    received_quantity = coupon.received_quantity or 0
+    if total_quantity > 0 and received_quantity >= total_quantity:
         raise HTTPException(status_code=400, detail="优惠券已被领完")
     
     # 检查是否已领取
@@ -178,7 +182,7 @@ async def receive_coupon(
         raise HTTPException(status_code=400, detail="您已领取过该优惠券")
     
     # 创建用户优惠券
-    expire_at = datetime.now() + timedelta(days=coupon.valid_days)
+    expire_at = datetime.now() + timedelta(days=coupon.valid_days or 30)
     
     # 确定优惠值
     discount_value = None
@@ -201,7 +205,7 @@ async def receive_coupon(
     db.add(user_coupon)
     
     # 更新优惠券领取数量
-    coupon.received_quantity += 1
+    coupon.received_quantity = received_quantity + 1
     
     db.commit()
     db.refresh(user_coupon)
@@ -210,4 +214,3 @@ async def receive_coupon(
         "id": user_coupon.id,
         "expire_at": user_coupon.expire_at.isoformat()
     }, message="领取成功")
-

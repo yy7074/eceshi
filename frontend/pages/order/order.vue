@@ -59,20 +59,20 @@
 					<!-- 订单金额 -->
 					<view class="order-footer">
 						<text class="total-amount">
-							总计：<text class="amount">¥{{ item.total_amount }}</text>
+							总计：<text class="amount">¥{{ formatMoney(getOrderAmount(item)) }}</text>
 						</text>
 						
 						<!-- 操作按钮 -->
 						<view class="actions" @click.stop>
 							<button 
-								v-if="item.status === 'unpaid'" 
+								v-if="isPendingPayment(item.status)" 
 								class="btn-action primary"
 								@click="payOrder(item)"
 							>
 								立即支付
 							</button>
 							<button 
-								v-if="item.status === 'unpaid'" 
+								v-if="isPendingPayment(item.status)" 
 								class="btn-action"
 								@click="cancelOrder(item)"
 							>
@@ -261,6 +261,7 @@ export default {
 		getStatusText(status) {
 			const statusMap = {
 				'unpaid': '待支付',
+				'pending_payment': '待支付',
 				'paid': '待确认',
 				'confirmed': '待实验',
 				'accepted': '待实验',
@@ -270,6 +271,22 @@ export default {
 				'cancelled': '已取消'
 			}
 			return statusMap[status] || status
+		},
+
+		isPendingPayment(status) {
+			return ['unpaid', 'pending_payment'].includes(status)
+		},
+
+		getOrderAmount(order) {
+			const amount = order.total_fee !== undefined && order.total_fee !== null
+				? order.total_fee
+				: order.total_amount
+			return Number(amount || 0)
+		},
+
+		formatMoney(amount) {
+			const value = Number(amount)
+			return Number.isFinite(value) ? value.toFixed(2) : '0.00'
 		},
 		
 		// 格式化日期
@@ -296,7 +313,7 @@ export default {
 			try {
 				const res = await api.creditPay({
 					order_id: order.id,
-					amount: order.total_fee
+					amount: this.getOrderAmount(order)
 				})
 				
 				uni.hideLoading()
@@ -506,7 +523,8 @@ export default {
 			font-size: 26rpx;
 			font-weight: bold;
 			
-			&.status-unpaid {
+			&.status-unpaid,
+			&.status-pending_payment {
 				color: #ff9500;
 			}
 			
