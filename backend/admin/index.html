@@ -2932,8 +2932,8 @@
                                         <el-input v-model="invoiceSearch" placeholder="搜索订单号/申请人" style="width: 250px;" clearable></el-input>
                                         <el-select v-model="invoiceStatusFilter" placeholder="状态筛选" style="width: 120px;" clearable>
                                             <el-option label="待审核" value="pending"></el-option>
-                                            <el-option label="开票中" value="processing"></el-option>
-                                            <el-option label="已开票" value="completed"></el-option>
+                                            <el-option label="开票中" value="approved"></el-option>
+                                            <el-option label="已开票" value="issued"></el-option>
                                             <el-option label="已拒绝" value="rejected"></el-option>
                                         </el-select>
                                         <el-button type="primary" @click="loadInvoiceList">搜索</el-button>
@@ -2964,7 +2964,7 @@
                                                     <el-button link type="success" size="small" @click="approveInvoice(scope.row)">审核通过</el-button>
                                                     <el-button link type="danger" size="small" @click="rejectInvoice(scope.row)">拒绝</el-button>
                                                 </template>
-                                                <template v-else-if="scope.row.status === 'processing'">
+                                                <template v-else-if="scope.row.status === 'approved'">
                                                     <el-button link type="primary" size="small" @click="confirmInvoice(scope.row)">确认开票</el-button>
                                                 </template>
                                                 <el-button link type="info" size="small" @click="viewInvoiceDetail(scope.row)">详情</el-button>
@@ -3019,7 +3019,8 @@
                                     <span v-if="invoiceUploadForm.file_url" style="margin-left: 10px; color: #67c23a;">✓ 已上传</span>
                                 </el-form-item>
                                 <el-form-item v-if="invoiceUploadForm.file_url">
-                                    <el-image :src="invoiceUploadForm.file_url" style="max-width: 200px;" fit="contain"></el-image>
+                                    <el-image v-if="isImageUrl(invoiceUploadForm.file_url)" :src="invoiceUploadForm.file_url" style="max-width: 200px;" fit="contain"></el-image>
+                                    <el-link v-else :href="invoiceUploadForm.file_url" target="_blank" type="primary">{{ invoiceUploadForm.file_url }}</el-link>
                                 </el-form-item>
                             </el-form>
                             <template #footer>
@@ -6247,15 +6248,32 @@
                     }
                 },
                 getInvoiceStatusText(status) {
-                    return { pending: '待审核', processing: '开票中', completed: '已开票', rejected: '已拒绝' }[status] || status
+                    return {
+                        pending: '待审核',
+                        approved: '开票中',
+                        issued: '已开票',
+                        rejected: '已拒绝',
+                        processing: '开票中',
+                        completed: '已开票'
+                    }[status] || status
                 },
                 getInvoiceStatusType(status) {
-                    return { pending: 'warning', processing: 'info', completed: 'success', rejected: 'danger' }[status] || 'info'
+                    return {
+                        pending: 'warning',
+                        approved: 'info',
+                        issued: 'success',
+                        rejected: 'danger',
+                        processing: 'info',
+                        completed: 'success'
+                    }[status] || 'info'
+                },
+                isImageUrl(url) {
+                    return /\.(png|jpe?g|gif|webp|bmp|svg)(\?.*)?$/i.test(url || '')
                 },
                 async approveInvoice(invoice) {
                     try {
                         await axios.put(`${this.baseUrl}/api/v1/admin/invoices/${invoice.id}/approve`, null, { headers: this.uploadHeaders })
-                        invoice.status = 'processing'
+                        invoice.status = 'approved'
                         ElMessage.success('已审核通过，进入开票流程')
                     } catch (error) {
                         ElMessage.error(error.response?.data?.detail || '操作失败')
@@ -6305,7 +6323,7 @@
                     const formData = new FormData()
                     formData.append('file', file.raw)
                     try {
-                        const res = await axios.post(`${this.baseUrl}/api/v1/upload/image`, formData, {
+                        const res = await axios.post(`${this.baseUrl}/api/v1/upload/file`, formData, {
                             headers: { ...this.uploadHeaders, 'Content-Type': 'multipart/form-data' }
                         })
                         this.invoiceUploadForm.file_url = res.data.data?.url || res.data.url
@@ -6326,7 +6344,7 @@
                     const formData = new FormData()
                     formData.append('file', file.raw)
                     try {
-                        const res = await axios.post(`${this.baseUrl}/api/v1/upload/image`, formData, {
+                        const res = await axios.post(`${this.baseUrl}/api/v1/upload/file`, formData, {
                             headers: { ...this.uploadHeaders, 'Content-Type': 'multipart/form-data' }
                         })
                         const url = res.data.data?.url || res.data.url

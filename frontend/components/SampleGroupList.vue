@@ -341,6 +341,87 @@ export default {
       }
     },
 
+    normalizeInputValues(selection) {
+      if (!selection) return []
+      if (Array.isArray(selection.input_values)) {
+        return selection.input_values.map(value => `${value}`.trim()).filter(Boolean)
+      }
+      if (selection.input_value) {
+        const raw = `${selection.input_value}`.trim()
+        if (raw.startsWith('[')) {
+          try {
+            const parsed = JSON.parse(raw)
+            if (Array.isArray(parsed)) {
+              return parsed.map(value => `${value}`.trim()).filter(Boolean)
+            }
+          } catch (e) {
+            return [raw]
+          }
+        }
+        return [raw]
+      }
+      return []
+    },
+
+    validateOptionsForGroup(group, options = this.optionsTree) {
+      const selections = {}
+      ;(group.option_selections || []).forEach(item => {
+        if (item && item.option_id) {
+          selections[item.option_id] = item
+        }
+      })
+
+      const checkRequired = (nodes) => {
+        for (const option of nodes || []) {
+          const isGroupControl = ['dropdown', 'checkbox_group', 'radio_group'].includes(option.option_type)
+          const requiresInput = option.requires_input || option.option_type === 'input'
+          const allowsChildren = option.allow_children !== false
+          const selection = selections[option.id]
+
+          if (isGroupControl) {
+            const selectedChildren = (option.children || []).filter(child => selections[child.id])
+            if (option.is_required && selectedChildren.length === 0) {
+              return `分组${group.group_index}请选择${option.name}`
+            }
+            for (const child of selectedChildren) {
+              if (child.children && child.children.length > 0 && child.allow_children !== false) {
+                const error = checkRequired(child.children)
+                if (error) return error
+              }
+            }
+            continue
+          }
+
+          if (option.is_required) {
+            if (!selection) {
+              return `分组${group.group_index}请选择${option.name}`
+            }
+            if (requiresInput && this.normalizeInputValues(selection).length === 0) {
+              return `分组${group.group_index}请填写${option.name}`
+            }
+          }
+
+          if (selection && option.children && allowsChildren) {
+            const error = checkRequired(option.children)
+            if (error) return error
+          }
+        }
+        return ''
+      }
+
+      return checkRequired(options)
+    },
+
+    validate() {
+      for (const group of this.groups) {
+        const error = this.validateOptionsForGroup(group)
+        if (error) {
+          return [error]
+        }
+      }
+      return []
+    },
+
     emitChange() {
       this.$emit('change', {
         groups: this.groups,

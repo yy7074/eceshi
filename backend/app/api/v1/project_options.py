@@ -187,6 +187,9 @@ async def calculate_options_price(
         if not option:
             continue
 
+        if option.project_id != project.id and option.category_id != project.category_id:
+            continue
+
         # 计算价格
         calculated_price = calculate_option_price(option, base_price, data.sample_count)
         total_options_fee += calculated_price

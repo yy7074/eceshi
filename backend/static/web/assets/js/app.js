@@ -230,6 +230,27 @@ function hasWebInputValue(item) {
     return normalizeWebInputValues(item).some(value => `${value}`.trim())
 }
 
+function formatWebOptionSelection(item) {
+    if (!item || !item.option_id) {
+        return null
+    }
+    const inputValues = normalizeWebInputValues(item)
+        .map(value => `${value}`.trim())
+        .filter(Boolean)
+    const inputMode = normalizeWebInputMode(item.input_mode || (inputValues.length > 1 ? 'multiple' : 'single'))
+    const result = {
+        option_id: Number(item.option_id),
+        input_value: inputMode === 'multiple'
+            ? (inputValues.length > 0 ? JSON.stringify(inputValues) : null)
+            : (item.input_value || inputValues[0] || null),
+        input_mode: inputMode
+    }
+    if (inputValues.length > 0) {
+        result.input_values = inputValues
+    }
+    return result
+}
+
 function calculateWebOptionFee(optionsTree, selections, sampleCount, basePrice) {
     const optionMap = {}
     flattenWebOptions(optionsTree).forEach(option => {
@@ -237,10 +258,11 @@ function calculateWebOptionFee(optionsTree, selections, sampleCount, basePrice) 
     })
 
     return Object.values(selections || {}).reduce((total, item) => {
-        if (!item?.selected) {
+        const optionId = item?.option_id || item?.id
+        if (!optionId) {
             return total
         }
-        const option = optionMap[item.option_id]
+        const option = optionMap[optionId]
         if (!option) {
             return total
         }
@@ -577,7 +599,10 @@ const WebDynamicOptionsForm = {
     },
     methods: {
         emitChange() {
-            const selections = Object.values(this.selections).filter(item => item?.selected || item?.input_value || hasWebInputValue(item))
+            const selections = Object.values(this.selections)
+                .filter(item => item?.selected || item?.input_value || hasWebInputValue(item))
+                .map(formatWebOptionSelection)
+                .filter(Boolean)
             this.$emit('change', { selections })
         }
     },
@@ -2081,7 +2106,7 @@ const InvoiceView = {
     mounted() { this.loadInvoices() },
     methods: {
         async loadInvoices() { this.loading = true; try { const res = await api.getInvoices({ page: 1, page_size: 50 }); this.invoices = res.data?.items || [] } catch (error) {} finally { this.loading = false } },
-        getStatusText(status) { const map = { pending: '待审核', approved: '已通过', rejected: '已拒绝', issued: '已开票' }; return map[status] || status },
+        getStatusText(status) { const map = { pending: '待审核', approved: '开票中', rejected: '已拒绝', issued: '已开票' }; return map[status] || status },
         getStatusType(status) { const map = { pending: 'warning', approved: 'success', rejected: 'danger', issued: 'primary' }; return map[status] || 'info' }
     }
 }
@@ -3023,11 +3048,17 @@ createApp({
                 this.bookingBaseAmount
             )
         },
+        bookingShippingFeeEstimate() {
+            return this.bookingForm.address_id ? 20 : 0
+        },
+        bookingSubtotalEstimate() {
+            return this.bookingBaseAmount + this.bookingOptionsFeeEstimate + this.bookingShippingFeeEstimate
+        },
         couponDiscountEstimate() {
             if (!this.bookingForm.coupon_id) return 0
             const coupon = this.availableCoupons.find(c => c.id === this.bookingForm.coupon_id)
             if (!coupon) return 0
-            const subtotal = this.bookingBaseAmount + this.bookingOptionsFeeEstimate
+            const subtotal = this.bookingSubtotalEstimate
             if (coupon.coupon_type === 'discount') {
                 return Math.max(0, subtotal * (1 - Number(coupon.discount_value || 1)))
             }
@@ -3035,7 +3066,7 @@ createApp({
         },
         orderTotalAmount() {
             if (!this.bookingProject) return 0
-            let total = this.bookingBaseAmount + this.bookingOptionsFeeEstimate
+            let total = this.bookingSubtotalEstimate
             // 加急费用
             if (this.bookingForm.urgency === 'urgent_48h') {
                 total += this.bookingBaseAmount * 0.5
@@ -3145,6 +3176,7 @@ createApp({
                     project_id: this.bookingProject.id,
                     sample_count: this.bookingForm.quantity,
                     option_selections: this.bookingOptionSelections,
+                    shipping_method: 'express',
                     ...this.bookingForm
                 })
                 const createdOrder = res.data || {}
@@ -3205,10 +3237,19 @@ createApp({
         openInvoice(order) { this.invoiceOrder = order; this.invoiceForm = { invoice_type: 'personal', title: '', tax_id: '', email: '' }; this.showInvoice = true },
         async submitInvoice() {
             if (!this.invoiceForm.title) { ElMessage.error('请输入发票抬头'); return }
+            if (this.invoiceForm.invoice_type === 'company' && !this.invoiceForm.tax_id) { ElMessage.error('请输入企业税号'); return }
             if (!this.invoiceForm.email) { ElMessage.error('请输入接收邮箱'); return }
             this.invoiceLoading = true
             try {
-                await api.applyInvoice({ order_ids: [this.invoiceOrder.id], amount: this.invoiceOrder.total_amount, ...this.invoiceForm })
+                await api.applyInvoice({
+                    order_ids: [this.getOrderId(this.invoiceOrder)],
+                    amount: this.getOrderPayAmount(this.invoiceOrder),
+                    title_type: this.invoiceForm.invoice_type,
+                    title: this.invoiceForm.title,
+                    tax_number: this.invoiceForm.tax_id || null,
+                    receiver_email: this.invoiceForm.email,
+                    content: '检测服务费'
+                })
                 ElMessage.success('发票申请已提交'); this.showInvoice = false
             } catch (error) {} finally { this.invoiceLoading = false }
         },

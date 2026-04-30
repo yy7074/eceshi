@@ -191,6 +191,10 @@ export default {
 			return !!(option && option.allow_children !== false)
 		},
 
+		optionIsGroupControl(option) {
+			return !!(option && ['dropdown', 'checkbox_group', 'radio_group'].includes(option.option_type))
+		},
+
 		getOptionInputMode(option, fallback = 'single') {
 			const mode = (option && option.input_mode) || fallback || 'single'
 			return ['multiple', 'multi'].includes(mode) ? 'multiple' : 'single'
@@ -256,13 +260,13 @@ export default {
 		},
 
 		// 处理选项选择（单选/多选）
-		handleOptionSelect({ option, selected, siblings, isRadioGroup }) {
+		handleOptionSelect({ option, selected, siblings, isRadioGroup, isCheckboxGroup }) {
 			const optionId = option.id
 			const optionType = option.option_type
 
 			// 单选类型处理：取消同级其他选项
 			// 包括：single 类型、dropdown 类型、radio_group 的子选项
-			const isSingleSelect = optionType === 'single' || optionType === 'dropdown' || isRadioGroup
+			const isSingleSelect = (optionType === 'single' && !isCheckboxGroup) || optionType === 'dropdown' || isRadioGroup
 			if (isSingleSelect && selected && siblings) {
 				siblings.forEach(sibling => {
 					if (sibling.id !== optionId && this.selections[sibling.id]) {
@@ -394,6 +398,23 @@ export default {
 			const collectValues = (options) => {
 				options.forEach(option => {
 					const sel = this.selections[option.id]
+
+					if (this.optionIsGroupControl(option)) {
+						const selectedChildren = (option.children || []).filter(child => {
+							const childSelection = this.selections[child.id]
+							return childSelection && childSelection.selected
+						})
+						if (selectedChildren.length > 0) {
+							const names = selectedChildren.map(child => child.name)
+							formData[option.name] = option.option_type === 'checkbox_group' ? names : names[0]
+						}
+						selectedChildren.forEach(child => {
+							if (child.children && this.optionAllowsChildren(child)) {
+								collectValues(child.children)
+							}
+						})
+						return
+					}
 					
 					if (sel && sel.selected) {
 						if (this.optionRequiresInput(option)) {
@@ -438,7 +459,15 @@ export default {
 				options.forEach(option => {
 					const sel = this.selections[option.id]
 					if (option.is_required) {
-						if (!sel || !sel.selected) {
+						if (this.optionIsGroupControl(option)) {
+							const hasSelectedChild = (option.children || []).some(child => {
+								const childSelection = this.selections[child.id]
+								return childSelection && childSelection.selected
+							})
+							if (!hasSelectedChild) {
+								errors.push(`请选择${option.name}`)
+							}
+						} else if (!sel || !sel.selected) {
 							errors.push(`请选择${option.name}`)
 						} else if (this.optionRequiresInput(option)) {
 							if (this.normalizeInputValues(sel).length === 0) {
@@ -448,7 +477,14 @@ export default {
 					}
 
 					// 递归检查子选项（仅当父选项已选中时）
-					if (option.children && this.optionAllowsChildren(option) && sel && sel.selected) {
+					if (this.optionIsGroupControl(option)) {
+						;(option.children || []).forEach(child => {
+							const childSelection = this.selections[child.id]
+							if (childSelection && childSelection.selected && child.children && this.optionAllowsChildren(child)) {
+								checkRequired(child.children)
+							}
+						})
+					} else if (option.children && this.optionAllowsChildren(option) && sel && sel.selected) {
 						checkRequired(option.children)
 					}
 				})

@@ -93,7 +93,16 @@ async def get_invoices(
     query = db.query(Invoice).filter(Invoice.user_id == current_user.id)
     
     if status:
-        query = query.filter(Invoice.status == status)
+        status_aliases = {
+            "processing": InvoiceStatus.APPROVED.value,
+            "completed": InvoiceStatus.ISSUED.value,
+        }
+        normalized_status = status_aliases.get(status, status)
+        try:
+            invoice_status = InvoiceStatus(normalized_status)
+            query = query.filter(Invoice.status == invoice_status)
+        except ValueError:
+            query = query.filter(Invoice.status == normalized_status)
     
     total = query.count()
     invoices = query.order_by(desc(Invoice.created_at)).offset((page - 1) * page_size).limit(page_size).all()
@@ -200,9 +209,8 @@ def get_status_text(status):
         return "未知"
     status_map = {
         InvoiceStatus.PENDING: "待审核",
-        InvoiceStatus.APPROVED: "已通过",
+        InvoiceStatus.APPROVED: "开票中",
         InvoiceStatus.REJECTED: "已拒绝",
         InvoiceStatus.ISSUED: "已开票"
     }
     return status_map.get(status, "未知")
-

@@ -57,6 +57,12 @@ def calculate_option_price(option: ProjectOption, base_price: Decimal, sample_co
     return Decimal("0")
 
 
+def option_applies_to_project(option: ProjectOption, project: Optional[Project]) -> bool:
+    if not project:
+        return True
+    return option.project_id == project.id or option.category_id == project.category_id
+
+
 def normalize_selection_input_value(selection) -> Optional[str]:
     """兼容单输入和多输入，统一转换为可存储的字符串。"""
     if isinstance(selection, dict):
@@ -220,7 +226,8 @@ def calculate_options_fee(
     db: Session,
     option_selections: list,
     base_price: Decimal,
-    sample_count: int
+    sample_count: int,
+    project: Optional[Project] = None
 ) -> tuple:
     """
     计算选项总费用
@@ -238,7 +245,7 @@ def calculate_options_fee(
             ProjectOption.is_active == True
         ).first()
 
-        if not option:
+        if not option or not option_applies_to_project(option, project):
             continue
 
         calculated_price = calculate_option_price(option, base_price, sample_count)
@@ -290,7 +297,7 @@ async def calculate_order(
     options_details = []
     if option_selections:
         options_fee, options_details = calculate_options_fee(
-            db, option_selections, project_fee, sample_count
+            db, option_selections, project_fee, sample_count, project
         )
 
     # 加急费用
@@ -367,6 +374,19 @@ async def create_order(
     # 如果前端发送的是简化格式（sample_count, sample_name等），转换为标准格式
     if "samples" not in request_data and "sample_name" in request_data:
         # 前端发送的是简化格式，需要转换
+        test_param_keys = [
+            "sample_state",
+            "danger_type",
+            "storage_requirement",
+            "sample_properties",
+            "test_temperature",
+            "test_atmosphere",
+            "scan_range",
+            "magnification",
+            "special_treatment",
+            "urgency",
+            "report_options",
+        ]
         samples = [{
             "sample_name": request_data.get("sample_name", ""),
             "sample_type": request_data.get("sample_type"),
@@ -374,9 +394,9 @@ async def create_order(
             "quantity": request_data.get("sample_count", 1),
             "photos": request_data.get("attachments", []),
             "test_params": {
-                "sample_state": request_data.get("sample_state"),
-                "danger_type": request_data.get("danger_type"),
-                "storage_requirement": request_data.get("storage_requirement")
+                key: request_data.get(key)
+                for key in test_param_keys
+                if key in request_data
             },
             "special_requirements": request_data.get("remark")
         }]
@@ -438,13 +458,15 @@ async def create_order(
         raise HTTPException(status_code=404, detail="项目不存在")
     
     project_id = data.project_id
-    project_fee = project.current_price  # 从数据库获取项目价格
+    project_unit_price = Decimal(str(project.current_price or 0))  # 从数据库获取项目单价
     project_name = project.name
     lab_id = project.lab_id if project.lab_id else 1
     lab_name = project.lab_name if hasattr(project, 'lab_name') else "平台实验室"
-    
+
+    total_sample_count = sum(max(1, int(sample.quantity or 1)) for sample in data.samples)
+
     # 计算费用：项目单价 × 样品数量
-    project_fee = Decimal(str(project_fee)) * len(data.samples)
+    project_fee = project_unit_price * total_sample_count
 
     # 选项费用计算
     option_selections = request_data.get("option_selections", [])
@@ -452,7 +474,7 @@ async def create_order(
     options_details = []
     if option_selections:
         options_fee, options_details = calculate_options_fee(
-            db, option_selections, project_fee, len(data.samples)
+            db, option_selections, project_fee, total_sample_count, project
         )
 
     # 加急费用
@@ -500,7 +522,7 @@ async def create_order(
         discount_amount=discount_amount,
         total_fee=total_fee,
         paid_fee=Decimal("0"),
-        sample_count=len(data.samples),
+        sample_count=total_sample_count,
         shipping_method=data.shipping_method,
         is_urgent=data.is_urgent,
         remark=data.remark

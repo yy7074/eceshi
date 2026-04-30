@@ -23,12 +23,57 @@ UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 # 允许的文件类型
 ALLOWED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg'}
+ALLOWED_FILE_EXTENSIONS = ALLOWED_EXTENSIONS | {
+    '.pdf',
+    '.doc',
+    '.docx',
+    '.xls',
+    '.xlsx',
+    '.csv',
+    '.txt',
+    '.zip',
+    '.rar',
+}
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+MAX_GENERIC_FILE_SIZE = 50 * 1024 * 1024  # 50MB
 
 
 def allowed_file(filename: str) -> bool:
     """检查文件类型是否允许"""
     return Path(filename).suffix.lower() in ALLOWED_EXTENSIONS
+
+
+def allowed_generic_file(filename: str) -> bool:
+    """检查通用文件类型是否允许"""
+    return Path(filename).suffix.lower() in ALLOWED_FILE_EXTENSIONS
+
+
+async def save_upload_file(file: UploadFile, max_size: int) -> dict:
+    """保存上传文件并返回访问信息。"""
+    contents = await file.read()
+
+    if len(contents) > max_size:
+        raise HTTPException(
+            status_code=400,
+            detail=f"文件过大。最大允许: {max_size / 1024 / 1024}MB"
+        )
+
+    ext = Path(file.filename).suffix.lower()
+    filename = f"{uuid.uuid4().hex}{ext}"
+    date_str = datetime.now().strftime("%Y%m%d")
+    date_dir = UPLOAD_DIR / date_str
+    date_dir.mkdir(parents=True, exist_ok=True)
+
+    file_path = date_dir / filename
+    with open(file_path, "wb") as f:
+        f.write(contents)
+
+    return {
+        "url": f"/static/uploads/{date_str}/{filename}",
+        "filename": file.filename,
+        "size": len(contents),
+        "content_type": file.content_type
+    }
 
 
 @router.post("/image", summary="上传图片")
@@ -51,41 +96,35 @@ async def upload_image(
             detail=f"不支持的文件类型。允许的类型: {', '.join(ALLOWED_EXTENSIONS)}"
         )
     
-    # 读取文件内容
-    contents = await file.read()
-    
-    # 检查文件大小
-    if len(contents) > MAX_FILE_SIZE:
-        raise HTTPException(
-            status_code=400,
-            detail=f"文件过大。最大允许: {MAX_FILE_SIZE / 1024 / 1024}MB"
-        )
-    
-    # 生成唯一文件名
-    ext = Path(file.filename).suffix
-    filename = f"{uuid.uuid4().hex}{ext}"
-    
-    # 按日期组织目录
-    date_dir = UPLOAD_DIR / datetime.now().strftime("%Y%m%d")
-    date_dir.mkdir(parents=True, exist_ok=True)
-    
-    # 保存文件
-    file_path = date_dir / filename
-    with open(file_path, "wb") as f:
-        f.write(contents)
-    
-    # 生成访问URL
-    url = f"/static/uploads/{datetime.now().strftime('%Y%m%d')}/{filename}"
+    file_info = await save_upload_file(file, MAX_FILE_SIZE)
     
     return Response.success(
-        data={
-            "url": url,
-            "filename": file.filename,
-            "size": len(contents),
-            "content_type": file.content_type
-        },
+        data=file_info,
         message="上传成功"
     )
+
+
+@router.post("/file", summary="上传文件")
+async def upload_file(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    上传通用文件
+
+    - 支持格式：图片、PDF、Word、Excel、CSV、TXT、压缩包
+    - 最大大小：50MB
+    - 返回文件URL
+    """
+    if not allowed_generic_file(file.filename):
+        raise HTTPException(
+            status_code=400,
+            detail=f"不支持的文件类型。允许的类型: {', '.join(sorted(ALLOWED_FILE_EXTENSIONS))}"
+        )
+
+    file_info = await save_upload_file(file, MAX_GENERIC_FILE_SIZE)
+    return Response.success(data=file_info, message="上传成功")
 
 
 @router.post("/images", summary="批量上传图片")
@@ -198,4 +237,3 @@ async def delete_image(
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"删除失败: {str(e)}")
-

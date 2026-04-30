@@ -676,6 +676,13 @@ export default {
 						uni.showToast({ title: '所有分组都需要添加样品', icon: 'none' })
 						return
 					}
+					if (this.$refs.sampleGroupList) {
+						const errors = this.$refs.sampleGroupList.validate()
+						if (errors && errors.length > 0) {
+							uni.showToast({ title: errors[0], icon: 'none' })
+							return
+						}
+					}
 				} else {
 					// 单样品模式验证 - 使用动态表单验证
 					if (this.$refs.optionsForm) {

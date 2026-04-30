@@ -2744,6 +2744,7 @@ async def get_qrcodes(
 ):
     """获取二维码列表"""
     from app.models.invite import InviteQRCodeRecord
+    from app.core.config import settings
 
     query = db.query(InviteQRCodeRecord)
 
@@ -2766,6 +2767,9 @@ async def get_qrcodes(
     if user_ids:
         users_map = {u.id: u for u in db.query(User).filter(User.id.in_(user_ids)).all()}
 
+    base_url = getattr(settings, "H5_BASE_URL", None) or getattr(settings, "SITE_BASE_URL", "")
+    base_url = base_url.rstrip("/")
+
     return Response.success(data={
         "items": [
             {
@@ -2777,6 +2781,7 @@ async def get_qrcodes(
                 "scene": r.scene,
                 "invite_code": r.invite_code,
                 "qrcode_url": r.qrcode_url,
+                "share_url": f"{base_url}/invite?code={r.invite_code}" if base_url else f"/invite?code={r.invite_code}",
                 "scan_count": r.scan_count or 0,
                 "register_count": r.register_count or 0,
                 "is_active": bool(r.is_active),
@@ -2798,17 +2803,32 @@ async def create_qrcode(
 ):
     """创建推广二维码"""
     from app.models.invite import InviteQRCodeRecord
-    import uuid
+    from app.api.v1.invites import generate_qrcode_image
+    from app.core.config import settings
+    from pathlib import Path
 
     user_id = data.user_id or current_admin.id
     invite_code = uuid.uuid4().hex[:8].upper()
+    while db.query(InviteQRCodeRecord).filter(InviteQRCodeRecord.invite_code == invite_code).first():
+        invite_code = uuid.uuid4().hex[:8].upper()
+
+    base_url = getattr(settings, "H5_BASE_URL", None) or getattr(settings, "SITE_BASE_URL", "")
+    landing_url = f"{base_url.rstrip('/')}/invite?code={invite_code}" if base_url else f"/invite?code={invite_code}"
+    qrcode_bytes = generate_qrcode_image(landing_url)
+
+    qrcode_dir = Path("static/qrcodes")
+    qrcode_dir.mkdir(parents=True, exist_ok=True)
+    filename = f"admin_invite_{user_id}_{invite_code}.png"
+    qrcode_path = qrcode_dir / filename
+    with open(qrcode_path, "wb") as f:
+        f.write(qrcode_bytes)
 
     record = InviteQRCodeRecord(
         user_id=user_id,
         name=data.name,
         scene=data.scene,
         invite_code=invite_code,
-        qrcode_url=f"/api/v1/invites/qrcode/{invite_code}",
+        qrcode_url=f"/static/qrcodes/{filename}",
         is_active=1
     )
     db.add(record)
@@ -2818,8 +2838,44 @@ async def create_qrcode(
     return Response.success(data={
         "id": record.id,
         "invite_code": invite_code,
-        "qrcode_url": record.qrcode_url
+        "qrcode_url": record.qrcode_url,
+        "share_url": landing_url
     }, message="二维码创建成功")
+
+
+@router.get("/qrcodes/{qrcode_id}/download", summary="下载二维码（管理员）")
+async def download_qrcode(
+    qrcode_id: int,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """下载推广二维码图片"""
+    from app.models.invite import InviteQRCodeRecord
+    from app.api.v1.invites import generate_qrcode_image
+    from app.core.config import settings
+    from fastapi.responses import StreamingResponse
+    from pathlib import Path
+
+    record = db.query(InviteQRCodeRecord).filter(InviteQRCodeRecord.id == qrcode_id).first()
+    if not record:
+        raise HTTPException(status_code=404, detail="二维码不存在")
+
+    qrcode_bytes = None
+    if record.qrcode_url and record.qrcode_url.startswith("/static/qrcodes/"):
+        qrcode_path = Path(record.qrcode_url.lstrip("/"))
+        if qrcode_path.exists():
+            qrcode_bytes = qrcode_path.read_bytes()
+
+    if qrcode_bytes is None:
+        base_url = getattr(settings, "H5_BASE_URL", None) or getattr(settings, "SITE_BASE_URL", "")
+        landing_url = f"{base_url.rstrip('/')}/invite?code={record.invite_code}" if base_url else f"/invite?code={record.invite_code}"
+        qrcode_bytes = generate_qrcode_image(landing_url)
+
+    return StreamingResponse(
+        io.BytesIO(qrcode_bytes),
+        media_type="image/png",
+        headers={"Content-Disposition": f"attachment; filename=invite_{record.invite_code}.png"}
+    )
 
 
 @router.put("/qrcodes/{qrcode_id}/status", summary="切换二维码状态（管理员）")
@@ -5817,30 +5873,91 @@ async def get_admin_invoices(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     status: str = Query(None),
+    search: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     current_admin: User = Depends(get_current_admin_user)
 ):
     """获取发票申请列表"""
-    from app.models.invoice import Invoice
+    from app.models.invoice import Invoice, InvoiceStatus
 
     query = db.query(Invoice)
 
     if status:
-        query = query.filter(Invoice.status == status)
+        status_aliases = {
+            "processing": InvoiceStatus.APPROVED.value,
+            "completed": InvoiceStatus.ISSUED.value,
+        }
+        normalized_status = status_aliases.get(status, status)
+        try:
+            invoice_status = InvoiceStatus(normalized_status)
+            query = query.filter(Invoice.status == invoice_status)
+        except ValueError:
+            query = query.filter(Invoice.status == normalized_status)
+
+    if search:
+        keyword = f"%{search}%"
+        query = query.filter(or_(
+            Invoice.invoice_no.ilike(keyword),
+            Invoice.title.ilike(keyword),
+            Invoice.tax_number.ilike(keyword)
+        ))
 
     total = query.count()
     invoices = query.order_by(Invoice.id.desc()).offset((page - 1) * page_size).limit(page_size).all()
+    user_ids = [i.user_id for i in invoices if i.user_id]
+    users_map = {
+        u.id: u for u in db.query(User).filter(User.id.in_(user_ids)).all()
+    } if user_ids else {}
+
+    order_ids = set()
+    invoice_order_ids = {}
+    for invoice in invoices:
+        ids = []
+        if invoice.order_ids:
+            try:
+                parsed_ids = json.loads(invoice.order_ids)
+                if isinstance(parsed_ids, list):
+                    ids = [int(order_id) for order_id in parsed_ids if order_id]
+            except (TypeError, ValueError, json.JSONDecodeError):
+                ids = []
+        invoice_order_ids[invoice.id] = ids
+        order_ids.update(ids)
+
+    orders_map = {
+        o.id: o for o in db.query(Order).filter(Order.id.in_(order_ids)).all()
+    } if order_ids else {}
+
+    def format_invoice_status(invoice_status):
+        if hasattr(invoice_status, "value"):
+            return invoice_status.value
+        status_aliases = {"processing": "approved", "completed": "issued"}
+        return status_aliases.get(invoice_status or "pending", invoice_status or "pending")
 
     return Response.success(data={
         "items": [{
             "id": i.id,
-            "invoice_no": i.invoice_no if hasattr(i, 'invoice_no') else "",
+            "invoice_no": i.invoice_no or "",
+            "invoice_code": i.invoice_code or "",
+            "invoice_number": i.invoice_number or "",
             "user_id": i.user_id,
-            "amount": float(i.amount) if hasattr(i, 'amount') else 0,
-            "title": i.title if hasattr(i, 'title') else "",
-            "tax_no": i.tax_no if hasattr(i, 'tax_no') else "",
-            "status": i.status.value if hasattr(i, 'status') and i.status else "pending",
-            "created_at": i.created_at.isoformat() if i.created_at else None
+            "applicant": (
+                users_map[i.user_id].nickname or users_map[i.user_id].phone or f"用户{i.user_id}"
+            ) if i.user_id in users_map else f"用户{i.user_id}",
+            "order_no": "、".join([
+                orders_map[order_id].order_no
+                for order_id in invoice_order_ids.get(i.id, [])
+                if order_id in orders_map
+            ]),
+            "amount": float(i.amount) if i.amount else 0,
+            "title": i.title or "",
+            "tax_no": i.tax_number or "",
+            "type": i.invoice_type.value if i.invoice_type else "normal",
+            "status": format_invoice_status(i.status),
+            "invoice_url": i.invoice_url,
+            "report_url": i.report_url,
+            "checklist_url": i.checklist_url,
+            "created_at": i.created_at.isoformat() if i.created_at else None,
+            "issued_at": i.issued_at.isoformat() if i.issued_at else None
         } for i in invoices],
         "total": total,
         "page": page,
@@ -5861,9 +5978,14 @@ async def get_invoice_records(
     return Response.success(data={
         "items": [{
             "id": r.id,
-            "invoice_no": r.invoice_no if hasattr(r, 'invoice_no') else "",
-            "amount": float(r.amount) if hasattr(r, 'amount') else 0,
-            "title": r.title if hasattr(r, 'title') else "",
+            "invoice_no": r.invoice_number or r.invoice_no or "",
+            "invoice_code": r.invoice_code or "",
+            "amount": float(r.amount) if r.amount else 0,
+            "title": r.title or "",
+            "type_text": "专票" if r.invoice_type and r.invoice_type.value == "special" else "普票",
+            "handler": "财务",
+            "invoice_url": r.invoice_url,
+            "invoice_at": r.issued_at.isoformat() if r.issued_at else None,
             "created_at": r.created_at.isoformat() if r.created_at else None
         } for r in records]
     })
@@ -5883,6 +6005,7 @@ async def approve_invoice(
         return Response.error(message="发票申请不存在")
 
     invoice.status = InvoiceStatus.APPROVED
+    invoice.reviewed_at = datetime.now()
     db.commit()
 
     return Response.success(message="已批准")
@@ -5892,6 +6015,7 @@ async def approve_invoice(
 async def reject_invoice(
     invoice_id: int,
     reason: str = Query(None),
+    payload: Optional[dict] = Body(None),
     db: Session = Depends(get_db),
     current_admin: User = Depends(get_current_admin_user)
 ):
@@ -5903,8 +6027,8 @@ async def reject_invoice(
         return Response.error(message="发票申请不存在")
 
     invoice.status = InvoiceStatus.REJECTED
-    if reason and hasattr(invoice, 'reject_reason'):
-        invoice.reject_reason = reason
+    invoice.reject_reason = reason or (payload or {}).get("reason")
+    invoice.reviewed_at = datetime.now()
     db.commit()
 
     return Response.success(message="已拒绝")
@@ -5946,10 +6070,11 @@ async def download_invoice(
         return Response.error(message="发票不存在")
 
     # 返回发票下载链接或文件
-    file_url = invoice.file_url if hasattr(invoice, 'file_url') else None
+    file_url = invoice.invoice_url if hasattr(invoice, 'invoice_url') else None
 
     return Response.success(data={
         "file_url": file_url,
+        "download_url": file_url,
         "invoice_no": invoice.invoice_no if hasattr(invoice, 'invoice_no') else ""
     })
 

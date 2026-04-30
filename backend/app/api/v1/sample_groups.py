@@ -49,7 +49,53 @@ def get_user_group(db: Session, group_id: int, user_id: int) -> SampleGroup:
     return group
 
 
-def calculate_options_fee(db: Session, option_selections: List[dict], sample_count: int, base_price: Decimal) -> Decimal:
+def get_project_unit_price(project: Optional[Project]) -> Decimal:
+    """当前项目单价。Project 模型使用 current_price，不再使用旧的 price 字段。"""
+    if not project:
+        return Decimal("0")
+    return Decimal(str(getattr(project, "current_price", None) or 0))
+
+
+def get_project_lab_name(project: Optional[Project]) -> str:
+    laboratory = getattr(project, "laboratory", None) if project else None
+    return getattr(laboratory, "name", None) or "平台实验室"
+
+
+def option_applies_to_project(option: ProjectOption, project: Optional[Project]) -> bool:
+    if not project:
+        return True
+    return option.project_id == project.id or option.category_id == project.category_id
+
+
+def build_order_sample_payload(item: SampleItem, group: SampleGroup) -> dict:
+    test_params = {
+        "group_id": group.id,
+        "group_name": group.group_name,
+        "group_index": group.group_index,
+        "sample_no": item.sample_no,
+        "sample_composition": item.sample_composition,
+        "sample_state": item.sample_state,
+        "danger_type": item.danger_type,
+        "storage_requirement": item.storage_requirement,
+    }
+    return {
+        "sample_name": item.sample_name or item.sample_no or f"样品{item.id}",
+        "sample_type": item.sample_state,
+        "sample_desc": item.sample_composition,
+        "quantity": item.quantity or 1,
+        "photos": item.photos,
+        "test_params": test_params,
+        "special_requirements": item.remark or group.group_name,
+    }
+
+
+def calculate_options_fee(
+    db: Session,
+    option_selections: List[dict],
+    sample_count: int,
+    base_price: Decimal,
+    project: Optional[Project] = None
+) -> Decimal:
     """计算选项费用"""
     if not option_selections:
         return Decimal("0")
@@ -61,7 +107,7 @@ def calculate_options_fee(db: Session, option_selections: List[dict], sample_cou
             continue
 
         option = db.query(ProjectOption).filter(ProjectOption.id == option_id).first()
-        if not option or not option.is_active:
+        if not option or not option.is_active or not option_applies_to_project(option, project):
             continue
 
         price = Decimal(str(option.price)) if option.price else Decimal("0")
@@ -81,6 +127,7 @@ def build_order_option_details(
     option_selections: Optional[List[dict]],
     sample_count: int,
     base_price: Decimal,
+    project: Optional[Project] = None,
 ) -> List[dict]:
     """生成订单选项快照，兼容单输入和多输入。"""
     if not option_selections:
@@ -93,7 +140,7 @@ def build_order_option_details(
             continue
 
         option = db.query(ProjectOption).filter(ProjectOption.id == option_id).first()
-        if not option or not option.is_active:
+        if not option or not option.is_active or not option_applies_to_project(option, project):
             continue
 
         price = Decimal(str(option.price)) if option.price else Decimal("0")
@@ -238,8 +285,8 @@ async def update_sample_group(
             SampleItem.group_id == group.id
         ).scalar() or 0
         project = db.query(Project).filter(Project.id == group.project_id).first()
-        base_price = Decimal(str(project.price)) * sample_count if project else Decimal("0")
-        group.options_fee = calculate_options_fee(db, data.option_selections, sample_count, base_price)
+        base_price = get_project_unit_price(project) * sample_count
+        group.options_fee = calculate_options_fee(db, data.option_selections, sample_count, base_price, project)
 
     db.commit()
     db.refresh(group)
@@ -360,8 +407,8 @@ async def add_sample_item(
         SampleItem.group_id == group.id
     ).scalar() or 0
     project = db.query(Project).filter(Project.id == group.project_id).first()
-    base_price = Decimal(str(project.price)) * sample_count if project else Decimal("0")
-    group.options_fee = calculate_options_fee(db, group.option_selections, sample_count, base_price)
+    base_price = get_project_unit_price(project) * sample_count
+    group.options_fee = calculate_options_fee(db, group.option_selections, sample_count, base_price, project)
 
     db.commit()
     db.refresh(item)
@@ -401,8 +448,8 @@ async def batch_add_sample_items(
         SampleItem.group_id == group.id
     ).scalar() or 0
     project = db.query(Project).filter(Project.id == group.project_id).first()
-    base_price = Decimal(str(project.price)) * sample_count if project else Decimal("0")
-    group.options_fee = calculate_options_fee(db, group.option_selections, sample_count, base_price)
+    base_price = get_project_unit_price(project) * sample_count
+    group.options_fee = calculate_options_fee(db, group.option_selections, sample_count, base_price, project)
 
     db.commit()
 
@@ -450,8 +497,8 @@ async def update_sample_item(
             SampleItem.group_id == group.id
         ).scalar() or 0
         project = db.query(Project).filter(Project.id == group.project_id).first()
-        base_price = Decimal(str(project.price)) * sample_count if project else Decimal("0")
-        group.options_fee = calculate_options_fee(db, group.option_selections, sample_count, base_price)
+        base_price = get_project_unit_price(project) * sample_count
+        group.options_fee = calculate_options_fee(db, group.option_selections, sample_count, base_price, project)
 
     db.commit()
     db.refresh(item)
@@ -487,8 +534,8 @@ async def delete_sample_item(
         SampleItem.id != item_id
     ).scalar() or 0
     project = db.query(Project).filter(Project.id == group.project_id).first()
-    base_price = Decimal(str(project.price)) * sample_count if project else Decimal("0")
-    group.options_fee = calculate_options_fee(db, group.option_selections, sample_count, base_price)
+    base_price = get_project_unit_price(project) * sample_count
+    group.options_fee = calculate_options_fee(db, group.option_selections, sample_count, base_price, project)
 
     db.commit()
 
@@ -523,8 +570,8 @@ async def calculate_groups_price(
         ).scalar() or 0
 
         project = db.query(Project).filter(Project.id == group.project_id).first()
-        base_price = Decimal(str(project.price)) * sample_count if project else Decimal("0")
-        options_fee = calculate_options_fee(db, group.option_selections, sample_count, base_price)
+        base_price = get_project_unit_price(project) * sample_count
+        options_fee = calculate_options_fee(db, group.option_selections, sample_count, base_price, project)
 
         group_details.append(GroupPriceDetail(
             group_id=group.id,
@@ -561,7 +608,7 @@ async def submit_sample_groups(
     - merge_order=True: 合并为一个订单
     - merge_order=False: 每个样品组生成独立订单
     """
-    from app.models.order import Order, OrderSample, OrderFee
+    from app.models.order import Order, OrderSample, OrderFee, OrderStatusHistory, UserAddress
     from app.models.project_option import OrderOptionSelection
     import uuid
 
@@ -579,6 +626,17 @@ async def submit_sample_groups(
         if not group.items:
             return error_response(message=f"样品组 '{group.group_name or group.group_index}' 没有样品")
 
+    address = None
+    if data.address_id:
+        address = db.query(UserAddress).filter(
+            UserAddress.id == data.address_id,
+            UserAddress.user_id == current_user.id
+        ).first()
+        if not address:
+            return error_response(message="收货地址不存在")
+
+    shipping_method = "express" if address else "self"
+    shipping_fee = Decimal("20.00") if address else Decimal("0")
     order_ids = []
     total_amount = Decimal("0")
 
@@ -590,24 +648,23 @@ async def submit_sample_groups(
             return error_response(message="合并订单时所有样品组必须属于同一项目")
 
         project = db.query(Project).filter(Project.id == groups[0].project_id).first()
+        if not project:
+            return error_response(message="项目不存在")
 
         # 计算总价
         total_sample_count = 0
         total_options_fee = Decimal("0")
-        all_samples = []
 
         for group in groups:
-            sample_count = sum(item.quantity for item in group.items)
+            sample_count = sum((item.quantity or 1) for item in group.items)
             total_sample_count += sample_count
 
-            base_price = Decimal(str(project.price)) * sample_count if project else Decimal("0")
-            options_fee = calculate_options_fee(db, group.option_selections, sample_count, base_price)
+            base_price = get_project_unit_price(project) * sample_count
+            options_fee = calculate_options_fee(db, group.option_selections, sample_count, base_price, project)
             total_options_fee += options_fee
 
-            all_samples.extend(group.items)
-
-        base_amount = Decimal(str(project.price)) * total_sample_count if project else Decimal("0")
-        subtotal = base_amount + total_options_fee
+        base_amount = get_project_unit_price(project) * total_sample_count
+        subtotal = base_amount + total_options_fee + shipping_fee
         discount_amount = Decimal("0")
         used_user_coupon = None
         if data.coupon_id and project:
@@ -618,57 +675,65 @@ async def submit_sample_groups(
         order = Order(
             order_no=f"SG{uuid.uuid4().hex[:12].upper()}",
             user_id=current_user.id,
-            project_id=project.id if project else None,
-            sample_count=total_sample_count,
-            unit_price=project.price if project else Decimal("0"),
-            base_amount=base_amount,
+            project_id=project.id,
+            project_name=project.name,
+            lab_id=project.lab_id or 1,
+            lab_name=get_project_lab_name(project),
+            status="pending_payment",
+            project_fee=base_amount,
+            urgent_fee=Decimal("0"),
+            shipping_fee=shipping_fee,
             discount_amount=discount_amount,
-            options_fee=total_options_fee,
-            total_amount=order_amount,
-            address_id=data.address_id,
-            remark=data.remark,
-            status="pending"
+            total_fee=order_amount,
+            paid_fee=Decimal("0"),
+            sample_count=total_sample_count,
+            shipping_method=shipping_method,
+            remark=data.remark
         )
+        if address:
+            order.receiver_name = address.receiver_name
+            order.receiver_phone = address.phone
+            order.receiver_address = f"{address.province}{address.city}{address.district or ''}{address.detail_address}"
         db.add(order)
         db.flush()
 
         # 添加样品
-        for item in all_samples:
-            order_sample = OrderSample(
-                order_id=order.id,
-                sample_no=item.sample_no,
-                sample_name=item.sample_name,
-                sample_composition=item.sample_composition,
-                sample_state=item.sample_state,
-                danger_type=item.danger_type,
-                storage_requirement=item.storage_requirement,
-                quantity=item.quantity,
-                remark=item.remark
-            )
-            db.add(order_sample)
+        for group in groups:
+            for item in group.items:
+                db.add(OrderSample(order_id=order.id, **build_order_sample_payload(item, group)))
 
         # 添加选项选择快照，包含绑定在节点上的单个/多个输入值
         for group in groups:
-            group_sample_count = sum(item.quantity for item in group.items)
-            group_base_price = Decimal(str(project.price)) * group_sample_count if project else Decimal("0")
-            for detail in build_order_option_details(db, group.option_selections, group_sample_count, group_base_price):
+            group_sample_count = sum((item.quantity or 1) for item in group.items)
+            group_base_price = get_project_unit_price(project) * group_sample_count
+            group_label = group.group_name or f"分组{group.group_index}"
+            for detail in build_order_option_details(db, group.option_selections, group_sample_count, group_base_price, project):
                 db.add(OrderOptionSelection(
                     order_id=order.id,
                     option_id=detail["option_id"],
                     option_name=detail["option_name"],
-                    option_path=detail["option_path"],
+                    option_path=f"{group_label} > {detail['option_path']}",
                     input_value=detail["input_value"],
                     calculated_price=detail["calculated_price"],
                 ))
 
-        # 添加选项费用
+        # 添加费用明细
+        db.add(OrderFee(order_id=order.id, fee_type="project", fee_name="检测费用", amount=base_amount))
         if total_options_fee > 0:
-            db.add(OrderFee(
-                order_id=order.id,
-                fee_type="options",
-                amount=total_options_fee,
-                description="选项费用"
-            ))
+            db.add(OrderFee(order_id=order.id, fee_type="options", fee_name="选项费用", amount=total_options_fee))
+        if shipping_fee > 0:
+            db.add(OrderFee(order_id=order.id, fee_type="shipping", fee_name="运费", amount=shipping_fee))
+        if discount_amount > 0:
+            db.add(OrderFee(order_id=order.id, fee_type="discount", fee_name="优惠", amount=-discount_amount))
+
+        db.add(OrderStatusHistory(
+            order_id=order.id,
+            from_status=None,
+            to_status="pending_payment",
+            operator_id=current_user.id,
+            operator_type="user",
+            remark="样品分组提交订单"
+        ))
 
         # 更新样品组状态
         for group in groups:
@@ -685,11 +750,13 @@ async def submit_sample_groups(
         # 每个样品组独立订单
         for group in groups:
             project = db.query(Project).filter(Project.id == group.project_id).first()
-            sample_count = sum(item.quantity for item in group.items)
+            if not project:
+                return error_response(message="项目不存在")
+            sample_count = sum((item.quantity or 1) for item in group.items)
 
-            base_price = Decimal(str(project.price)) * sample_count if project else Decimal("0")
-            options_fee = calculate_options_fee(db, group.option_selections, sample_count, base_price)
-            subtotal = base_price + options_fee
+            base_price = get_project_unit_price(project) * sample_count
+            options_fee = calculate_options_fee(db, group.option_selections, sample_count, base_price, project)
+            subtotal = base_price + options_fee + shipping_fee
             discount_amount = Decimal("0")
             used_user_coupon_loop = None
             if data.coupon_id and project and not order_ids:
@@ -701,54 +768,61 @@ async def submit_sample_groups(
             order = Order(
                 order_no=f"SG{uuid.uuid4().hex[:12].upper()}",
                 user_id=current_user.id,
-                project_id=project.id if project else None,
-                sample_count=sample_count,
-                unit_price=project.price if project else Decimal("0"),
-                base_amount=base_price,
+                project_id=project.id,
+                project_name=project.name,
+                lab_id=project.lab_id or 1,
+                lab_name=get_project_lab_name(project),
+                status="pending_payment",
+                project_fee=base_price,
+                urgent_fee=Decimal("0"),
+                shipping_fee=shipping_fee,
                 discount_amount=discount_amount,
-                options_fee=options_fee,
-                total_amount=order_amount,
-                address_id=data.address_id,
-                remark=data.remark,
-                status="pending"
+                total_fee=order_amount,
+                paid_fee=Decimal("0"),
+                sample_count=sample_count,
+                shipping_method=shipping_method,
+                remark=data.remark
             )
+            if address:
+                order.receiver_name = address.receiver_name
+                order.receiver_phone = address.phone
+                order.receiver_address = f"{address.province}{address.city}{address.district or ''}{address.detail_address}"
             db.add(order)
             db.flush()
 
             # 添加样品
             for item in group.items:
-                order_sample = OrderSample(
-                    order_id=order.id,
-                    sample_no=item.sample_no,
-                    sample_name=item.sample_name,
-                    sample_composition=item.sample_composition,
-                    sample_state=item.sample_state,
-                    danger_type=item.danger_type,
-                    storage_requirement=item.storage_requirement,
-                    quantity=item.quantity,
-                    remark=item.remark
-                )
-                db.add(order_sample)
+                db.add(OrderSample(order_id=order.id, **build_order_sample_payload(item, group)))
 
             # 添加选项选择快照，包含绑定在节点上的单个/多个输入值
-            for detail in build_order_option_details(db, group.option_selections, sample_count, base_price):
+            group_label = group.group_name or f"分组{group.group_index}"
+            for detail in build_order_option_details(db, group.option_selections, sample_count, base_price, project):
                 db.add(OrderOptionSelection(
                     order_id=order.id,
                     option_id=detail["option_id"],
                     option_name=detail["option_name"],
-                    option_path=detail["option_path"],
+                    option_path=f"{group_label} > {detail['option_path']}",
                     input_value=detail["input_value"],
                     calculated_price=detail["calculated_price"],
                 ))
 
-            # 添加选项费用
+            # 添加费用明细
+            db.add(OrderFee(order_id=order.id, fee_type="project", fee_name="检测费用", amount=base_price))
             if options_fee > 0:
-                db.add(OrderFee(
-                    order_id=order.id,
-                    fee_type="options",
-                    amount=options_fee,
-                    description="选项费用"
-                ))
+                db.add(OrderFee(order_id=order.id, fee_type="options", fee_name="选项费用", amount=options_fee))
+            if shipping_fee > 0:
+                db.add(OrderFee(order_id=order.id, fee_type="shipping", fee_name="运费", amount=shipping_fee))
+            if discount_amount > 0:
+                db.add(OrderFee(order_id=order.id, fee_type="discount", fee_name="优惠", amount=-discount_amount))
+
+            db.add(OrderStatusHistory(
+                order_id=order.id,
+                from_status=None,
+                to_status="pending_payment",
+                operator_id=current_user.id,
+                operator_type="user",
+                remark="样品分组提交订单"
+            ))
 
             # 更新样品组状态
             group.status = "submitted"

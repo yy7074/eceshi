@@ -1,6 +1,6 @@
 <template>
 	<view class="option-node" :class="{ nested: level > 0 }">
-		<view class="option-item" :class="{ selected: isSelected }">
+		<view class="option-item" v-if="!isGroupType" :class="{ selected: isSelected }">
 			<view class="option-selector" @click="toggleSelect">
 				<view class="selector-icon" :class="{ checked: isSelected }">
 					<text v-if="isSelected">✓</text>
@@ -18,6 +18,49 @@
 					</text>
 				</view>
 			</view>
+		</view>
+
+		<view class="group-control" v-else>
+			<view class="group-label">
+				<text class="required-mark-inline" v-if="option.is_required">*</text>
+				<text class="option-name">{{ option.name }}</text>
+			</view>
+
+			<picker
+				v-if="option.option_type === 'dropdown'"
+				:range="childNames"
+				:value="selectedDropdownIndex"
+				@change="handleDropdownChange"
+			>
+				<view class="picker-input">
+					<text>{{ selectedDropdownName || (option.placeholder || '请选择') }}</text>
+					<text class="picker-arrow">▶</text>
+				</view>
+			</picker>
+
+			<checkbox-group
+				v-else-if="option.option_type === 'checkbox_group'"
+				class="inline-group"
+				@change="handleCheckboxGroupChange"
+			>
+				<label class="inline-option" v-for="child in option.children || []" :key="child.id">
+					<checkbox :value="String(child.id)" :checked="selectedCheckboxValues.includes(String(child.id))" />
+					<text>{{ child.name }}</text>
+					<text class="inline-price" v-if="child.price > 0">+¥{{ formatPrice(child.price) }}</text>
+				</label>
+			</checkbox-group>
+
+			<radio-group
+				v-else
+				class="inline-group"
+				@change="handleRadioGroupChange"
+			>
+				<label class="inline-option" v-for="child in option.children || []" :key="child.id">
+					<radio :value="String(child.id)" :checked="selectedRadioValue === String(child.id)" />
+					<text>{{ child.name }}</text>
+					<text class="inline-price" v-if="child.price > 0">+¥{{ formatPrice(child.price) }}</text>
+				</label>
+			</radio-group>
 		</view>
 
 		<view class="hint-text" v-if="option.hint_text && isSelected">
@@ -62,6 +105,19 @@
 				@input="$emit('input', $event)"
 			/>
 		</view>
+
+		<view class="children-wrapper" v-for="selectedChild in selectedChildOptions" :key="'branch-' + selectedChild.id">
+			<option-node
+				v-for="child in selectedChild.children"
+				:key="child.id"
+				:option="child"
+				:siblings="selectedChild.children"
+				:selections="selections"
+				:level="level + 1"
+				@select="$emit('select', $event)"
+				@input="$emit('input', $event)"
+			/>
+		</view>
 	</view>
 </template>
 
@@ -97,9 +153,32 @@ export default {
 		requiresInput() {
 			return !!(this.option.requires_input || this.option.option_type === 'input')
 		},
+		isGroupType() {
+			return ['dropdown', 'checkbox_group', 'radio_group'].includes(this.option.option_type)
+		},
 		inputMode() {
 			const mode = this.option.input_mode || this.selection.input_mode || 'single'
 			return ['multiple', 'multi'].includes(mode) ? 'multiple' : 'single'
+		},
+		childNames() {
+			return (this.option.children || []).map(child => child.name)
+		},
+		selectedCheckboxValues() {
+			return (this.option.children || [])
+				.filter(child => this.selections[child.id] && this.selections[child.id].selected)
+				.map(child => String(child.id))
+		},
+		selectedRadioValue() {
+			const child = (this.option.children || []).find(item => this.selections[item.id] && this.selections[item.id].selected)
+			return child ? String(child.id) : ''
+		},
+		selectedDropdownIndex() {
+			const index = (this.option.children || []).findIndex(child => this.selections[child.id] && this.selections[child.id].selected)
+			return index >= 0 ? index : 0
+		},
+		selectedDropdownName() {
+			const child = (this.option.children || []).find(item => this.selections[item.id] && this.selections[item.id].selected)
+			return child ? child.name : ''
 		},
 		inputValue() {
 			if (this.selection.input_value) {
@@ -136,7 +215,16 @@ export default {
 			return this.option.children && this.option.children.length > 0
 		},
 		canShowChildren() {
-			return this.hasChildren && this.isSelected && this.option.allow_children !== false
+			return this.hasChildren && this.isSelected && this.option.allow_children !== false && !this.isGroupType
+		},
+		selectedChildOptions() {
+			return (this.option.children || []).filter(child => {
+				return this.selections[child.id] &&
+					this.selections[child.id].selected &&
+					child.allow_children !== false &&
+					child.children &&
+					child.children.length > 0
+			})
 		},
 		priceTypeLabel() {
 			const typeMap = {
@@ -152,6 +240,38 @@ export default {
 				option: this.option,
 				selected: !this.isSelected,
 				siblings: this.siblings
+			})
+		},
+		handleDropdownChange(e) {
+			const child = (this.option.children || [])[Number(e.detail.value)]
+			if (!child) return
+			this.$emit('select', {
+				option: child,
+				selected: true,
+				siblings: this.option.children || [],
+				isRadioGroup: true
+			})
+		},
+		handleCheckboxGroupChange(e) {
+			const values = (e.detail.value || []).map(value => String(value))
+			;(this.option.children || []).forEach(child => {
+				this.$emit('select', {
+					option: child,
+					selected: values.includes(String(child.id)),
+					siblings: this.option.children || [],
+					isCheckboxGroup: true
+				})
+			})
+		},
+		handleRadioGroupChange(e) {
+			const value = String(e.detail.value || '')
+			const child = (this.option.children || []).find(item => String(item.id) === value)
+			if (!child) return
+			this.$emit('select', {
+				option: child,
+				selected: true,
+				siblings: this.option.children || [],
+				isRadioGroup: true
 			})
 		},
 		handleSingleInput(e) {
@@ -218,6 +338,55 @@ export default {
 	&.selected {
 		background: #f8fbff;
 	}
+}
+
+.group-control {
+	padding: 20rpx 0;
+	border-bottom: 1rpx solid #f2f4f7;
+}
+
+.group-label {
+	display: flex;
+	align-items: center;
+	margin-bottom: 14rpx;
+}
+
+.picker-input {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	min-height: 76rpx;
+	padding: 0 22rpx;
+	border: 1rpx solid #d8e0ea;
+	border-radius: 8rpx;
+	background: #fff;
+	font-size: 28rpx;
+	color: #333;
+}
+
+.picker-arrow {
+	color: #8c97a8;
+	font-size: 22rpx;
+}
+
+.inline-group {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 14rpx 24rpx;
+}
+
+.inline-option {
+	display: flex;
+	align-items: center;
+	gap: 8rpx;
+	min-height: 52rpx;
+	font-size: 27rpx;
+	color: #333;
+}
+
+.inline-price {
+	color: #4facfe;
+	font-size: 24rpx;
 }
 
 .option-selector {
