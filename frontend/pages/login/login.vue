@@ -104,6 +104,23 @@
 					登录
 				</button>
 			</view>
+
+			<!-- 其他登录方式 -->
+			<!-- #ifdef MP-WEIXIN -->
+			<view class="other-login">
+				<view class="divider-line">
+					<text class="divider-text">其他登录方式</text>
+				</view>
+				<view class="login-icons">
+					<button class="icon-item phone-auth-button" open-type="getPhoneNumber" @getphonenumber="wechatLoginWithPhone">
+						<view class="icon">📱</view>
+						<text class="icon-text">手机号快捷登录</text>
+					</button>
+				</view>
+			</view>
+			<!-- #endif -->
+
+			<button class="btn-guest" @click="browseAsGuest">暂不登录，返回首页</button>
 			
 			<!-- 底部链接 -->
 			<view class="footer-links">
@@ -127,21 +144,6 @@
 				</checkbox-group>
 			</view>
 		</view>
-		
-		<!-- 其他登录方式 -->
-		<!-- #ifdef MP-WEIXIN -->
-		<view class="other-login">
-			<view class="divider-line">
-				<text class="divider-text">其他登录方式</text>
-			</view>
-			<view class="login-icons">
-				<view class="icon-item" @click="wechatLogin">
-					<view class="icon">💬</view>
-					<text class="icon-text">微信</text>
-				</view>
-			</view>
-		</view>
-		<!-- #endif -->
 	</view>
 </template>
 
@@ -214,19 +216,23 @@
 					return uni.showToast({ title: '请先阅读并同意用户协议', icon: 'none' })
 				}
 				
-				this.loading = true
-				try {
-					const res = await api.login(this.passwordForm)
-					
-					// 保存登录信息
-					this.$store.dispatch('login', {
-						token: res.data.access_token,
+					this.loading = true
+					try {
+						const res = await api.login({
+							...this.passwordForm,
+							...this.getPendingInvitePayload()
+						})
+
+						// 保存登录信息
+						this.$store.dispatch('login', {
+							token: res.data.access_token,
 						userInfo: {
 							id: res.data.user_id,
 							phone: res.data.phone,
-							nickname: res.data.nickname
-						}
-					})
+								nickname: res.data.nickname
+							}
+						})
+						this.clearPendingInvite()
 					
 					uni.showToast({
 						title: '登录成功',
@@ -263,19 +269,23 @@
 					return uni.showToast({ title: '请先阅读并同意用户协议', icon: 'none' })
 				}
 				
-				this.loading = true
-				try {
-					const res = await api.smsLogin(this.smsForm)
-					
-					// 保存登录信息
-					this.$store.dispatch('login', {
-						token: res.data.access_token,
+					this.loading = true
+					try {
+						const res = await api.smsLogin({
+							...this.smsForm,
+							...this.getPendingInvitePayload()
+						})
+
+						// 保存登录信息
+						this.$store.dispatch('login', {
+							token: res.data.access_token,
 						userInfo: {
 							id: res.data.user_id,
 							phone: res.data.phone,
-							nickname: res.data.nickname
-						}
-					})
+								nickname: res.data.nickname
+							}
+						})
+						this.clearPendingInvite()
 					
 					uni.showToast({
 						title: '登录成功',
@@ -371,15 +381,23 @@
 							},
 							fail: () => {
 								uni.hideLoading()
-								uni.showToast({ title: '微信授权失败', icon: 'none' })
+								uni.showToast({ title: '授权失败', icon: 'none' })
 							}
 						})
 					}
 				})
 			},
 
-			// 微信登录
-			wechatLogin() {
+				wechatLoginWithPhone(e) {
+				const phoneCode = e.detail && e.detail.code
+				if (!phoneCode) {
+					return uni.showToast({ title: '已取消手机号快捷登录', icon: 'none' })
+				}
+				this.wechatLogin(phoneCode)
+			},
+
+				// 手机号快捷登录
+				wechatLogin(phoneCode = '') {
 				if (this.loading) {
 					return
 				}
@@ -392,8 +410,7 @@
 					provider: 'weixin',
 					success: async (loginRes) => {
 						try {
-							console.log('微信登录 code', loginRes.code)
-							const res = await api.wechatLogin(loginRes.code)
+								const res = await api.wechatLogin(loginRes.code, phoneCode, this.getPendingInvitePayload())
 							
 							// 保存登录信息
 							this.$store.dispatch('login', {
@@ -401,9 +418,10 @@
 								userInfo: {
 									id: res.data.user_id,
 									phone: res.data.phone,
-									nickname: res.data.nickname
-								}
-							})
+										nickname: res.data.nickname
+									}
+								})
+								this.clearPendingInvite()
 							
 							uni.showToast({
 								title: '登录成功',
@@ -418,9 +436,9 @@
 							}, 1500)
 							
 						} catch (error) {
-							console.error('微信登录失败', error)
+							console.error('快捷登录失败', error)
 							uni.showToast({
-								title: '微信登录失败',
+								title: '快捷登录失败',
 								icon: 'none'
 							})
 						} finally {
@@ -428,9 +446,9 @@
 						}
 					},
 					fail: (error) => {
-						console.error('微信授权失败', error)
+						console.error('快捷登录授权失败', error)
 						uni.showToast({
-							title: '微信授权失败',
+							title: '授权失败',
 							icon: 'none'
 						})
 						this.loading = false
@@ -439,12 +457,39 @@
 				// #endif
 			},
 			
-			// 跳转注册
-			goRegister() {
-				uni.navigateTo({
-					url: '/pages/register/register'
-				})
-			},
+				// 跳转注册
+				goRegister() {
+					uni.navigateTo({
+						url: '/pages/register/register'
+					})
+				},
+
+				getPendingInvitePayload() {
+					const stored = uni.getStorageSync('pendingInvite')
+					if (!stored) {
+						return {}
+					}
+					if (typeof stored === 'string') {
+						try {
+							return JSON.parse(stored)
+						} catch (error) {
+							return {}
+						}
+					}
+					return stored
+				},
+
+				clearPendingInvite() {
+					uni.removeStorageSync('pendingInvite')
+				},
+
+				browseAsGuest() {
+					uni.removeStorageSync('token')
+					uni.removeStorageSync('userInfo')
+					uni.switchTab({
+						url: '/pages/index/index'
+					})
+				},
 			
 			// 忘记密码
 			goForgetPassword() {
@@ -474,16 +519,16 @@
 	.login-container {
 		min-height: 100vh;
 		background: #1890ff;
-		padding: 80rpx 60rpx;
+		padding: 48rpx 60rpx 64rpx;
 	}
 	
 	.header {
 		text-align: center;
-		margin-bottom: 80rpx;
+		margin-bottom: 48rpx;
 		
 		.logo {
-			font-size: 120rpx;
-			margin-bottom: 30rpx;
+			font-size: 104rpx;
+			margin-bottom: 20rpx;
 			text-align: center;
 		}
 		
@@ -505,7 +550,7 @@
 	.form-container {
 		background-color: #ffffff;
 		border-radius: 24rpx;
-		padding: 60rpx 40rpx;
+		padding: 48rpx 40rpx;
 		box-shadow: 0 8rpx 32rpx rgba(0, 0, 0, 0.1);
 	}
 	
@@ -587,6 +632,22 @@
 			font-size: 32rpx;
 		}
 	}
+
+	.btn-guest {
+		width: 100%;
+		height: 84rpx;
+		line-height: 84rpx;
+		margin-top: 32rpx;
+		border: 2rpx solid #d9e8ff;
+		border-radius: 12rpx;
+		background: #f7fbff;
+		color: #1677ff;
+		font-size: 30rpx;
+
+		&::after {
+			border: 0;
+		}
+	}
 	
 	.footer-links {
 		display: flex;
@@ -620,16 +681,16 @@
 	}
 	
 	.other-login {
-		margin-top: 80rpx;
+		margin-top: 44rpx;
 		
 		.divider-line {
 			text-align: center;
-			margin-bottom: 40rpx;
+			margin-bottom: 28rpx;
 			
 			.divider-text {
 				position: relative;
 				padding: 0 20rpx;
-				color: rgba(255, 255, 255, 0.8);
+				color: #8c8c8c;
 				font-size: 26rpx;
 				
 				&::before,
@@ -639,7 +700,7 @@
 					top: 50%;
 					width: 100rpx;
 					height: 2rpx;
-					background-color: rgba(255, 255, 255, 0.3);
+					background-color: #e5e5e5;
 				}
 				
 				&::before {
@@ -662,15 +723,30 @@
 				display: flex;
 				flex-direction: column;
 				align-items: center;
+				padding: 0;
+				margin: 0;
+				border: 0;
+				background: transparent;
+				line-height: normal;
+
+				&::after {
+					border: 0;
+				}
 				
 				.icon {
-					font-size: 80rpx;
+					width: 76rpx;
+					height: 76rpx;
+					line-height: 76rpx;
+					text-align: center;
+					border-radius: 50%;
+					background: #f2fbf4;
+					font-size: 48rpx;
 					margin-bottom: 12rpx;
 				}
 				
 				.icon-text {
 					font-size: 24rpx;
-					color: rgba(255, 255, 255, 0.8);
+					color: #666;
 				}
 			}
 		}

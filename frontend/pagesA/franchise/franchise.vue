@@ -13,9 +13,9 @@
 			<view class="section-title">加盟优势</view>
 			<view class="advantage-grid">
 				<view class="advantage-item">
-					<text class="advantage-icon">💰</text>
-					<text class="advantage-name">高额返佣</text>
-					<text class="advantage-desc">订单返佣最高可达20%</text>
+					<text class="advantage-icon">📈</text>
+					<text class="advantage-name">业务增长</text>
+					<text class="advantage-desc">共享检测服务资源</text>
 				</view>
 				<view class="advantage-item">
 					<text class="advantage-icon">🎯</text>
@@ -29,8 +29,8 @@
 				</view>
 				<view class="advantage-item">
 					<text class="advantage-icon">🚀</text>
-					<text class="advantage-name">快速结算</text>
-					<text class="advantage-desc">订单完成后结算佣金</text>
+					<text class="advantage-name">高效协作</text>
+					<text class="advantage-desc">订单流程透明可追踪</text>
 				</view>
 			</view>
 		</view>
@@ -44,14 +44,14 @@
 						<text class="mode-icon">🏢</text>
 						<text class="mode-name">区域代理</text>
 					</view>
-					<text class="mode-desc">获得指定区域独家代理权，享受区域内所有订单返佣</text>
+					<text class="mode-desc">获得指定区域合作支持，协同拓展检测服务</text>
 				</view>
 				<view class="mode-item" :class="{ active: selectedMode === 'partner' }" @click="selectedMode = 'partner'">
 					<view class="mode-header">
 						<text class="mode-icon">🤝</text>
 						<text class="mode-name">项目合作</text>
 					</view>
-					<text class="mode-desc">针对特定项目进行合作，按项目结算佣金</text>
+					<text class="mode-desc">针对特定项目进行合作，按项目流程完成服务对接</text>
 				</view>
 				<view class="mode-item" :class="{ active: selectedMode === 'lab' }" @click="selectedMode = 'lab'">
 					<view class="mode-header">
@@ -343,4 +343,3 @@ export default {
 	}
 }
 </style>
-

@@ -90,14 +90,18 @@
 		</view>
 		
 		<!-- 团长电话 -->
-		<view class="form-row">
+		<view class="form-row input-row">
 			<view class="row-label">
 				<text>团长电话</text>
 				<text class="required">*</text>
 			</view>
-			<view class="row-value">
-				<text class="value-text">{{ leaderPhone }}</text>
-			</view>
+			<input 
+				v-model="leaderPhone"
+				class="row-input"
+				type="number"
+				maxlength="11"
+				placeholder="请输入团长手机号"
+			/>
 		</view>
 		
 		<!-- 团长邮箱 -->
@@ -157,14 +161,41 @@ export default {
 		// 加载用户信息
 		async loadUserInfo() {
 			try {
-				const userInfo = uni.getStorageSync('userInfo') || {}
-				this.leaderName = userInfo.nickname || `会员${userInfo.id || ''}`
-				this.leaderPhone = userInfo.phone || ''
-				this.isCertified = userInfo.is_certified || false
-				this.form.email = userInfo.email || ''
+				const cached = this.parseStoredUserInfo()
+				this.applyUserInfo(cached)
+
+				const res = await api.getUserInfo()
+				const userInfo = res.data || {}
+				this.applyUserInfo(userInfo)
+				uni.setStorageSync('userInfo', JSON.stringify({
+					...cached,
+					...userInfo
+				}))
 			} catch (error) {
 				console.error('加载用户信息失败', error)
 			}
+		},
+
+		parseStoredUserInfo() {
+			const stored = uni.getStorageSync('userInfo')
+			if (!stored) {
+				return {}
+			}
+			if (typeof stored === 'string') {
+				try {
+					return JSON.parse(stored)
+				} catch (error) {
+					return {}
+				}
+			}
+			return stored
+		},
+
+		applyUserInfo(userInfo = {}) {
+			this.leaderName = userInfo.real_name || userInfo.nickname || `会员${userInfo.id || ''}`
+			this.leaderPhone = userInfo.phone || this.leaderPhone || ''
+			this.isCertified = !!userInfo.is_certified
+			this.form.email = userInfo.email || this.form.email || ''
 		},
 		
 		// 选择头像
@@ -219,6 +250,22 @@ export default {
 			if (!this.form.unitName) {
 				uni.showToast({
 					title: '请输入单位名称',
+					icon: 'none'
+				})
+				return
+			}
+
+			if (!this.leaderPhone) {
+				uni.showToast({
+					title: '请输入团长手机号',
+					icon: 'none'
+				})
+				return
+			}
+
+			if (!/^1[3-9]\d{9}$/.test(this.leaderPhone)) {
+				uni.showToast({
+					title: '手机号格式不正确',
 					icon: 'none'
 				})
 				return

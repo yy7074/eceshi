@@ -44,24 +44,8 @@ def generate_recharge_no() -> str:
 
 
 def calculate_bonus(amount: Decimal) -> Decimal:
-    """计算充值赠送金额"""
-    # 充值规则：
-    # 100元以下：不赠送
-    # 100-499元：赠送5%
-    # 500-999元：赠送10%
-    # 1000-4999元：赠送15%
-    # 5000元及以上：赠送20%
-    
-    if amount < 100:
-        return Decimal("0")
-    elif amount < 500:
-        return amount * Decimal("0.05")
-    elif amount < 1000:
-        return amount * Decimal("0.10")
-    elif amount < 5000:
-        return amount * Decimal("0.15")
-    else:
-        return amount * Decimal("0.20")
+    """充值不再赠送，到账金额等于充值金额。"""
+    return Decimal("0")
 
 
 @router.post("/create", summary="创建充值订单")
@@ -73,12 +57,7 @@ async def create_recharge(
     """
     创建充值订单
     
-    充值赠送规则：
-    - 100元以下：不赠送
-    - 100-499元：赠送5%
-    - 500-999元：赠送10%
-    - 1000-4999元：赠送15%
-    - 5000元及以上：赠送20%
+    充值不再赠送，到账金额等于充值金额。
     """
     try:
         # 验证支付方式
@@ -232,48 +211,22 @@ async def get_recharge_detail(
     })
 
 
-@router.get("/bonus/rules", summary="获取充值赠送规则")
+@router.get("/bonus/rules", summary="获取充值规则")
 async def get_bonus_rules():
-    """获取充值赠送规则"""
+    """获取充值规则"""
     return Response.success(data={
         "rules": [
             {
                 "min_amount": 0,
-                "max_amount": 99.99,
-                "bonus_rate": 0,
-                "description": "100元以下不赠送"
-            },
-            {
-                "min_amount": 100,
-                "max_amount": 499.99,
-                "bonus_rate": 0.05,
-                "description": "充100送5，赠送5%"
-            },
-            {
-                "min_amount": 500,
-                "max_amount": 999.99,
-                "bonus_rate": 0.10,
-                "description": "充500送50，赠送10%"
-            },
-            {
-                "min_amount": 1000,
-                "max_amount": 4999.99,
-                "bonus_rate": 0.15,
-                "description": "充1000送150，赠送15%"
-            },
-            {
-                "min_amount": 5000,
                 "max_amount": 50000,
-                "bonus_rate": 0.20,
-                "description": "充5000送1000，赠送20%"
+                "bonus_rate": 0,
+                "description": "到账金额等于实际充值金额，无赠送比例"
             }
         ],
         "examples": [
-            {"amount": 50, "bonus": 0, "total": 50},
-            {"amount": 100, "bonus": 5, "total": 105},
-            {"amount": 500, "bonus": 50, "total": 550},
-            {"amount": 1000, "bonus": 150, "total": 1150},
-            {"amount": 5000, "bonus": 1000, "total": 6000}
+            {"amount": 100, "bonus": 0, "total": 100},
+            {"amount": 500, "bonus": 0, "total": 500},
+            {"amount": 1000, "bonus": 0, "total": 1000}
         ]
     })
 
@@ -475,4 +428,3 @@ async def get_invoice_recharge_detail(
         "created_at": record.created_at.isoformat() if record.created_at else None,
         "confirmed_at": record.confirmed_at.isoformat() if record.confirmed_at else None
     })
-

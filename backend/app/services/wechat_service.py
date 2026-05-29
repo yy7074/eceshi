@@ -21,6 +21,7 @@ class WechatService:
         self.code2session_url = "https://api.weixin.qq.com/sns/jscode2session"
         self.token_url = "https://api.weixin.qq.com/cgi-bin/token"
         self.qrcode_unlimited_url = "https://api.weixin.qq.com/wxa/getwxacodeunlimit"
+        self.phone_number_url = "https://api.weixin.qq.com/wxa/business/getuserphonenumber"
     
     async def code_to_session(self, code: str) -> Dict:
         """
@@ -143,7 +144,43 @@ class WechatService:
                 )
             return resp.content
 
+    async def get_phone_number(self, code: str) -> Dict:
+        """使用 getPhoneNumber 回调里的 code 换取用户手机号。"""
+        if settings.DEBUG and not self.appid:
+            return {
+                "errcode": 0,
+                "phone_info": {
+                    "phoneNumber": "13800000000",
+                    "purePhoneNumber": "13800000000",
+                    "countryCode": "86",
+                },
+            }
+
+        access_token = await self.get_access_token()
+        payload = {"code": code}
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.post(
+                self.phone_number_url,
+                params={"access_token": access_token},
+                json=payload,
+            )
+            data = resp.json()
+
+        if data.get("errcode") == 40001:
+            get_redis().delete(ACCESS_TOKEN_REDIS_KEY)
+            access_token = await self.get_access_token()
+            async with httpx.AsyncClient(timeout=10) as client:
+                resp = await client.post(
+                    self.phone_number_url,
+                    params={"access_token": access_token},
+                    json=payload,
+                )
+                data = resp.json()
+
+        if data.get("errcode", 0) != 0:
+            logger.error(f"获取微信手机号失败: {data}")
+        return data
+
 
 # 创建全局实例
 wechat_service = WechatService()
-

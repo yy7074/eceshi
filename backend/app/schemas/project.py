@@ -74,6 +74,7 @@ class ProjectCreate(ProjectBase):
     equipment_model: Optional[str] = Field(None, description="仪器型号")
     introduction: Optional[str] = Field(None, description="项目介绍")
     sample_requirements: Optional[str] = Field(None, description="样品要求")
+    order_count: int = Field(0, ge=0, description="已测次数")
 
 
 class ProjectUpdate(BaseModel):
@@ -81,6 +82,7 @@ class ProjectUpdate(BaseModel):
     name: Optional[str] = None
     original_price: Optional[Decimal] = None
     current_price: Optional[Decimal] = None
+    order_count: Optional[int] = None
     introduction: Optional[str] = None
     status: Optional[str] = None
 
@@ -98,6 +100,7 @@ class ProjectInDB(ProjectBase):
     status: str
     is_hot: bool
     view_count: int
+    order_count: int
     booking_count: int
     satisfaction: Decimal
     created_at: datetime
@@ -169,4 +172,3 @@ class ReviewDetail(ReviewInDB):
     user_nickname: Optional[str] = None
     user_avatar: Optional[str] = None
     project_name: Optional[str] = None
-

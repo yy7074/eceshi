@@ -110,6 +110,17 @@ class OrderInDB(BaseModel):
     # 支付
     payment_method: Optional[str]
     payment_time: Optional[datetime]
+    payment_source: Optional[str] = None
+    repayment_status: Optional[str] = None
+    repayment_method: Optional[str] = None
+    repayment_amount: Optional[Decimal] = None
+    repayment_time: Optional[datetime] = None
+    sales_id: Optional[int] = None
+    sales_name: Optional[str] = None
+    sales_phone: Optional[str] = None
+    report_url: Optional[str] = None
+    checklist_url: Optional[str] = None
+    invoice_file_url: Optional[str] = None
     
     # 时间
     created_at: datetime
@@ -244,4 +255,3 @@ class PaymentInDB(BaseModel):
     
     class Config:
         from_attributes = True
-

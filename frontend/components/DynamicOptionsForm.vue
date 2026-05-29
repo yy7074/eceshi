@@ -195,6 +195,10 @@ export default {
 			return !!(option && ['dropdown', 'checkbox_group', 'radio_group'].includes(option.option_type))
 		},
 
+		optionIsSemanticRadioGroup(option) {
+			return !!(option && option.option_type === 'checkbox_group' && /样品状态|测试模式|是否回收|样品是否/.test(option.name || ''))
+		},
+
 		getOptionInputMode(option, fallback = 'single') {
 			const mode = (option && option.input_mode) || fallback || 'single'
 			return ['multiple', 'multi'].includes(mode) ? 'multiple' : 'single'
@@ -241,6 +245,10 @@ export default {
 			return this.selections[optionId]
 		},
 
+		refreshSelections() {
+			this.selections = { ...this.selections }
+		},
+
 		applyInitialSelections() {
 			const nextSelections = {}
 			;(this.initialSelections || []).forEach(item => {
@@ -269,11 +277,12 @@ export default {
 			const isSingleSelect = (optionType === 'single' && !isCheckboxGroup) || optionType === 'dropdown' || isRadioGroup
 			if (isSingleSelect && selected && siblings) {
 				siblings.forEach(sibling => {
-					if (sibling.id !== optionId && this.selections[sibling.id]) {
-						this.selections[sibling.id].selected = false
-						this.selections[sibling.id].input_value = ''
-						this.selections[sibling.id].input_values = []
-						// 级联取消子选项
+					if (sibling.id !== optionId) {
+						if (this.selections[sibling.id]) {
+							this.selections[sibling.id].selected = false
+							this.selections[sibling.id].input_value = ''
+							this.selections[sibling.id].input_values = []
+						}
 						this.cancelChildSelections(sibling)
 					}
 				})
@@ -292,6 +301,8 @@ export default {
 			} else if (this.optionRequiresInput(option) && selection.input_mode === 'multiple' && (!selection.input_values || !selection.input_values.length)) {
 				selection.input_values = ['']
 			}
+
+			this.refreshSelections()
 
 			// 触发价格计算
 			this.debouncedCalculate()
@@ -314,6 +325,8 @@ export default {
 				selection.input_value = value || ''
 				selection.input_values = value ? [value] : []
 			}
+
+			this.refreshSelections()
 
 			// 触发价格计算
 			this.debouncedCalculate()
@@ -365,7 +378,7 @@ export default {
 
 				if (res.code === 200 && res.data) {
 					this.priceDetails = res.data.details || []
-					this.totalOptionsFee = res.data.total_options_fee || 0
+					this.totalOptionsFee = Number(res.data.total_options_fee || 0)
 				}
 			} catch (e) {
 				console.error('计算选项价格失败', e)
@@ -406,7 +419,7 @@ export default {
 						})
 						if (selectedChildren.length > 0) {
 							const names = selectedChildren.map(child => child.name)
-							formData[option.name] = option.option_type === 'checkbox_group' ? names : names[0]
+							formData[option.name] = option.option_type === 'checkbox_group' && !this.optionIsSemanticRadioGroup(option) ? names : names[0]
 						}
 						selectedChildren.forEach(child => {
 							if (child.children && this.optionAllowsChildren(child)) {

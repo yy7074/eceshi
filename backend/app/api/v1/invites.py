@@ -21,6 +21,7 @@ from app.core.config import settings
 from app.api.v1.deps import get_current_user
 from app.models.user import User
 from app.models.invite import InviteRecord, WithdrawRecord, InviteConfig, InviteStatus, WithdrawStatus, InviteQRCodeRecord
+from app.services.wechat_service import wechat_service
 
 
 router = APIRouter()
@@ -54,6 +55,70 @@ class WithdrawRequest(BaseModel):
     account_number: str
 
 
+class InviteBindRequest(BaseModel):
+    """邀请关系绑定请求"""
+    invite_code: Optional[str] = None
+    inviter_id: Optional[int] = None
+
+
+def _enum_value(value):
+    return value.value if hasattr(value, "value") else value
+
+
+def _display_name(user: User) -> str:
+    return user.nickname or user.real_name or user.phone or f"用户{user.id}"
+
+
+def bind_invite_relation(
+    db: Session,
+    invitee: User,
+    invite_code: Optional[str] = None,
+    inviter_id: Optional[int] = None,
+) -> Optional[InviteRecord]:
+    """Bind inviter and invitee for traceability only. No rewards are created."""
+    invite_code = (invite_code or "").strip()
+    qr_record = None
+    inviter = None
+
+    if invite_code:
+        qr_record = db.query(InviteQRCodeRecord).filter(
+            InviteQRCodeRecord.invite_code == invite_code,
+            InviteQRCodeRecord.is_active == 1
+        ).first()
+        if qr_record:
+            inviter = db.query(User).filter(User.id == qr_record.user_id).first()
+
+    if not inviter and inviter_id:
+        inviter = db.query(User).filter(User.id == inviter_id).first()
+
+    if not inviter or inviter.id == invitee.id:
+        return None
+
+    existing = db.query(InviteRecord).filter(
+        InviteRecord.invitee_id == invitee.id
+    ).first()
+    if existing:
+        return existing
+
+    record = InviteRecord(
+        inviter_id=inviter.id,
+        invitee_id=invitee.id,
+        inviter_name=_display_name(inviter),
+        inviter_phone=inviter.phone,
+        invitee_name=_display_name(invitee),
+        invitee_phone=invitee.phone,
+        reward_amount=Decimal("0"),
+        reward_type="trace",
+        status=InviteStatus.PENDING
+    )
+    db.add(record)
+
+    if qr_record:
+        qr_record.register_count = (qr_record.register_count or 0) + 1
+
+    return record
+
+
 @router.get("/stats", summary="获取邀请统计")
 async def get_invite_stats(
     current_user: User = Depends(get_current_user),
@@ -67,31 +132,17 @@ async def get_invite_stats(
         InviteRecord.inviter_id == current_user.id
     ).all()
     
-    # 统计数据
     total_invites = len(invite_records)
-    completed_invites = len([r for r in invite_records if r.status == InviteStatus.COMPLETED])
-    pending_invites = len([r for r in invite_records if r.status == InviteStatus.PENDING])
-    
-    # 计算奖励金额
-    total_reward = sum(float(r.reward_amount) for r in invite_records if r.status == InviteStatus.COMPLETED)
-    
-    # 查询已提现金额
-    withdrawn_records = db.query(WithdrawRecord).filter(
-        WithdrawRecord.user_id == current_user.id,
-        WithdrawRecord.status.in_([WithdrawStatus.APPROVED, WithdrawStatus.COMPLETED])
-    ).all()
-    withdrawn = sum(float(r.amount) for r in withdrawn_records)
-    
-    # 可提现金额
-    withdrawable = total_reward - withdrawn
     
     return Response.success(data={
-        "withdrawable": withdrawable,
+        "withdrawable": 0,
         "my_invites": total_invites,
-        "completed_invites": completed_invites,
-        "pending_invites": pending_invites,
-        "total_reward": total_reward,
-        "withdrawn": withdrawn
+        "total_invites": total_invites,
+        "completed_invites": 0,
+        "pending_invites": total_invites,
+        "total_reward": 0,
+        "withdrawn": 0,
+        "tracing_only": True
     })
 
 
@@ -123,9 +174,9 @@ async def get_invite_records(
             "id": item.id,
             "invitee_name": item.invitee_name,
             "invitee_phone": item.invitee_phone,
-            "reward_amount": float(item.reward_amount) if item.reward_amount else 0,
-            "status": item.status.value,
-            "first_order_amount": float(item.first_order_amount) if item.first_order_amount else 0,
+            "reward_amount": 0,
+            "status": _enum_value(item.status),
+            "first_order_amount": 0,
             "invited_at": item.invited_at.isoformat() if item.invited_at else None,
             "completed_at": item.completed_at.isoformat() if item.completed_at else None
         })
@@ -145,55 +196,35 @@ async def withdraw_rewards(
     db: Session = Depends(get_db)
 ):
     """
-    申请提现邀请奖励
+    邀请功能已调整为纯溯源，不再支持奖励提现。
     """
-    # 获取邀请配置
-    config = db.query(InviteConfig).filter(InviteConfig.is_active == 1).first()
-    if not config:
-        raise HTTPException(status_code=400, detail="邀请功能暂未开放")
-    
-    # 检查提现金额
-    amount = Decimal(str(data.amount))
-    if amount < config.min_withdraw_amount:
-        raise HTTPException(status_code=400, detail=f"最低提现金额为{config.min_withdraw_amount}元")
-    
-    # 计算可提现金额
-    invite_records = db.query(InviteRecord).filter(
-        InviteRecord.inviter_id == current_user.id,
-        InviteRecord.status == InviteStatus.COMPLETED
-    ).all()
-    total_reward = sum(r.reward_amount for r in invite_records)
-    
-    withdrawn_records = db.query(WithdrawRecord).filter(
-        WithdrawRecord.user_id == current_user.id,
-        WithdrawRecord.status.in_([WithdrawStatus.APPROVED, WithdrawStatus.COMPLETED])
-    ).all()
-    withdrawn = sum(r.amount for r in withdrawn_records)
-    
-    available = total_reward - withdrawn
-    
-    if amount > available:
-        raise HTTPException(status_code=400, detail=f"可提现金额不足，当前可提现：{available}元")
-    
-    # 创建提现记录
-    withdraw = WithdrawRecord(
-        user_id=current_user.id,
-        amount=amount,
-        withdraw_type="invite_reward",
-        account_type=data.account_type,
-        account_name=data.account_name,
-        account_number=data.account_number,
-        status=WithdrawStatus.PENDING
+    raise HTTPException(status_code=410, detail="邀请功能已调整为纯溯源，不再支持奖励提现")
+
+
+@router.post("/bind", summary="绑定邀请关系")
+async def bind_invite(
+    data: InviteBindRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """绑定邀请关系，仅用于订单溯源。"""
+    record = bind_invite_relation(
+        db,
+        invitee=current_user,
+        invite_code=data.invite_code,
+        inviter_id=data.inviter_id
     )
-    db.add(withdraw)
     db.commit()
-    db.refresh(withdraw)
-    
+
+    if not record:
+        return Response.success(data={"bound": False}, message="无需绑定邀请关系")
+
     return Response.success(data={
-        "withdraw_id": withdraw.id,
-        "amount": float(withdraw.amount),
-        "status": withdraw.status.value
-    }, message="提现申请已提交，请等待审核")
+        "bound": True,
+        "inviter_id": record.inviter_id,
+        "inviter_name": record.inviter_name,
+        "inviter_phone": record.inviter_phone
+    }, message="邀请关系已绑定")
 
 
 # ==================== 推广二维码功能 ====================
@@ -276,12 +307,17 @@ async def create_invite_qrcode(
     while db.query(InviteQRCodeRecord).filter(InviteQRCodeRecord.invite_code == invite_code).first():
         invite_code = generate_invite_code()
 
-    # 生成落地页URL（H5页面，扫码后跳转小程序）
+    # 生成落地页URL作为兜底；优先生成可直接打开小程序的二维码。
     base_url = getattr(settings, 'H5_BASE_URL', 'https://www.keyanbaice.com')
-    landing_url = f"{base_url}/invite?code={invite_code}"
+    landing_url = f"{base_url.rstrip('/')}/invite?code={invite_code}"
 
-    # 生成二维码图片
-    qrcode_bytes = generate_qrcode_image(landing_url)
+    try:
+        qrcode_bytes = await wechat_service.get_unlimited_qrcode(
+            scene=f"inviter={invite_code}",
+            page="pages/index/index"
+        )
+    except Exception:
+        qrcode_bytes = generate_qrcode_image(landing_url)
 
     # 保存二维码图片到本地静态目录
     static_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), 'static', 'qrcodes')
@@ -334,12 +370,17 @@ async def get_qrcode_image(
     if not qr_record:
         raise HTTPException(status_code=404, detail="二维码不存在")
 
-    # 生成落地页URL
+    # 生成二维码图片，优先使用可直接打开小程序的二维码。
     base_url = getattr(settings, 'H5_BASE_URL', 'https://www.keyanbaice.com')
-    landing_url = f"{base_url}/invite?code={qr_record.invite_code}"
+    landing_url = f"{base_url.rstrip('/')}/invite?code={qr_record.invite_code}"
 
-    # 重新生成二维码图片
-    qrcode_bytes = generate_qrcode_image(landing_url)
+    try:
+        qrcode_bytes = await wechat_service.get_unlimited_qrcode(
+            scene=f"inviter={qr_record.invite_code}",
+            page="pages/index/index"
+        )
+    except Exception:
+        qrcode_bytes = generate_qrcode_image(landing_url)
 
     return StreamingResponse(
         BytesIO(qrcode_bytes),
@@ -400,4 +441,3 @@ async def scan_qrcode(
         "appid": getattr(settings, 'WECHAT_APPID', ''),
         "path": f"/pages/index/index?inviter={invite_code}"
     })
-

@@ -1,7 +1,7 @@
 """
 信用系统Schema
 """
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, BaseModel, Field
 from typing import Optional, List
 from datetime import datetime
 from decimal import Decimal
@@ -64,7 +64,11 @@ class DebtListResponse(BaseModel):
 class RepaymentRequest(BaseModel):
     """还款请求"""
     amount: Decimal = Field(..., gt=0, description="还款金额")
-    payment_method: str = Field(..., description="支付方式: wechat/alipay/balance")
+    payment_method: str = Field(
+        ...,
+        validation_alias=AliasChoices("payment_method", "method"),
+        description="支付方式: wechat/alipay/balance"
+    )
     debt_ids: Optional[List[int]] = Field(None, description="指定还款的欠款ID列表，不填则按时间顺序还款")
 
 

@@ -293,138 +293,14 @@
                             </el-form-item>
                         </el-col>
                     </el-row>
-                    <el-row :gutter="16">
-                        <el-col :span="12">
-                            <el-form-item label="样品类型" required>
-                                <el-select v-model="bookingForm.sample_type" placeholder="选择样品类型" style="width: 100%">
-                                    <el-option label="粉末" value="powder"></el-option>
-                                    <el-option label="块体" value="bulk"></el-option>
-                                    <el-option label="薄膜" value="film"></el-option>
-                                    <el-option label="液体/溶液" value="liquid"></el-option>
-                                    <el-option label="悬浊液/乳液" value="suspension"></el-option>
-                                    <el-option label="凝胶" value="gel"></el-option>
-                                    <el-option label="纤维" value="fiber"></el-option>
-                                    <el-option label="其他" value="other"></el-option>
-                                </el-select>
-                            </el-form-item>
-                        </el-col>
-                        <el-col :span="12">
-                            <el-form-item label="样品状态">
-                                <el-select v-model="bookingForm.sample_state" placeholder="选择样品状态" style="width: 100%">
-                                    <el-option label="干燥" value="dry"></el-option>
-                                    <el-option label="潮湿/含水" value="wet"></el-option>
-                                    <el-option label="溶剂分散" value="solvent"></el-option>
-                                    <el-option label="冷冻" value="frozen"></el-option>
-                                </el-select>
-                            </el-form-item>
-                        </el-col>
-                    </el-row>
-                    <el-row :gutter="16">
-                        <el-col :span="24">
-                            <el-form-item label="样品属性">
-                                <el-checkbox-group v-model="bookingForm.sample_properties">
-                                    <el-checkbox label="conductive">导电</el-checkbox>
-                                    <el-checkbox label="magnetic">磁性</el-checkbox>
-                                    <el-checkbox label="toxic">有毒</el-checkbox>
-                                    <el-checkbox label="flammable">易燃</el-checkbox>
-                                    <el-checkbox label="corrosive">腐蚀性</el-checkbox>
-                                    <el-checkbox label="moisture_sensitive">怕潮</el-checkbox>
-                                    <el-checkbox label="light_sensitive">避光</el-checkbox>
-                                </el-checkbox-group>
-                            </el-form-item>
-                        </el-col>
-                    </el-row>
-
-                    <!-- 测试参数 -->
-                    <el-divider content-position="left">测试参数</el-divider>
-                    <el-row :gutter="16">
-                        <el-col :span="12">
-                            <el-form-item label="测试温度">
-                                <el-select v-model="bookingForm.test_temperature" placeholder="选择测试温度" style="width: 100%">
-                                    <el-option label="室温" value="room"></el-option>
-                                    <el-option label="低温 (-196°C ~ 0°C)" value="low"></el-option>
-                                    <el-option label="高温 (室温 ~ 500°C)" value="high"></el-option>
-                                    <el-option label="超高温 (500°C ~ 1600°C)" value="ultra_high"></el-option>
-                                    <el-option label="变温测试" value="variable"></el-option>
-                                </el-select>
-                            </el-form-item>
-                        </el-col>
-                        <el-col :span="12">
-                            <el-form-item label="测试气氛">
-                                <el-select v-model="bookingForm.test_atmosphere" placeholder="选择测试气氛" style="width: 100%">
-                                    <el-option label="空气" value="air"></el-option>
-                                    <el-option label="氮气 (N₂)" value="nitrogen"></el-option>
-                                    <el-option label="氩气 (Ar)" value="argon"></el-option>
-                                    <el-option label="氧气 (O₂)" value="oxygen"></el-option>
-                                    <el-option label="真空" value="vacuum"></el-option>
-                                    <el-option label="其他（备注说明）" value="other"></el-option>
-                                </el-select>
-                            </el-form-item>
-                        </el-col>
-                    </el-row>
-                    <el-row :gutter="16">
-                        <el-col :span="12">
-                            <el-form-item label="扫描范围">
-                                <el-input v-model="bookingForm.scan_range" placeholder="如：5°-80° / 400-4000cm⁻¹"></el-input>
-                            </el-form-item>
-                        </el-col>
-                        <el-col :span="12">
-                            <el-form-item label="放大倍数">
-                                <el-select v-model="bookingForm.magnification" placeholder="选择放大倍数" style="width: 100%">
-                                    <el-option label="低倍 (100x-1000x)" value="low"></el-option>
-                                    <el-option label="中倍 (1000x-10000x)" value="medium"></el-option>
-                                    <el-option label="高倍 (10000x-50000x)" value="high"></el-option>
-                                    <el-option label="超高倍 (50000x以上)" value="ultra_high"></el-option>
-                                    <el-option label="根据样品情况" value="auto"></el-option>
-                                </el-select>
-                            </el-form-item>
-                        </el-col>
-                    </el-row>
-                    <el-row :gutter="16">
-                        <el-col :span="24">
-                            <el-form-item label="特殊处理">
-                                <el-checkbox-group v-model="bookingForm.special_treatment">
-                                    <el-checkbox label="spray_gold">喷金处理</el-checkbox>
-                                    <el-checkbox label="spray_carbon">喷碳处理</el-checkbox>
-                                    <el-checkbox label="ion_thinning">离子减薄</el-checkbox>
-                                    <el-checkbox label="ultrasonic">超声分散</el-checkbox>
-                                    <el-checkbox label="grinding">研磨处理</el-checkbox>
-                                    <el-checkbox label="section">切片制样</el-checkbox>
-                                </el-checkbox-group>
-                            </el-form-item>
-                        </el-col>
-                    </el-row>
-
-                    <!-- 服务选项 -->
-                    <el-divider content-position="left">服务选项</el-divider>
-                    <el-row :gutter="16">
-                        <el-col :span="12">
-                            <el-form-item label="检测周期">
-                                <el-radio-group v-model="bookingForm.urgency" style="display:flex;flex-direction:column;gap:8px">
-                                    <el-radio value="normal">常规（5-7个工作日）</el-radio>
-                                    <el-radio value="urgent_48h">加急48小时 <el-tag type="warning" size="small">+50%</el-tag></el-radio>
-                                    <el-radio value="urgent_24h">特急24小时 <el-tag type="danger" size="small">+100%</el-tag></el-radio>
-                                </el-radio-group>
-                            </el-form-item>
-                        </el-col>
-                        <el-col :span="12">
-                            <el-form-item label="报告要求">
-                                <el-checkbox-group v-model="bookingForm.report_options" style="display:flex;flex-direction:column;gap:8px">
-                                    <el-checkbox label="raw_data">提供原始数据</el-checkbox>
-                                    <el-checkbox label="analysis">提供数据分析</el-checkbox>
-                                    <el-checkbox label="english">英文报告</el-checkbox>
-                                    <el-checkbox label="paper_report">纸质报告 <el-tag size="small">+30元</el-tag></el-checkbox>
-                                </el-checkbox-group>
-                            </el-form-item>
-                        </el-col>
-                    </el-row>
-
-                    <el-divider content-position="left" v-if="bookingOptionsTree.length > 0">后台配置选项</el-divider>
+                    <el-divider content-position="left">检测选项</el-divider>
                     <web-dynamic-options-form
+                        ref="bookingOptionsForm"
                         v-if="bookingOptionsTree.length > 0"
                         :options-tree="bookingOptionsTree"
                         @change="handleBookingOptionsChange">
                     </web-dynamic-options-form>
+                    <el-empty v-else description="该项目暂未配置检测选项" :image-size="80"></el-empty>
 
                     <!-- 收货与支付 -->
                     <el-divider content-position="left">收货信息</el-divider>
@@ -446,9 +322,6 @@
                 <div class="booking-summary">
                     <div class="summary-row"><span>检测费用：</span><span>¥{{ bookingProject.current_price }} × {{ bookingForm.quantity }}</span></div>
                     <div class="summary-row" v-if="bookingOptionsFeeEstimate > 0"><span>配置选项：</span><span>+¥{{ bookingOptionsFeeEstimate.toFixed(2) }}</span></div>
-                    <div class="summary-row" v-if="bookingForm.urgency === 'urgent_48h'"><span>加急费用：</span><span style="color:#e6a23c">+¥{{ (bookingProject.current_price * bookingForm.quantity * 0.5).toFixed(2) }}</span></div>
-                    <div class="summary-row" v-if="bookingForm.urgency === 'urgent_24h'"><span>特急费用：</span><span style="color:#f56c6c">+¥{{ (bookingProject.current_price * bookingForm.quantity * 1).toFixed(2) }}</span></div>
-                    <div class="summary-row" v-if="bookingForm.report_options?.includes('paper_report')"><span>纸质报告：</span><span>+¥30</span></div>
                     <div class="summary-row" v-if="bookingForm.coupon_id"><span>优惠券：</span><span style="color:#67c23a">-¥{{ couponDiscountEstimate.toFixed(2) }}</span></div>
                     <div class="booking-total">
                         <span>应付金额：</span>
@@ -471,8 +344,8 @@
                 </div>
                 <div class="payment-methods">
                     <div class="payment-method active">
-                        <span style="color: #1890ff; font-weight: bold;">信用支付</span>
-                        <span class="method-balance">可用额度：¥{{ creditAvailable }}</span>
+                        <span style="color: #1890ff; font-weight: bold;">自动支付</span>
+                        <span class="method-balance">优先扣预付余额，不足部分使用信用额度</span>
                     </div>
                 </div>
             </div>
@@ -503,8 +376,8 @@
             <el-form :model="invoiceForm" label-width="100px">
                 <el-form-item label="发票类型">
                     <el-radio-group v-model="invoiceForm.invoice_type">
-                        <el-radio value="personal">个人</el-radio>
-                        <el-radio value="company">企业</el-radio>
+                        <el-radio label="personal">个人</el-radio>
+                        <el-radio label="company">企业</el-radio>
                     </el-radio-group>
                 </el-form-item>
                 <el-form-item label="发票抬头" required>
@@ -541,6 +414,6 @@
     </div>
 
     <!-- 应用脚本 -->
-    <script src="/web/assets/js/app.js?v=20260428-credit-order"></script>
+    <script src="/web/assets/js/app.js?v=20260512-doc-sync"></script>
 </body>
 </html>

@@ -18,7 +18,6 @@
 					@click="selectAmount(item.value)"
 				>
 					<view class="amount-value">{{ item.label }}</view>
-					<view v-if="item.bonus > 0" class="amount-bonus">送{{ item.bonus }}元</view>
 				</view>
 			</view>
 			
@@ -37,27 +36,9 @@
 			</view>
 		</view>
 		
-		<!-- 赠送提示 -->
-		<view v-if="bonusAmount > 0" class="bonus-tip">
-			<text class="bonus-icon">🎁</text>
-			<text class="bonus-text">充{{ finalAmount }}元，赠送{{ bonusAmount }}元测试费，到账共计{{ actualAmount }}元测试费</text>
-		</view>
-		
-		<!-- 赠送示例展示 -->
-		<view class="bonus-examples-section">
-			<view class="section-title">充值赠送示例</view>
-			<view class="examples-grid">
-				<view class="example-card" v-for="(item, index) in bonusExamples" :key="index">
-					<view class="example-amount">充{{ item.amount }}元</view>
-					<view class="example-bonus">送{{ item.bonus }}元</view>
-					<view class="example-total">到账{{ item.total }}元</view>
-				</view>
-			</view>
-		</view>
-
 		<!-- 充值规则 -->
 		<view class="rules-section">
-			<view class="section-title">充值优惠规则</view>
+			<view class="section-title">充值说明</view>
 			<view class="rules-list">
 				<view v-for="(rule, index) in rules" :key="index" class="rule-item">
 					<text class="rule-dot">•</text>
@@ -72,13 +53,13 @@
 				<text class="entry-icon">📄</text>
 				<view class="entry-info">
 					<view class="entry-title">开票充值</view>
-					<view class="entry-desc">大额充值可开发票，享受同等优惠</view>
+					<view class="entry-desc">大额充值可开发票，到账金额等于充值金额</view>
 				</view>
 			</view>
 			<text class="arrow">→</text>
 		</view>
 		
-		<!-- 支付方式（暂不开放充值，统一使用信用支付） -->
+		<!-- 支付方式（暂不开放充值，订单自动使用预付余额和信用额度） -->
 		<view class="payment-section" v-if="false">
 			<view class="section-title">支付方式</view>
 			<view class="payment-list">
@@ -127,18 +108,12 @@ export default {
 			paymentMethod: 'wechat',
 			rules: [],
 			amountOptions: [
-				{ value: 100, label: '100元', bonus: 5 },
-				{ value: 200, label: '200元', bonus: 10 },
-				{ value: 500, label: '500元', bonus: 50 },
-				{ value: 1000, label: '1000元', bonus: 150 },
-				{ value: 2000, label: '2000元', bonus: 300 },
-				{ value: 5000, label: '5000元', bonus: 1000 }
-			],
-			bonusExamples: [
-				{ amount: 1000, bonus: 150, total: 1150 },
-				{ amount: 5000, bonus: 1000, total: 6000 },
-				{ amount: 10000, bonus: 2000, total: 12000 },
-				{ amount: 50000, bonus: 10000, total: 60000 }
+				{ value: 100, label: '100元' },
+				{ value: 200, label: '200元' },
+				{ value: 500, label: '500元' },
+				{ value: 1000, label: '1000元' },
+				{ value: 2000, label: '2000元' },
+				{ value: 5000, label: '5000元' }
 			]
 		}
 	},
@@ -152,12 +127,7 @@ export default {
 		},
 		
 		bonusAmount() {
-			const amount = this.finalAmount
-			if (amount < 100) return 0
-			if (amount < 500) return Math.floor(amount * 0.05)
-			if (amount < 1000) return Math.floor(amount * 0.10)
-			if (amount < 5000) return Math.floor(amount * 0.15)
-			return Math.floor(amount * 0.20)
+			return 0
 		},
 		
 		actualAmount() {
@@ -187,12 +157,9 @@ export default {
 			} catch (error) {
 				console.error('加载规则失败', error)
 				this.rules = [
-					{ description: '充值金额为测试费，仅用于支付检测订单，不可提现' },
-					{ description: '100元以下不赠送' },
-					{ description: '充100送5测试费，赠送5%' },
-					{ description: '充500送50测试费，赠送10%' },
-					{ description: '充1000送150测试费，赠送15%' },
-					{ description: '充5000送1000测试费，赠送20%' }
+					{ description: '充值金额为测试费，仅用于支付检测订单' },
+					{ description: '到账金额等于实际充值金额，无赠送比例' },
+					{ description: '预付余额可用于订单支付和信用还款' }
 				]
 			}
 		},
@@ -221,7 +188,7 @@ export default {
 		async doRecharge() {
 			uni.showModal({
 				title: '提示',
-				content: '充值功能暂未开放，目前所有订单统一使用信用支付',
+				content: '充值功能暂未开放，订单会优先使用预付余额，不足部分使用信用额度',
 				showCancel: false
 			})
 		},
@@ -640,4 +607,3 @@ export default {
 	color: #999;
 }
 </style>
-

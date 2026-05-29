@@ -16,9 +16,10 @@ from app.core.response import Response
 from app.core.config import settings
 from app.core.redis_client import get_redis
 from app.models.user import User
-from app.schemas.user import UserRegister, UserLogin, SMSCodeRequest, SMSLoginRequest, WechatLoginRequest, TokenResponse
+from app.schemas.user import UserRegister, UserLogin, SMSCodeRequest, SMSLoginRequest, WechatLoginRequest
 from app.services.sms_service import sms_service
 from app.services.wechat_service import wechat_service
+from app.api.v1.invites import bind_invite_relation
 
 
 router = APIRouter()
@@ -97,7 +98,7 @@ async def send_sms_code(
         )
 
 
-@router.post("/register", response_model=TokenResponse, summary="用户注册")
+@router.post("/register", summary="用户注册")
 async def register(
     request: UserRegister,
     db: Session = Depends(get_db)
@@ -143,21 +144,33 @@ async def register(
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
+
+    bind_invite_relation(
+        db,
+        invitee=new_user,
+        invite_code=request.invite_code,
+        inviter_id=request.inviter_id
+    )
+    db.commit()
     
     # 生成JWT令牌
     access_token = create_access_token(
         data={"user_id": new_user.id, "phone": new_user.phone}
     )
     
-    return TokenResponse(
-        access_token=access_token,
-        user_id=new_user.id,
-        phone=new_user.phone,
-        nickname=new_user.nickname
+    return Response.success(
+        data={
+            "access_token": access_token,
+            "token_type": "bearer",
+            "user_id": new_user.id,
+            "phone": new_user.phone,
+            "nickname": new_user.nickname,
+        },
+        message="注册成功"
     )
 
 
-@router.post("/login", response_model=TokenResponse, summary="用户登录")
+@router.post("/login", summary="用户登录")
 async def login(
     request: UserLogin,
     db: Session = Depends(get_db)
@@ -193,6 +206,12 @@ async def login(
     # 更新最后登录时间
     from datetime import datetime
     user.last_login_at = datetime.utcnow()
+    bind_invite_relation(
+        db,
+        invitee=user,
+        invite_code=request.invite_code,
+        inviter_id=request.inviter_id
+    )
     db.commit()
     
     # 生成JWT令牌
@@ -200,11 +219,15 @@ async def login(
         data={"user_id": user.id, "phone": user.phone}
     )
     
-    return TokenResponse(
-        access_token=access_token,
-        user_id=user.id,
-        phone=user.phone,
-        nickname=user.nickname
+    return Response.success(
+        data={
+            "access_token": access_token,
+            "token_type": "bearer",
+            "user_id": user.id,
+            "phone": user.phone,
+            "nickname": user.nickname,
+        },
+        message="登录成功"
     )
 
 
@@ -264,6 +287,12 @@ async def sms_login(
     # 更新最后登录时间
     from datetime import datetime
     user.last_login_at = datetime.utcnow()
+    bind_invite_relation(
+        db,
+        invitee=user,
+        invite_code=request.invite_code,
+        inviter_id=request.inviter_id
+    )
     db.commit()
     
     # 生成JWT令牌
@@ -312,22 +341,49 @@ async def wechat_login(
             detail="获取微信OpenID失败"
         )
     
-    # 2. 根据openid查询用户
-    user = db.query(User).filter(User.wechat_openid == openid).first()
-    
-    # 如果用户不存在，自动创建
-    if not user:
-        import time
+    phone_number = None
+    if request.phone_code:
+        phone_data = await wechat_service.get_phone_number(request.phone_code)
+        if phone_data.get("errcode", 0) != 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"获取微信手机号失败: {phone_data.get('errmsg', '请重新授权')}"
+            )
+        phone_info = phone_data.get("phone_info") or {}
+        phone_number = phone_info.get("purePhoneNumber") or phone_info.get("phoneNumber")
+
+    # 2. 根据 openid/手机号 查询或创建用户
+    openid_user = db.query(User).filter(User.wechat_openid == openid).first()
+    phone_user = db.query(User).filter(User.phone == phone_number).first() if phone_number else None
+
+    if phone_user and openid_user and phone_user.id != openid_user.id:
+        if phone_user.wechat_openid and phone_user.wechat_openid != openid:
+            raise HTTPException(status_code=400, detail="该手机号已绑定其他微信账号")
+        # 优先复用已有手机号账号；释放旧的微信临时账号 openid 绑定。
+        openid_user.wechat_openid = None
+        openid_user.wechat_unionid = None
+        phone_user.wechat_openid = openid
+        phone_user.wechat_unionid = unionid
+        user = phone_user
+    elif phone_user:
+        user = phone_user
+        user.wechat_openid = user.wechat_openid or openid
+        user.wechat_unionid = user.wechat_unionid or unionid
+    elif openid_user:
+        user = openid_user
+        if phone_number and not user.phone:
+            user.phone = phone_number
+            user.nickname = user.nickname or f"用户{phone_number[-4:]}"
+    else:
         user = User(
+            phone=phone_number,
             wechat_openid=openid,
             wechat_unionid=unionid,
-            nickname=f"微信用户{openid[-6:]}",
+            nickname=f"用户{phone_number[-4:]}" if phone_number else f"微信用户{openid[-6:]}",
             credit_limit=3000.00
         )
-        
         db.add(user)
-        db.commit()
-        db.refresh(user)
+        db.flush()
     
     # 检查用户状态
     if user.status.value != "active":
@@ -339,11 +395,18 @@ async def wechat_login(
     # 更新最后登录时间
     from datetime import datetime
     user.last_login_at = datetime.utcnow()
+    bind_invite_relation(
+        db,
+        invitee=user,
+        invite_code=request.invite_code,
+        inviter_id=request.inviter_id
+    )
     db.commit()
+    db.refresh(user)
     
     # 3. 生成JWT令牌
     access_token = create_access_token(
-        data={"user_id": user.id, "openid": openid}
+        data={"user_id": user.id, "phone": user.phone, "openid": openid}
     )
     
     return Response.success(
@@ -363,57 +426,68 @@ async def admin_login(
     request: AdminLoginRequest,
     db: Session = Depends(get_db)
 ):
-    """
-    管理员登录（用户名+密码）
-    
-    固定管理员账号：
-    - 用户名：admin
-    - 密码：123456
-    """
-    # 验证管理员账号
-    if request.username == "admin" and request.password == "123456":
-        # 查找或创建管理员用户
-        admin_user = db.query(User).filter(User.phone == "admin").first()
-        
-        if not admin_user:
-            # 创建管理员用户
-            admin_user = User(
-                phone="admin",
-                password=get_password_hash("123456"),
-                nickname="管理员",
-                credit_limit=999999.00,
-                is_certified=True
-            )
-            db.add(admin_user)
-            db.commit()
-            db.refresh(admin_user)
-        
-        # 更新最后登录时间
-        from datetime import datetime
-        admin_user.last_login_at = datetime.utcnow()
+    """管理员登录（用户名+密码）。"""
+    username = (request.username or "").strip()
+    password = request.password or ""
+
+    admin_user = db.query(User).filter(User.phone == username).first()
+
+    if (
+        not admin_user
+        and username == settings.ADMIN_USERNAME
+        and settings.ADMIN_BOOTSTRAP_PASSWORD
+    ):
+        admin_user = User(
+            phone=username,
+            password=get_password_hash(settings.ADMIN_BOOTSTRAP_PASSWORD),
+            nickname="管理员",
+            credit_limit=999999.00,
+            is_certified=True,
+            is_admin=True
+        )
+        db.add(admin_user)
         db.commit()
-        
-        # 生成JWT令牌
-        access_token = create_access_token(
-            data={"user_id": admin_user.id, "phone": admin_user.phone, "is_admin": True}
-        )
-        
-        return Response.success(
-            data={
-                "access_token": access_token,
-                "token_type": "bearer",
-                "user_id": admin_user.id,
-                "phone": admin_user.phone,
-                "nickname": admin_user.nickname,
-                "is_admin": True
-            },
-            message="登录成功"
-        )
-    else:
+        db.refresh(admin_user)
+
+    if (
+        not admin_user
+        or not (admin_user.is_admin or admin_user.phone == settings.ADMIN_USERNAME)
+        or not admin_user.password
+        or not verify_password(password, admin_user.password)
+    ):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="用户名或密码错误"
         )
+
+    if admin_user.phone == settings.ADMIN_USERNAME and not admin_user.is_admin:
+        admin_user.is_admin = True
+
+    if admin_user.status.value != "active":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="账号已被禁用"
+        )
+
+    from datetime import datetime
+    admin_user.last_login_at = datetime.utcnow()
+    db.commit()
+
+    access_token = create_access_token(
+        data={"user_id": admin_user.id, "phone": admin_user.phone, "is_admin": True}
+    )
+
+    return Response.success(
+        data={
+            "access_token": access_token,
+            "token_type": "bearer",
+            "user_id": admin_user.id,
+            "phone": admin_user.phone,
+            "nickname": admin_user.nickname,
+            "is_admin": True
+        },
+        message="登录成功"
+    )
 
 
 @router.post("/qrcode/create", summary="创建扫码登录会话并返回二维码")
@@ -537,4 +611,3 @@ async def confirm_qrcode_login(
         }),
     )
     return Response.success(message="登录成功，请回到网页")
-

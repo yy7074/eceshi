@@ -15,7 +15,7 @@
 		<!-- 项目列表 -->
 		<view v-if="projects.length > 0" class="projects-list">
 			<view v-for="(item, index) in projects" :key="index" class="project-item" @click="goProjectDetail(item.id)">
-				<image :src="item.cover_image || 'https://picsum.photos/200/200'" mode="aspectFill" class="project-image"></image>
+				<image :src="item.cover_image" mode="aspectFill" class="project-image" @error="handleProjectImageError(item)"></image>
 				<view class="project-info">
 					<text class="project-name">{{ item.name }}</text>
 					<text class="project-lab">{{ item.lab_name }}</text>
@@ -24,10 +24,6 @@
 						<text class="stat-item">已测{{ item.order_count }}次</text>
 					</view>
 					<view class="project-footer">
-						<view class="project-price">
-							<text class="current-price">¥{{ item.current_price }}</text>
-							<text v-if="item.original_price > item.current_price" class="original-price">¥{{ item.original_price }}</text>
-						</view>
 						<button class="action-btn" @click.stop="handleAction(item)">
 							{{ currentTab === 0 ? '立即预约' : '再次预约' }}
 						</button>
@@ -70,6 +66,21 @@ export default {
 	},
 	
 	methods: {
+		getProjectFallbackImage() {
+			return '/static/logo.jpg'
+		},
+
+		normalizeProjectImage(url) {
+			if (!url || `${url}`.includes('b68874e25e5c4cecb9bc845617564274.jpg')) {
+				return this.getProjectFallbackImage()
+			}
+			return url
+		},
+
+		handleProjectImageError(item) {
+			item.cover_image = this.getProjectFallbackImage()
+		},
+
 		// 切换Tab
 		switchTab(index) {
 			this.currentTab = index
@@ -84,7 +95,10 @@ export default {
 				if (this.currentTab === 0) {
 					// 调用API获取收藏列表
 					const res = await api.getFavorites({ page: 1, page_size: 50 })
-					this.projects = res.data.items || []
+					this.projects = (res.data.items || []).map(item => ({
+						...item,
+						cover_image: this.normalizeProjectImage(item.cover_image)
+					}))
 				} else {
 					// 浏览历史暂未实现
 					this.projects = []
@@ -269,26 +283,8 @@ export default {
 			
 			.project-footer {
 				display: flex;
-				justify-content: space-between;
+				justify-content: flex-end;
 				align-items: center;
-				
-				.project-price {
-					display: flex;
-					align-items: baseline;
-					gap: 10rpx;
-					
-					.current-price {
-						font-size: 32rpx;
-						font-weight: bold;
-						color: #ff4444;
-					}
-					
-					.original-price {
-						font-size: 24rpx;
-						color: #999;
-						text-decoration: line-through;
-					}
-				}
 				
 				.action-btn {
 					background: #1890ff;
@@ -349,4 +345,3 @@ export default {
 	}
 }
 </style>
-

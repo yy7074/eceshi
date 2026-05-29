@@ -28,19 +28,13 @@
 					</view>
 				</view>
 				<view v-for="(item, index) in results" :key="index" class="result-item" @click="goProjectDetail(item.id)">
-					<image :src="item.cover_image || 'https://picsum.photos/200/200'" mode="aspectFill" class="item-image"></image>
+					<image :src="item.cover_image" mode="aspectFill" class="item-image" @error="handleProjectImageError(item)"></image>
 					<view class="item-info">
 						<text class="item-name">{{ highlightKeyword(item.name) }}</text>
 						<text class="item-lab">{{ item.lab_name }}</text>
 						<view class="item-stats">
 							<text class="stat">满意度 {{ item.satisfaction }}%</text>
 							<text class="stat">已测{{ item.order_count }}次</text>
-						</view>
-						<view class="item-footer">
-							<view class="item-price">
-								<text class="current-price">¥{{ item.current_price }}</text>
-								<text v-if="item.original_price > item.current_price" class="original-price">¥{{ item.original_price }}</text>
-							</view>
 						</view>
 					</view>
 				</view>
@@ -111,8 +105,6 @@ export default {
 			currentSort: 0,
 			sortOptions: [
 				{ value: 'default', label: '综合排序' },
-				{ value: 'price_asc', label: '价格升序' },
-				{ value: 'price_desc', label: '价格降序' },
 				{ value: 'popularity', label: '人气优先' }
 			],
 			history: [],
@@ -141,6 +133,21 @@ export default {
 	},
 	
 	methods: {
+		getProjectFallbackImage() {
+			return '/static/logo.jpg'
+		},
+
+		normalizeProjectImage(url) {
+			if (!url || `${url}`.includes('b68874e25e5c4cecb9bc845617564274.jpg')) {
+				return this.getProjectFallbackImage()
+			}
+			return url
+		},
+
+		handleProjectImageError(item) {
+			item.cover_image = this.getProjectFallbackImage()
+		},
+
 		// 搜索
 		async handleSearch() {
 			if (!this.keyword.trim()) {
@@ -167,7 +174,10 @@ export default {
 				
 				// 响应格式: {code, data: {list, total}}
 				const data = res.data || res
-				this.results = data.items || data.list || []
+				this.results = (data.items || data.list || []).map(item => ({
+					...item,
+					cover_image: this.normalizeProjectImage(item.cover_image)
+				}))
 				this.total = data.total || 0
 				this.showResults = true
 				
@@ -411,25 +421,6 @@ export default {
 					}
 				}
 				
-				.item-footer {
-					.item-price {
-						display: flex;
-						align-items: baseline;
-						gap: 10rpx;
-						
-						.current-price {
-							font-size: 32rpx;
-							font-weight: bold;
-							color: #ff4444;
-						}
-						
-						.original-price {
-							font-size: 24rpx;
-							color: #999;
-							text-decoration: line-through;
-						}
-					}
-				}
 			}
 		}
 	}

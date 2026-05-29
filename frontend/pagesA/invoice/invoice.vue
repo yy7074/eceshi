@@ -36,6 +36,8 @@
 				<!-- 电子发票下载 -->
 				<view v-if="item.status === 'issued' && item.invoice_url" class="invoice-actions">
 					<button class="download-btn" @click.stop="downloadInvoice(item)">下载电子发票</button>
+					<button class="download-btn secondary" v-if="item.report_url" @click.stop="copyFileUrl(item.report_url, '测试报告')">测试报告</button>
+					<button class="download-btn secondary" v-if="item.checklist_url" @click.stop="copyFileUrl(item.checklist_url, '测试清单')">测试清单</button>
 				</view>
 				<!-- 拒绝原因 -->
 				<view v-if="item.status === 'rejected' && item.reject_reason" class="reject-reason">
@@ -80,8 +82,27 @@
 						<input v-model="applyForm.tax_number" placeholder="请输入税号" class="form-input" />
 					</view>
 					<view class="form-group">
+						<text class="form-label">关联订单</text>
+						<view v-if="invoiceableOrders.length > 0" class="order-select-list">
+							<view
+								v-for="order in invoiceableOrders"
+								:key="order.id"
+								class="order-select-item"
+								:class="{ active: applyForm.order_ids.includes(order.id) }"
+								@click="toggleOrder(order)"
+							>
+								<view>
+									<text class="order-no">{{ order.order_no }}</text>
+									<text class="order-project">{{ order.project_name }}</text>
+								</view>
+								<text class="order-amount">¥{{ Number(order.total_fee || 0).toFixed(2) }}</text>
+							</view>
+						</view>
+						<view v-else class="order-empty">暂无可开票订单</view>
+					</view>
+					<view class="form-group">
 						<text class="form-label">开票金额 <text class="required">*</text></text>
-						<input v-model="applyForm.amount" type="digit" placeholder="请输入开票金额" class="form-input" />
+						<input v-model="applyForm.amount" type="digit" placeholder="选择订单后自动合计，也可手动填写" class="form-input" />
 					</view>
 					<view class="form-group">
 						<text class="form-label">接收邮箱 <text class="required">*</text></text>
@@ -116,10 +137,12 @@ export default {
 				title: '',
 				tax_number: '',
 				amount: '',
+				order_ids: [],
 				receiver_email: '',
 				receiver_phone: '',
 				content: '检测服务费'
-			}
+			},
+			invoiceableOrders: []
 		}
 	},
 	
@@ -188,10 +211,40 @@ export default {
 				// #endif
 			}
 		},
+		copyFileUrl(url, name) {
+			if (!url) return
+			uni.setClipboardData({
+				data: url,
+				success: () => uni.showToast({ title: `${name}链接已复制`, icon: 'success' })
+			})
+		},
 		
 		// 申请开票
 		applyInvoice() {
+			this.loadInvoiceableOrders()
 			this.$refs.applyPopup.open()
+		},
+		async loadInvoiceableOrders() {
+			try {
+				const res = await api.getInvoiceableOrders()
+				this.invoiceableOrders = res.data?.items || []
+			} catch (error) {
+				this.invoiceableOrders = []
+			}
+		},
+		toggleOrder(order) {
+			const index = this.applyForm.order_ids.indexOf(order.id)
+			if (index >= 0) {
+				this.applyForm.order_ids.splice(index, 1)
+			} else {
+				this.applyForm.order_ids.push(order.id)
+			}
+			const amount = this.invoiceableOrders
+				.filter(item => this.applyForm.order_ids.includes(item.id))
+				.reduce((sum, item) => sum + Number(item.total_fee || 0), 0)
+			if (amount > 0) {
+				this.applyForm.amount = amount.toFixed(2)
+			}
 		},
 		
 		// 关闭申请弹窗
@@ -234,6 +287,7 @@ export default {
 					title: '',
 					tax_number: '',
 					amount: '',
+					order_ids: [],
 					receiver_email: '',
 					receiver_phone: '',
 					content: '检测服务费'
@@ -365,6 +419,9 @@ export default {
 			margin-top: 20rpx;
 			padding-top: 20rpx;
 			border-top: 1rpx solid #f5f5f5;
+			display: flex;
+			gap: 12rpx;
+			flex-wrap: wrap;
 			
 			.download-btn {
 				background: #667eea;
@@ -373,6 +430,11 @@ export default {
 				border-radius: 50rpx;
 				padding: 15rpx 40rpx;
 				font-size: 26rpx;
+
+				&.secondary {
+					background: #edf2ff;
+					color: #667eea;
+				}
 			}
 		}
 		
@@ -486,6 +548,53 @@ export default {
 				border-radius: 12rpx;
 				padding: 0 20rpx;
 				font-size: 28rpx;
+			}
+
+			.order-select-list {
+				display: flex;
+				flex-direction: column;
+				gap: 12rpx;
+			}
+
+			.order-select-item {
+				display: flex;
+				align-items: center;
+				justify-content: space-between;
+				padding: 18rpx;
+				background: #f7f8fb;
+				border-radius: 12rpx;
+				border: 2rpx solid transparent;
+
+				&.active {
+					border-color: #667eea;
+					background: #eef2ff;
+				}
+
+				.order-no,
+				.order-project {
+					display: block;
+					font-size: 24rpx;
+					color: #333;
+				}
+
+				.order-project {
+					color: #777;
+					margin-top: 6rpx;
+				}
+
+				.order-amount {
+					font-size: 26rpx;
+					color: #f56c6c;
+					font-weight: 700;
+				}
+			}
+
+			.order-empty {
+				color: #999;
+				font-size: 26rpx;
+				padding: 20rpx;
+				background: #f7f8fb;
+				border-radius: 12rpx;
 			}
 			
 			.type-switch {

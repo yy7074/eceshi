@@ -67,6 +67,8 @@ class User(Base):
         default=MembershipLevel.NORMAL,
         comment="会员等级"
     )
+    advisor_name = Column(String(50), comment="专属顾问姓名")
+    advisor_phone = Column(String(20), comment="专属顾问电话")
     
     # 额度信息
     credit_limit = Column(Numeric(10, 2), default=0, comment="信用额度")
@@ -182,4 +184,3 @@ class UserCertification(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     certified_at = Column(DateTime(timezone=True), comment="认证通过时间")
-

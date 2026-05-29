@@ -4,7 +4,7 @@ FastAPI Application
 """
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, FileResponse, RedirectResponse
+from fastapi.responses import JSONResponse, FileResponse, RedirectResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -121,6 +121,42 @@ async def health_check():
     }
 
 
+@app.get("/invite", response_class=HTMLResponse)
+async def invite_landing(code: str = ""):
+    """邀请二维码兜底落地页。正式二维码优先直接打开小程序。"""
+    safe_code = "".join(ch for ch in code if ch.isalnum() or ch in ("-", "_"))[:32]
+    mini_path = f"pages/index/index?inviter={safe_code}" if safe_code else "pages/index/index"
+    return f"""
+    <!doctype html>
+    <html lang="zh-CN">
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <title>博才科研百测邀请</title>
+      <style>
+        body {{ margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f5f7fb; color: #1f2933; }}
+        .wrap {{ max-width: 520px; margin: 0 auto; padding: 48px 24px; }}
+        .card {{ background: #fff; border-radius: 16px; padding: 28px; box-shadow: 0 8px 30px rgba(31, 41, 51, .08); }}
+        h1 {{ margin: 0 0 12px; font-size: 24px; }}
+        p {{ line-height: 1.7; color: #52616b; }}
+        .code {{ margin: 18px 0; padding: 14px 16px; border-radius: 10px; background: #eef5ff; font-size: 20px; font-weight: 700; letter-spacing: 0; }}
+        .path {{ margin-top: 12px; font-size: 13px; color: #7b8794; word-break: break-all; }}
+      </style>
+    </head>
+    <body>
+      <div class="wrap">
+        <div class="card">
+          <h1>博才科研百测邀请</h1>
+          <p>请在微信中打开「博才科研百测」小程序，系统会根据邀请码记录邀请来源。</p>
+          <div class="code">{safe_code or "未识别到邀请码"}</div>
+          <p class="path">小程序路径：{mini_path}</p>
+        </div>
+      </div>
+    </body>
+    </html>
+    """
+
+
 # 挂载静态文件目录（必须在API路由之前）
 static_dir = Path("static")
 static_dir.mkdir(exist_ok=True)
@@ -170,4 +206,3 @@ if __name__ == "__main__":
         port=settings.PORT,
         reload=settings.DEBUG,
     )
-

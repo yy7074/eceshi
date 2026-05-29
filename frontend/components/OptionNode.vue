@@ -39,7 +39,7 @@
 			</picker>
 
 			<checkbox-group
-				v-else-if="option.option_type === 'checkbox_group'"
+				v-else-if="option.option_type === 'checkbox_group' && !usesRadioControl"
 				class="inline-group"
 				@change="handleCheckboxGroupChange"
 			>
@@ -61,9 +61,17 @@
 					<text class="inline-price" v-if="child.price > 0">+¥{{ formatPrice(child.price) }}</text>
 				</label>
 			</radio-group>
+
+			<view
+				class="hint-text group-child-hint"
+				v-for="child in selectedChildHintOptions"
+				:key="'hint-' + child.id"
+			>
+				<text class="hint-content">{{ child.hint_text }}</text>
+			</view>
 		</view>
 
-		<view class="hint-text" v-if="option.hint_text && isSelected">
+		<view class="hint-text" v-if="option.hint_text && (isSelected || groupHasSelection)">
 			<text class="hint-content">{{ option.hint_text }}</text>
 		</view>
 
@@ -93,37 +101,35 @@
 			</view>
 		</view>
 
-		<view class="children-wrapper" v-if="canShowChildren">
-			<option-node
-				v-for="child in option.children"
-				:key="child.id"
-				:option="child"
-				:siblings="option.children"
-				:selections="selections"
-				:level="level + 1"
-				@select="$emit('select', $event)"
-				@input="$emit('input', $event)"
-			/>
-		</view>
+		<option-children
+			v-if="canShowChildren"
+			:children="option.children"
+			:selections="selections"
+			:level="level + 1"
+			@select="$emit('select', $event)"
+			@input="$emit('input', $event)"
+		/>
 
-		<view class="children-wrapper" v-for="selectedChild in selectedChildOptions" :key="'branch-' + selectedChild.id">
-			<option-node
-				v-for="child in selectedChild.children"
-				:key="child.id"
-				:option="child"
-				:siblings="selectedChild.children"
-				:selections="selections"
-				:level="level + 1"
-				@select="$emit('select', $event)"
-				@input="$emit('input', $event)"
-			/>
-		</view>
+		<option-children
+			v-for="selectedChild in selectedChildOptions"
+			:key="'branch-' + selectedChild.id"
+			:children="selectedChild.children"
+			:selections="selections"
+			:level="level + 1"
+			@select="$emit('select', $event)"
+			@input="$emit('input', $event)"
+		/>
 	</view>
 </template>
 
 <script>
+import OptionChildren from './OptionChildren.vue'
+
 export default {
 	name: 'OptionNode',
+	components: {
+		OptionChildren
+	},
 	props: {
 		option: {
 			type: Object,
@@ -180,6 +186,22 @@ export default {
 			const child = (this.option.children || []).find(item => this.selections[item.id] && this.selections[item.id].selected)
 			return child ? child.name : ''
 		},
+		selectedGroupChildren() {
+			if (!this.isGroupType) return []
+			return (this.option.children || []).filter(child => {
+				const childSelection = this.selections[child.id]
+				return childSelection && childSelection.selected
+			})
+		},
+		selectedChildHintOptions() {
+			return this.selectedGroupChildren.filter(child => child.hint_text)
+		},
+		groupHasSelection() {
+			return this.selectedGroupChildren.length > 0
+		},
+		usesRadioControl() {
+			return this.option.option_type === 'radio_group' || this.isSemanticRadioGroup(this.option)
+		},
 		inputValue() {
 			if (this.selection.input_value) {
 				return this.selection.input_value
@@ -235,6 +257,14 @@ export default {
 		}
 	},
 	methods: {
+		isSemanticRadioGroup(option) {
+			if (!option || option.option_type !== 'checkbox_group') return false
+			return /样品状态|测试模式|是否回收|样品是否/.test(option.name || '')
+		},
+		isExclusiveNoneOption(option) {
+			const name = `${option && option.name ? option.name : ''}`.trim()
+			return ['无', '否', '不需要', '无需', '无特殊要求'].includes(name)
+		},
 		toggleSelect() {
 			this.$emit('select', {
 				option: this.option,
@@ -253,7 +283,17 @@ export default {
 			})
 		},
 		handleCheckboxGroupChange(e) {
-			const values = (e.detail.value || []).map(value => String(value))
+			let values = (e.detail.value || []).map(value => String(value))
+			const noneChild = (this.option.children || []).find(child => this.isExclusiveNoneOption(child))
+			if (noneChild) {
+				const noneValue = String(noneChild.id)
+				const previousValues = this.selectedCheckboxValues
+				if (values.includes(noneValue) && !previousValues.includes(noneValue)) {
+					values = [noneValue]
+				} else if (values.includes(noneValue) && values.length > 1) {
+					values = values.filter(value => value !== noneValue)
+				}
+			}
 			;(this.option.children || []).forEach(child => {
 				this.$emit('select', {
 					option: child,
@@ -467,6 +507,11 @@ export default {
 		color: #ff6b6b;
 		line-height: 1.5;
 	}
+}
+
+.group-child-hint {
+	margin-top: 16rpx;
+	margin-bottom: 0;
 }
 
 .input-panel {

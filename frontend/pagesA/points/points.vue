@@ -238,7 +238,7 @@ export default {
 		showRules() {
 			uni.showModal({
 				title: '积分规则',
-				content: '1. 注册即送100积分\n2. 每次下单可获得订单金额1%的积分\n3. 每日签到可获得10积分\n4. 邀请好友注册可获得50积分\n5. 积分可用于兑换优惠券、礼品等',
+				content: '订单支付完成后，按实付金额每1元获得1积分。',
 				showCancel: false,
 				confirmText: '我知道了'
 			})

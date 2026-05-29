@@ -37,7 +37,9 @@
 					:key="category.id"
 					@click="selectCategory(category)"
 				>
-					{{ category.name }}
+					<image v-if="category.image" :src="category.image" mode="aspectFill" class="menu-image" @error="category.image = ''"></image>
+					<text v-else class="menu-emoji">{{ category.icon || '🔬' }}</text>
+					<text class="menu-name">{{ category.name }}</text>
 				</view>
 			</scroll-view>
 			
@@ -45,7 +47,7 @@
 			<scroll-view class="right-content" scroll-y @scrolltolower="loadMore">
 				<view class="project-list">
 					<view class="project-card" v-for="project in projects" :key="project.id">
-						<image :src="project.cover_image" mode="aspectFill" class="project-image" @click="goProjectDetail(project)"></image>
+						<image :src="project.cover_image" mode="aspectFill" class="project-image" @click="goProjectDetail(project)" @error="handleProjectImageError(project)"></image>
 						<view class="project-info">
 							<text class="project-name" @click="goProjectDetail(project)">{{ project.name }}</text>
 							<view class="project-stats">
@@ -95,6 +97,28 @@ export default {
 		this.loadProjects()
 	},
 	methods: {
+		getProjectFallbackImage() {
+			return '/static/logo.jpg'
+		},
+
+		normalizeAssetUrl(url, fallback = '') {
+			if (!url) return fallback
+			if (/^https?:\/\//i.test(url)) return url
+			if (url.startsWith('/')) return `${api.baseUrl}${url}`
+			return `${api.baseUrl}/${url}`
+		},
+
+		normalizeProjectImage(url) {
+			if (!url || `${url}`.includes('b68874e25e5c4cecb9bc845617564274.jpg')) {
+				return this.getProjectFallbackImage()
+			}
+			return url
+		},
+
+		handleProjectImageError(project) {
+			project.cover_image = this.getProjectFallbackImage()
+		},
+
 		// 加载分类
 		async loadCategories() {
 			try {
@@ -105,7 +129,9 @@ export default {
 				if (serverCategories.length > 0) {
 					this.categories = serverCategories.map(cat => ({
 						id: cat.id,
-						name: cat.name
+						name: cat.name,
+						icon: cat.icon,
+						image: this.normalizeAssetUrl(cat.cover_image || (cat.icon && /^https?:\/\//i.test(cat.icon) ? cat.icon : ''), '')
 					}))
 					this.activeCategory = this.categories[0]?.id || 0
 				}
@@ -132,7 +158,10 @@ export default {
 					category_id: this.activeCategory
 				})
 				
-				const newProjects = res.data?.items || res.data?.list || []
+				const newProjects = (res.data?.items || res.data?.list || []).map(project => ({
+					...project,
+					cover_image: this.normalizeProjectImage(project.cover_image)
+				}))
 				
 				if (isRefresh) {
 					this.projects = newProjects
@@ -306,11 +335,36 @@ export default {
 	background: white;
 	
 	.menu-item {
-		padding: 30rpx 20rpx;
+		padding: 22rpx 12rpx;
 		text-align: center;
 		font-size: 28rpx;
 		color: #333;
 		position: relative;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 8rpx;
+
+		.menu-image {
+			width: 64rpx;
+			height: 64rpx;
+			border-radius: 10rpx;
+			background: #f5f7fa;
+		}
+
+		.menu-emoji {
+			width: 64rpx;
+			height: 64rpx;
+			line-height: 64rpx;
+			font-size: 34rpx;
+			border-radius: 10rpx;
+			background: #f5f7fa;
+		}
+
+		.menu-name {
+			font-size: 24rpx;
+			line-height: 1.3;
+		}
 		
 		&.active {
 			background: #f0f8ff;

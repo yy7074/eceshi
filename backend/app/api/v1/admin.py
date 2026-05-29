@@ -14,6 +14,7 @@ import json
 import csv
 import io
 import uuid
+import secrets
 
 from app.core.database import get_db
 from app.core.response import Response
@@ -233,6 +234,8 @@ class AdminUserUpdate(BaseModel):
     phone: Optional[str] = None
     real_name: Optional[str] = None
     email: Optional[str] = None
+    advisor_name: Optional[str] = None
+    advisor_phone: Optional[str] = None
     points_balance: Optional[int] = None
     prepaid_balance: Optional[float] = None
     membership_level: Optional[str] = None
@@ -245,6 +248,19 @@ class AdminOrderUpdate(BaseModel):
     urgent_fee: Optional[float] = None
     shipping_fee: Optional[float] = None
     discount_amount: Optional[float] = None
+    payment_method: Optional[str] = None
+    payment_source: Optional[str] = None
+    payment_status: Optional[str] = None
+    repayment_status: Optional[str] = None
+    repayment_method: Optional[str] = None
+    repayment_amount: Optional[float] = None
+    repayment_time: Optional[str] = None
+    sales_id: Optional[int] = None
+    sales_name: Optional[str] = None
+    sales_phone: Optional[str] = None
+    report_url: Optional[str] = None
+    checklist_url: Optional[str] = None
+    invoice_file_url: Optional[str] = None
     sample_count: Optional[int] = None
     remark: Optional[str] = None
     admin_test_requirements: Optional[str] = None
@@ -255,6 +271,26 @@ class AdminOrderUpdate(BaseModel):
     is_urgent: Optional[bool] = None
     samples: Optional[List[dict]] = None
     options: Optional[List[dict]] = None
+
+
+class AdminOrderCancelRefundRequest(BaseModel):
+    reason: Optional[str] = None
+    refund: bool = True
+
+
+class AdminOrderRepaymentUpdate(BaseModel):
+    repayment_status: str
+    repayment_method: Optional[str] = None
+    repayment_amount: Optional[float] = None
+    repayment_time: Optional[str] = None
+    remark: Optional[str] = None
+
+
+class AdminOrderFileUpload(BaseModel):
+    file_type: str  # report/checklist/invoice
+    file_url: str
+    file_name: Optional[str] = None
+    remark: Optional[str] = None
 
 
 # ========== 数据统计仪表盘 ==========
@@ -442,6 +478,8 @@ async def get_users(
                     "nickname": u.nickname,
                     "avatar": u.avatar,
                     "email": u.email,
+                    "advisor_name": u.advisor_name,
+                    "advisor_phone": u.advisor_phone,
                     "is_certified": u.is_certified,
                     "membership_level": u.membership_level.value if u.membership_level else 0,
                     "credit_limit": float(u.credit_limit or 0),
@@ -485,6 +523,8 @@ async def get_user_detail(
             "nickname": user.nickname,
             "avatar": user.avatar,
             "email": user.email,
+            "advisor_name": user.advisor_name,
+            "advisor_phone": user.advisor_phone,
             "wechat_openid": user.wechat_openid,
             "is_certified": user.is_certified,
             "real_name": user.real_name,
@@ -757,10 +797,14 @@ async def get_orders_admin(
     page: int = Query(1, ge=1, description="页码"),
     page_size: int = Query(20, ge=1, le=100, description="每页数量"),
     search: Optional[str] = Query(None, description="搜索关键字（订单号/用户手机号）"),
+    inviter_search: Optional[str] = Query(None, description="邀请人搜索（姓名/手机号/ID）"),
+    sales_search: Optional[str] = Query(None, description="对接销售/老师搜索（姓名/手机号/ID）"),
     status: Optional[str] = Query(None, description="订单状态筛选"),
     is_draft: Optional[bool] = Query(None, description="是否草稿订单"),
     invoice_status: Optional[str] = Query(None, description="开票状态: none/requested/processing/issued/rejected"),
     payment_status: Optional[str] = Query(None, description="支付状态: unpaid/partial/paid"),
+    payment_source: Optional[str] = Query(None, description="资金来源筛选"),
+    repayment_status: Optional[str] = Query(None, description="还款状态筛选"),
     assigned: Optional[str] = Query(None, description="指派状态筛选: assigned/unassigned/all"),
     db: Session = Depends(get_db),
     current_admin: User = Depends(get_current_admin_user)
@@ -786,13 +830,38 @@ async def get_orders_admin(
             )
         )
 
+    if inviter_search:
+        inviter_keyword = f"%{inviter_search.strip()}%"
+        inviter_filters = [
+            InviteRecord.inviter_name.like(inviter_keyword),
+            InviteRecord.inviter_phone.like(inviter_keyword)
+        ]
+        if inviter_search.strip().isdigit():
+            inviter_filters.append(InviteRecord.inviter_id == int(inviter_search.strip()))
+
+        invited_user_ids = db.query(InviteRecord.invitee_id).filter(or_(*inviter_filters))
+        query = query.filter(Order.user_id.in_(invited_user_ids))
+
+    if sales_search:
+        sales_keyword = f"%{sales_search.strip()}%"
+        sales_filters = [
+            Order.sales_name.like(sales_keyword),
+            Order.sales_phone.like(sales_keyword)
+        ]
+        if sales_search.strip().isdigit():
+            sales_filters.append(Order.sales_id == int(sales_search.strip()))
+        query = query.filter(or_(*sales_filters))
+
     # 草稿筛选
     if is_draft is not None:
         query = query.filter(Order.is_draft == is_draft)
 
     # 状态过滤
     if status:
-        query = query.filter(Order.status == status)
+        if status in ["unpaid", "pending_payment"]:
+            query = query.filter(Order.status.in_(["pending_payment", "unpaid"]))
+        else:
+            query = query.filter(Order.status == status)
 
     # 开票状态筛选
     if invoice_status:
@@ -801,6 +870,12 @@ async def get_orders_admin(
     # 支付状态筛选
     if payment_status:
         query = query.filter(Order.payment_status == payment_status)
+
+    if payment_source:
+        query = query.filter(Order.payment_source == payment_source)
+
+    if repayment_status:
+        query = query.filter(Order.repayment_status == repayment_status)
 
     # 指派状态筛选
     if assigned == "assigned":
@@ -813,20 +888,71 @@ async def get_orders_admin(
     
     # 分页查询
     orders_db = query.order_by(Order.created_at.desc()).offset((page - 1) * page_size).limit(page_size).all()
+
+    user_ids = [o.user_id for o in orders_db]
+    lab_ids = [o.assigned_lab_id for o in orders_db if o.assigned_lab_id]
+    invite_map = {}
+    if user_ids:
+        invite_records = db.query(InviteRecord).filter(
+            InviteRecord.invitee_id.in_(user_ids)
+        ).order_by(InviteRecord.created_at.desc()).all()
+        for record in invite_records:
+            invite_map.setdefault(record.invitee_id, record)
+    lab_map = {}
+    if lab_ids:
+        labs = db.query(Laboratory).filter(Laboratory.id.in_(lab_ids)).all()
+        lab_map = {lab.id: lab for lab in labs}
     
     # 格式化返回
     orders = []
     for o in orders_db:
+        first_sample = db.query(OrderSample).filter(OrderSample.order_id == o.id).order_by(OrderSample.id.asc()).first()
+        invite_record = invite_map.get(o.user_id)
         orders.append({
             "id": o.id,
             "order_no": o.order_no,
             "user_id": o.user_id,
             "user_phone": o.user.phone if o.user else None,
             "user_nickname": o.user.nickname if o.user else None,
+            "inviter_id": invite_record.inviter_id if invite_record else None,
+            "inviter_name": invite_record.inviter_name if invite_record else None,
+            "inviter_phone": invite_record.inviter_phone if invite_record else None,
             "project_id": o.project_id,
             "project_name": o.project.name if o.project else o.project_name,
             "sample_count": o.sample_count,
+            "sample_name": first_sample.sample_name if first_sample else None,
+            "quantity": first_sample.quantity if first_sample else o.sample_count,
+            "project_fee": float(o.project_fee or 0),
+            "urgent_fee": float(o.urgent_fee or 0),
+            "shipping_fee": float(o.shipping_fee or 0),
+            "discount_amount": float(o.discount_amount or 0),
+            "total_fee": float(o.total_fee or 0),
             "total_amount": float(o.total_fee or 0),
+            "paid_fee": float(o.paid_fee or 0),
+            "payment_method": o.payment_method,
+            "payment_source": o.payment_source,
+            "payment_status": o.payment_status,
+            "credit_amount": float(o.credit_amount or 0),
+            "repayment_status": o.repayment_status,
+            "repayment_method": o.repayment_method,
+            "repayment_amount": float(o.repayment_amount or 0),
+            "repayment_time": o.repayment_time.isoformat() if o.repayment_time else None,
+            "sales_id": o.sales_id,
+            "sales_name": o.sales_name,
+            "sales_phone": o.sales_phone,
+            "report_url": o.report_url,
+            "checklist_url": o.checklist_url,
+            "invoice_file_url": o.invoice_file_url,
+            "shipping_method": o.shipping_method,
+            "receiver_name": o.receiver_name,
+            "receiver_phone": o.receiver_phone,
+            "receiver_address": o.receiver_address,
+            "is_urgent": o.is_urgent,
+            "remark": o.remark,
+            "assigned_lab_id": o.assigned_lab_id,
+            "assigned_lab_name": lab_map.get(o.assigned_lab_id).name if lab_map.get(o.assigned_lab_id) else None,
+            "assigned_staff_id": o.assigned_staff_id,
+            "assigned_staff_name": o.assigned_staff_name,
             "status": o.status,
             "created_at": o.created_at.isoformat() if o.created_at else None,
             "paid_at": o.paid_at.isoformat() if o.paid_at else None
@@ -854,7 +980,7 @@ async def get_pending_assign_orders(
     query = db.query(Order).filter(Order.is_draft == False)
 
     if assign_status == "unassigned":
-        query = query.filter(Order.status.in_(["paid", "pending_assign"]), Order.assigned_lab_id.is_(None))
+        query = query.filter(Order.status.in_(["paid", "confirmed", "pending_assign"]), Order.assigned_lab_id.is_(None))
     elif assign_status == "assigned":
         query = query.filter(Order.status == "assigned")
     elif assign_status == "rejected":
@@ -863,7 +989,7 @@ async def get_pending_assign_orders(
         # 默认显示待处理（未分配 + 退回）
         query = query.filter(
             or_(
-                Order.status.in_(["paid", "pending_assign", "rejected_by_lab"]),
+                Order.status.in_(["paid", "confirmed", "pending_assign", "rejected_by_lab"]),
                 Order.assigned_lab_id.is_(None)
             )
         )
@@ -910,7 +1036,7 @@ async def get_order_assignment_stats(
     # 待指派订单数
     pending_count = db.query(Order).filter(
         Order.is_draft == False,
-        Order.status.in_(["paid", "pending_assign"]),
+        Order.status.in_(["paid", "confirmed", "pending_assign"]),
         Order.assigned_lab_id.is_(None)
     ).count()
 
@@ -984,6 +1110,7 @@ async def get_order_detail_admin(
 
     # 获取动态选项条件
     options = db.query(OrderOptionSelection).filter(OrderOptionSelection.order_id == order_id).all()
+    assigned_lab = db.query(Laboratory).filter(Laboratory.id == order.assigned_lab_id).first() if order.assigned_lab_id else None
 
     return Response.success(data={
         "id": order.id,
@@ -1006,19 +1133,38 @@ async def get_order_detail_admin(
         "total_amount": float(order.total_fee or 0),
         "paid_fee": float(order.paid_fee or 0),
         "status": order.status,
+        "payment_method": order.payment_method,
+        "payment_source": order.payment_source,
         "payment_status": order.payment_status,
+        "credit_amount": float(order.credit_amount or 0),
+        "repayment_status": order.repayment_status,
+        "repayment_method": order.repayment_method,
+        "repayment_amount": float(order.repayment_amount or 0),
+        "repayment_time": order.repayment_time.isoformat() if order.repayment_time else None,
+        "repayment_records": order.repayment_records or [],
+        "sales_id": order.sales_id,
+        "sales_name": order.sales_name,
+        "sales_phone": order.sales_phone,
+        "report_url": order.report_url,
+        "checklist_url": order.checklist_url,
+        "invoice_file_url": order.invoice_file_url,
         "is_urgent": order.is_urgent,
         "remark": order.remark,
+        "shipping_method": order.shipping_method,
+        "receiver_name": order.receiver_name,
+        "receiver_phone": order.receiver_phone,
+        "receiver_address": order.receiver_address,
         "admin_test_requirements": order.admin_test_requirements,
         "admin_notes_to_lab": order.admin_notes_to_lab,
         "assigned_lab_id": order.assigned_lab_id,
+        "assigned_lab_name": assigned_lab.name if assigned_lab else None,
         "assigned_staff_name": order.assigned_staff_name,
         "assigned_at": order.assigned_at.isoformat() if order.assigned_at else None,
         "address": {
             "receiver": order.receiver_name,
             "phone": order.receiver_phone,
             "address": order.receiver_address
-        } if order.receiver_name else None,
+        } if (order.receiver_name or order.receiver_phone or order.receiver_address) else None,
         "samples": [
             {
                 "id": s.id,
@@ -1064,15 +1210,27 @@ async def update_order_admin(
     payload = data.model_dump(exclude_unset=True)
 
     # 金额类字段转 Decimal
-    for fee_field in ['total_fee', 'project_fee', 'urgent_fee', 'shipping_fee', 'discount_amount']:
+    for fee_field in ['total_fee', 'project_fee', 'urgent_fee', 'shipping_fee', 'discount_amount', 'repayment_amount']:
         if fee_field in payload and payload[fee_field] is not None:
             setattr(order, fee_field, Decimal(str(payload[fee_field])))
 
     # 更新测试条件与备注
     for text_field in ['admin_test_requirements', 'admin_notes_to_lab', 'remark',
-                       'receiver_name', 'receiver_phone', 'receiver_address']:
+                       'receiver_name', 'receiver_phone', 'receiver_address',
+                       'payment_method', 'payment_source', 'payment_status',
+                       'repayment_status', 'repayment_method',
+                       'sales_name', 'sales_phone',
+                       'report_url', 'checklist_url', 'invoice_file_url']:
         if text_field in payload:
             setattr(order, text_field, payload[text_field])
+
+    if "sales_id" in payload:
+        order.sales_id = payload["sales_id"]
+    if "repayment_time" in payload and payload["repayment_time"]:
+        try:
+            order.repayment_time = datetime.fromisoformat(str(payload["repayment_time"]).replace("Z", "+00:00"))
+        except ValueError:
+            raise HTTPException(status_code=400, detail="还款时间格式不正确")
 
     if "sample_count" in payload:
         order.sample_count = payload["sample_count"]
@@ -1119,13 +1277,19 @@ async def update_order_admin(
 @router.put("/orders/{order_id}/status", summary="修改订单状态（管理员）")
 async def update_order_status_admin(
     order_id: int,
-    new_status: str = Query(..., description="新状态: unpaid/paid/confirmed/testing/completed/cancelled"),
+    new_status: str = Query(..., description="新状态: pending_payment/paid/confirmed/testing/completed/cancelled"),
     db: Session = Depends(get_db),
     current_admin: User = Depends(get_current_admin_user)
 ):
     """管理员修改订单状态"""
     from app.models.order import Order
     from datetime import datetime
+
+    status_aliases = {"unpaid": "pending_payment"}
+    new_status = status_aliases.get(new_status, new_status)
+    valid_statuses = {"pending_payment", "paid", "confirmed", "testing", "completed", "cancelled"}
+    if new_status not in valid_statuses:
+        raise HTTPException(status_code=400, detail="订单状态不合法")
     
     order = db.query(Order).filter(Order.id == order_id).first()
     
@@ -1146,10 +1310,336 @@ async def update_order_status_admin(
         order.confirmed_at = datetime.utcnow()
     elif new_status == "completed" and not order.completed_at:
         order.completed_at = datetime.utcnow()
+    elif new_status == "cancelled" and not order.cancelled_at:
+        order.cancelled_at = datetime.utcnow()
+
+    db.add(OrderStatusHistory(
+        order_id=order.id,
+        from_status=old_status,
+        to_status=new_status,
+        operator_id=current_admin.id,
+        operator_type="admin",
+        remark="后台修改订单状态"
+    ))
     
     db.commit()
     
     return Response.success(message=f"订单状态已从 {old_status} 更新为 {new_status}")
+
+
+@router.put("/orders/{order_id}/repayment", summary="人工登记订单还款状态")
+async def update_order_repayment_admin(
+    order_id: int,
+    data: AdminOrderRepaymentUpdate,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """由后台人工登记订单还款，禁止系统自动把信用订单改为已还款。"""
+    valid_statuses = {"not_required", "pending", "partial", "paid"}
+    if data.repayment_status not in valid_statuses:
+        raise HTTPException(status_code=400, detail="还款状态不合法")
+
+    order = db.query(Order).filter(Order.id == order_id).with_for_update().first()
+    if not order:
+        raise HTTPException(status_code=404, detail="订单不存在")
+
+    user = db.query(User).filter(User.id == order.user_id).with_for_update().first()
+    if not user:
+        raise HTTPException(status_code=404, detail="用户不存在")
+
+    repayment_amount = Decimal(str(data.repayment_amount or 0))
+    repayment_time = datetime.now()
+    if data.repayment_time:
+        try:
+            repayment_time = datetime.fromisoformat(str(data.repayment_time).replace("Z", "+00:00"))
+        except ValueError:
+            raise HTTPException(status_code=400, detail="还款时间格式不正确")
+
+    old_status = order.repayment_status or "not_required"
+    order.repayment_status = data.repayment_status
+    order.repayment_method = data.repayment_method or order.repayment_method
+    if repayment_amount > 0:
+        order.repayment_amount = (order.repayment_amount or Decimal("0")) + repayment_amount
+        order.repayment_time = repayment_time
+
+    records = list(order.repayment_records) if isinstance(order.repayment_records, list) else []
+    if repayment_amount > 0 or data.remark or data.repayment_method:
+        records.append({
+            "time": repayment_time.isoformat(),
+            "amount": float(repayment_amount),
+            "method": data.repayment_method,
+            "status": data.repayment_status,
+            "operator_id": current_admin.id,
+            "remark": data.remark or "后台人工登记还款"
+        })
+        order.repayment_records = records
+
+    repaid_debt_ids = []
+    if repayment_amount > 0:
+        remaining = repayment_amount
+        credit_available_before = (user.credit_limit or Decimal("0")) - (user.used_credit or Decimal("0"))
+        debts = db.query(CreditDebt).filter(
+            CreditDebt.user_id == user.id,
+            CreditDebt.order_id == order.id,
+            CreditDebt.status != RepaymentStatus.PAID,
+            CreditDebt.remaining_amount > 0,
+        ).with_for_update().order_by(CreditDebt.created_at.asc()).all()
+
+        for debt in debts:
+            if remaining <= 0:
+                break
+            pay_this = min(remaining, debt.remaining_amount or Decimal("0"))
+            debt.paid_amount = (debt.paid_amount or Decimal("0")) + pay_this
+            debt.remaining_amount = (debt.remaining_amount or Decimal("0")) - pay_this
+            if debt.remaining_amount <= 0:
+                debt.remaining_amount = Decimal("0")
+                debt.status = RepaymentStatus.PAID
+                debt.paid_at = repayment_time
+            else:
+                debt.status = RepaymentStatus.PARTIAL
+            remaining -= pay_this
+            repaid_debt_ids.append(debt.id)
+
+        outstanding = db.query(func.sum(CreditDebt.remaining_amount)).filter(
+            CreditDebt.user_id == user.id,
+            CreditDebt.status != RepaymentStatus.PAID,
+            CreditDebt.remaining_amount > 0,
+        ).scalar() or Decimal("0")
+        user.used_credit = outstanding
+        credit_available_after = (user.credit_limit or Decimal("0")) - user.used_credit
+
+        repayment = Repayment(
+            user_id=user.id,
+            repayment_no=f"RP{datetime.now().strftime('%Y%m%d%H%M%S')}{uuid.uuid4().hex[:6].upper()}",
+            amount=repayment_amount,
+            payment_method=data.repayment_method or "manual",
+            debt_ids=json.dumps(repaid_debt_ids),
+            status=CreditTransactionStatus.SUCCESS,
+            paid_at=repayment_time
+        )
+        db.add(repayment)
+        db.flush()
+
+        db.add(CreditRecord(
+            user_id=user.id,
+            transaction_type=CreditTransactionType.REPAY,
+            amount=repayment_amount,
+            balance_before=credit_available_before,
+            balance_after=credit_available_after,
+            repayment_id=repayment.id,
+            order_id=order.id,
+            order_no=order.order_no,
+            operator_id=current_admin.id,
+            reference_type="manual_order_repayment",
+            status=CreditTransactionStatus.SUCCESS,
+            remark=data.remark or "后台人工登记订单还款"
+        ))
+
+    db.add(OrderStatusHistory(
+        order_id=order.id,
+        from_status=old_status,
+        to_status=data.repayment_status,
+        operator_id=current_admin.id,
+        operator_type="admin",
+        remark=(data.remark or "后台人工修改还款状态")[:200]
+    ))
+    db.commit()
+
+    return Response.success(data={
+        "order_id": order.id,
+        "repayment_status": order.repayment_status,
+        "repayment_amount": float(order.repayment_amount or 0),
+        "repaid_debt_ids": repaid_debt_ids
+    }, message="还款状态已更新")
+
+
+@router.post("/orders/{order_id}/upload-file", summary="按订单上传测试报告/清单/发票")
+async def upload_order_file_admin(
+    order_id: int,
+    data: AdminOrderFileUpload,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """后台按订单绑定文件，客户可在订单/报告/发票页面查看下载。"""
+    from app.models.report import Report
+
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="订单不存在")
+
+    file_type = (data.file_type or "").lower()
+    if file_type not in {"report", "checklist", "invoice"}:
+        raise HTTPException(status_code=400, detail="文件类型不合法")
+
+    if file_type == "report":
+        order.report_url = data.file_url
+        report = Report(
+            order_id=order.id,
+            order_no=order.order_no,
+            user_id=order.user_id,
+            laboratory_id=order.assigned_lab_id,
+            report_type="test_report",
+            project_name=order.project_name,
+            file_url=data.file_url,
+            file_name=data.file_name or "测试报告",
+            status="published",
+            uploader_id=current_admin.id,
+            remark=data.remark
+        )
+        db.add(report)
+    elif file_type == "checklist":
+        order.checklist_url = data.file_url
+    else:
+        order.invoice_file_url = data.file_url
+
+    db.commit()
+    return Response.success(message="文件已绑定到订单")
+
+
+@router.post("/orders/{order_id}/cancel-refund", summary="退款退单（管理员）")
+async def cancel_refund_order_admin(
+    order_id: int,
+    data: AdminOrderCancelRefundRequest,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """客户不测时，后台取消订单并退回可自动处理的余额/信用支付。"""
+    now = datetime.now()
+    order = db.query(Order).filter(Order.id == order_id).with_for_update().first()
+    if not order:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="订单不存在")
+    if order.status in ["cancelled", "refunded"]:
+        raise HTTPException(status_code=400, detail="订单已取消，无需重复退单")
+
+    user = db.query(User).filter(User.id == order.user_id).with_for_update().first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="用户不存在")
+
+    reason = ((data.reason or "").strip() or "客户取消检测，后台退款退单")[:180]
+    payments = db.query(Payment).filter(
+        Payment.order_id == order.id,
+        Payment.status == "success"
+    ).with_for_update().all()
+
+    balance_refund = Decimal("0")
+    credit_refund = Decimal("0")
+    external_refund = Decimal("0")
+    paid_fee = Decimal(str(order.paid_fee or 0))
+
+    if payments:
+        for payment in payments:
+            amount = Decimal(str(payment.amount or 0))
+            if payment.payment_method in ["balance", "prepaid"]:
+                balance_refund += amount
+            elif payment.payment_method == "credit":
+                credit_refund += amount
+            else:
+                external_refund += amount
+    elif paid_fee > 0:
+        credit_amount = Decimal(str(order.credit_amount or 0))
+        if order.payment_method == "credit":
+            credit_refund = credit_amount or paid_fee
+        elif order.payment_method == "mixed":
+            credit_refund = min(credit_amount, paid_fee)
+            balance_refund = paid_fee - credit_refund
+        elif order.payment_method in ["balance", "prepaid"]:
+            balance_refund = paid_fee
+        else:
+            external_refund = paid_fee
+
+    prepaid_refund = Decimal("0")
+    credit_cancelled = Decimal("0")
+
+    if data.refund and balance_refund > 0:
+        user.prepaid_balance = (user.prepaid_balance or Decimal("0")) + balance_refund
+        prepaid_refund += balance_refund
+
+    if data.refund and credit_refund > 0:
+        remaining_credit_refund = credit_refund
+        balance_before = (user.credit_limit or Decimal("0")) - (user.used_credit or Decimal("0"))
+        debts = db.query(CreditDebt).filter(
+            CreditDebt.user_id == user.id,
+            CreditDebt.order_id == order.id,
+            CreditDebt.status != RepaymentStatus.PAID,
+            CreditDebt.remaining_amount > 0,
+        ).with_for_update().order_by(CreditDebt.created_at.asc()).all()
+
+        for debt in debts:
+            if remaining_credit_refund <= 0:
+                break
+            debt_remaining = Decimal(str(debt.remaining_amount or 0))
+            cancel_amount = min(remaining_credit_refund, debt_remaining)
+            debt.paid_amount = (debt.paid_amount or Decimal("0")) + cancel_amount
+            debt.remaining_amount = debt_remaining - cancel_amount
+            if debt.remaining_amount <= 0:
+                debt.remaining_amount = Decimal("0")
+                debt.status = RepaymentStatus.PAID
+                debt.paid_at = now
+            else:
+                debt.status = RepaymentStatus.PARTIAL
+            remaining_credit_refund -= cancel_amount
+            credit_cancelled += cancel_amount
+
+        if remaining_credit_refund > 0:
+            user.prepaid_balance = (user.prepaid_balance or Decimal("0")) + remaining_credit_refund
+            prepaid_refund += remaining_credit_refund
+
+        outstanding = db.query(func.sum(CreditDebt.remaining_amount)).filter(
+            CreditDebt.user_id == user.id,
+            CreditDebt.status != RepaymentStatus.PAID,
+            CreditDebt.remaining_amount > 0,
+        ).scalar() or Decimal("0")
+        user.used_credit = outstanding
+        balance_after = (user.credit_limit or Decimal("0")) - (user.used_credit or Decimal("0"))
+
+        db.add(CreditRecord(
+            user_id=user.id,
+            transaction_type=CreditTransactionType.REFUND,
+            amount=credit_refund,
+            balance_before=balance_before,
+            balance_after=balance_after,
+            order_id=order.id,
+            order_no=order.order_no,
+            operator_id=current_admin.id,
+            status=CreditTransactionStatus.SUCCESS,
+            remark=reason,
+        ))
+
+    if data.refund:
+        for payment in payments:
+            if payment.payment_method in ["balance", "prepaid", "credit"]:
+                payment.status = "refunded"
+
+    total_auto_refund = prepaid_refund + credit_cancelled
+    if total_auto_refund > 0:
+        user.total_spent = max(Decimal("0"), (user.total_spent or Decimal("0")) - total_auto_refund)
+
+    old_status = order.status
+    order.status = "cancelled"
+    order.repayment_status = "not_required"
+    order.cancel_reason = reason
+    order.cancelled_at = now
+    if data.refund and (balance_refund + credit_refund + external_refund) > 0:
+        order.payment_status = "refunded"
+        order.paid_fee = Decimal("0")
+
+    history_remark = f"{reason}；退预付余额{prepaid_refund}元，取消信用欠款{credit_cancelled}元，需人工退款{external_refund}元"
+    db.add(OrderStatusHistory(
+        order_id=order.id,
+        from_status=old_status,
+        to_status="cancelled",
+        operator_id=current_admin.id,
+        operator_type="admin",
+        remark=history_remark[:200]
+    ))
+
+    db.commit()
+    return Response.success(data={
+        "order_id": order.id,
+        "prepaid_refund": float(prepaid_refund),
+        "credit_cancelled": float(credit_cancelled),
+        "manual_refund_amount": float(external_refund),
+    }, message="退款退单已完成")
 
 
 # ==================== 订单指派 ====================
@@ -1241,7 +1731,7 @@ async def assign_order_to_lab(
     if not order:
         raise HTTPException(status_code=404, detail="订单不存在")
 
-    if order.status not in ["paid", "pending_assign"]:
+    if order.status not in ["paid", "confirmed", "pending_assign"]:
         raise HTTPException(status_code=400, detail="订单状态不允许指派")
 
     lab = db.query(Laboratory).filter(
@@ -1295,7 +1785,7 @@ async def batch_assign_orders(
 
     for order_id in data.order_ids:
         order = db.query(Order).filter(Order.id == order_id).first()
-        if not order or order.status not in ["paid", "pending_assign"]:
+        if not order or order.status not in ["paid", "confirmed", "pending_assign"]:
             fail_count += 1
             continue
 
@@ -2805,6 +3295,7 @@ async def create_qrcode(
     from app.models.invite import InviteQRCodeRecord
     from app.api.v1.invites import generate_qrcode_image
     from app.core.config import settings
+    from app.services.wechat_service import wechat_service
     from pathlib import Path
 
     user_id = data.user_id or current_admin.id
@@ -2814,7 +3305,13 @@ async def create_qrcode(
 
     base_url = getattr(settings, "H5_BASE_URL", None) or getattr(settings, "SITE_BASE_URL", "")
     landing_url = f"{base_url.rstrip('/')}/invite?code={invite_code}" if base_url else f"/invite?code={invite_code}"
-    qrcode_bytes = generate_qrcode_image(landing_url)
+    try:
+        qrcode_bytes = await wechat_service.get_unlimited_qrcode(
+            scene=f"inviter={invite_code}",
+            page="pages/index/index"
+        )
+    except Exception:
+        qrcode_bytes = generate_qrcode_image(landing_url)
 
     qrcode_dir = Path("static/qrcodes")
     qrcode_dir.mkdir(parents=True, exist_ok=True)
@@ -2853,6 +3350,7 @@ async def download_qrcode(
     from app.models.invite import InviteQRCodeRecord
     from app.api.v1.invites import generate_qrcode_image
     from app.core.config import settings
+    from app.services.wechat_service import wechat_service
     from fastapi.responses import StreamingResponse
     from pathlib import Path
 
@@ -2869,7 +3367,13 @@ async def download_qrcode(
     if qrcode_bytes is None:
         base_url = getattr(settings, "H5_BASE_URL", None) or getattr(settings, "SITE_BASE_URL", "")
         landing_url = f"{base_url.rstrip('/')}/invite?code={record.invite_code}" if base_url else f"/invite?code={record.invite_code}"
-        qrcode_bytes = generate_qrcode_image(landing_url)
+        try:
+            qrcode_bytes = await wechat_service.get_unlimited_qrcode(
+                scene=f"inviter={record.invite_code}",
+                page="pages/index/index"
+            )
+        except Exception:
+            qrcode_bytes = generate_qrcode_image(landing_url)
 
     return StreamingResponse(
         io.BytesIO(qrcode_bytes),
@@ -3030,16 +3534,24 @@ class CertificationReviewRequest(BaseModel):
 
 class BannerCreate(BaseModel):
     title: Optional[str] = None
+    subtitle: Optional[str] = None
     image: str
     link: Optional[str] = None
+    link_type: Optional[str] = None
+    link_value: Optional[str] = None
+    button_text: Optional[str] = None
     sort_order: int = 0
     is_active: bool = True
 
 
 class BannerUpdate(BaseModel):
     title: Optional[str] = None
+    subtitle: Optional[str] = None
     image: Optional[str] = None
     link: Optional[str] = None
+    link_type: Optional[str] = None
+    link_value: Optional[str] = None
+    button_text: Optional[str] = None
     sort_order: Optional[int] = None
     is_active: Optional[bool] = None
 
@@ -4653,7 +5165,7 @@ async def create_staff(
     staff = User(
         phone=phone,
         nickname=nickname,
-        password_hash=get_password_hash(password),
+        password=get_password_hash(password),
         is_admin=True
     )
 
@@ -4705,17 +5217,18 @@ async def reset_staff_password(
     db: Session = Depends(get_db),
     current_admin: User = Depends(get_current_admin_user)
 ):
-    """重置员工密码为默认值"""
+    """重置员工密码为一次性临时密码"""
     from app.core.security import get_password_hash
 
     staff = db.query(User).filter(User.id == staff_id).first()
     if not staff:
         return Response.error(message="员工不存在")
 
-    staff.password_hash = get_password_hash("123456")
+    temporary_password = secrets.token_urlsafe(12).replace("-", "A").replace("_", "B")[:16]
+    staff.password = get_password_hash(temporary_password)
     db.commit()
 
-    return Response.success(message="密码已重置为 123456")
+    return Response.success(data={"temporary_password": temporary_password}, message="密码已重置")
 
 
 @router.put("/staff/{staff_id}/status", summary="修改员工状态")
@@ -5260,8 +5773,12 @@ async def get_admin_banners(
         "items": [{
             "id": b.id,
             "title": b.title if hasattr(b, 'title') else "",
+            "subtitle": b.subtitle if hasattr(b, 'subtitle') else "",
             "image": b.image if hasattr(b, 'image') else "",
             "link": b.link_value if hasattr(b, 'link_value') else "",
+            "link_type": b.link_type if hasattr(b, 'link_type') else "none",
+            "link_value": b.link_value if hasattr(b, 'link_value') else "",
+            "button_text": b.button_text if hasattr(b, 'button_text') else "",
             "sort_order": b.sort_order if hasattr(b, 'sort_order') else 0,
             "is_active": b.is_active if hasattr(b, 'is_active') else True,
             "created_at": b.created_at.isoformat() if b.created_at else None
@@ -5280,10 +5797,12 @@ async def create_admin_banner(
 
     banner = Banner(
         image=data.image,
-        title=data.title or ""
+        title=data.title or "",
+        subtitle=data.subtitle,
+        link_type=data.link_type or ("project" if (data.link or "").isdigit() else "none"),
+        link_value=data.link_value or data.link,
+        button_text=data.button_text
     )
-    if data.link:
-        banner.link_value = data.link
     if hasattr(banner, 'sort_order'):
         banner.sort_order = data.sort_order
     if hasattr(banner, 'is_active'):
@@ -5312,10 +5831,16 @@ async def update_admin_banner(
 
     if data.title is not None and hasattr(banner, 'title'):
         banner.title = data.title
+    if data.subtitle is not None and hasattr(banner, 'subtitle'):
+        banner.subtitle = data.subtitle
     if data.image is not None:
         banner.image = data.image
-    if data.link is not None and hasattr(banner, 'link_value'):
-        banner.link_value = data.link
+    if data.link_type is not None and hasattr(banner, 'link_type'):
+        banner.link_type = data.link_type
+    if (data.link_value is not None or data.link is not None) and hasattr(banner, 'link_value'):
+        banner.link_value = data.link_value or data.link
+    if data.button_text is not None and hasattr(banner, 'button_text'):
+        banner.button_text = data.button_text
     if data.sort_order is not None and hasattr(banner, 'sort_order'):
         banner.sort_order = data.sort_order
     if data.is_active is not None and hasattr(banner, 'is_active'):
@@ -5390,15 +5915,29 @@ async def get_admin_announcements(
 
 @router.post("/announcements", summary="创建公告")
 async def create_admin_announcement(
-    title: str = Query(...),
-    content: str = Query(...),
+    payload: Optional[dict] = Body(None),
+    title: Optional[str] = Query(None),
+    content: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     current_admin: User = Depends(get_current_admin_user)
 ):
     """创建公告"""
     from app.models.announcement import Announcement
 
-    announcement = Announcement(title=title, content=content)
+    payload = payload or {}
+    title = title or payload.get("title")
+    content = content or payload.get("content")
+    if not title or not content:
+        raise HTTPException(status_code=400, detail="公告标题和内容不能为空")
+
+    announcement = Announcement(
+        title=title,
+        content=content,
+        category=payload.get("category") or payload.get("type") or "system",
+        is_active=payload.get("is_active", True),
+        is_top=payload.get("is_top", False),
+        summary=payload.get("summary")
+    )
     db.add(announcement)
     db.commit()
     db.refresh(announcement)
@@ -5409,6 +5948,7 @@ async def create_admin_announcement(
 @router.put("/announcements/{announcement_id}", summary="更新公告")
 async def update_admin_announcement(
     announcement_id: int,
+    payload: Optional[dict] = Body(None),
     title: str = Query(None),
     content: str = Query(None),
     db: Session = Depends(get_db),
@@ -5421,10 +5961,21 @@ async def update_admin_announcement(
     if not announcement:
         return Response.error(message="公告不存在")
 
+    payload = payload or {}
+    title = title or payload.get("title")
+    content = content or payload.get("content")
     if title:
         announcement.title = title
     if content:
         announcement.content = content
+    if "type" in payload or "category" in payload:
+        announcement.category = payload.get("category") or payload.get("type") or announcement.category
+    if "is_active" in payload:
+        announcement.is_active = payload["is_active"]
+    if "is_top" in payload:
+        announcement.is_top = payload["is_top"]
+    if "summary" in payload:
+        announcement.summary = payload["summary"]
 
     db.commit()
     return Response.success(message="更新成功")
@@ -5433,7 +5984,8 @@ async def update_admin_announcement(
 @router.put("/announcements/{announcement_id}/status", summary="修改公告状态")
 async def update_announcement_status(
     announcement_id: int,
-    is_active: bool = Query(...),
+    is_active: Optional[bool] = Query(None),
+    payload: Optional[dict] = Body(None),
     db: Session = Depends(get_db),
     current_admin: User = Depends(get_current_admin_user)
 ):
@@ -5444,8 +5996,10 @@ async def update_announcement_status(
     if not announcement:
         return Response.error(message="公告不存在")
 
-    if hasattr(announcement, 'is_active'):
-        announcement.is_active = is_active
+    payload = payload or {}
+    active_value = is_active if is_active is not None else payload.get("is_active")
+    if active_value is not None and hasattr(announcement, 'is_active'):
+        announcement.is_active = active_value
     db.commit()
 
     return Response.success(message="状态更新成功")
@@ -5471,6 +6025,35 @@ async def delete_admin_announcement(
 
 # ==================== 帮助文章管理 ====================
 
+def _resolve_help_category_id(db: Session, category_value) -> int:
+    from app.models.help import HelpCategory
+
+    if category_value:
+        try:
+            category_id = int(category_value)
+            existing = db.query(HelpCategory).filter(HelpCategory.id == category_id).first()
+            if existing:
+                return category_id
+        except (TypeError, ValueError):
+            existing = db.query(HelpCategory).filter(HelpCategory.name == str(category_value)).first()
+            if existing:
+                return existing.id
+
+            category = HelpCategory(name=str(category_value), sort_order=0, is_active=True)
+            db.add(category)
+            db.flush()
+            return category.id
+
+    default_category = db.query(HelpCategory).order_by(HelpCategory.sort_order.asc(), HelpCategory.id.asc()).first()
+    if default_category:
+        return default_category.id
+
+    default_category = HelpCategory(name="常见问题", sort_order=0, is_active=True)
+    db.add(default_category)
+    db.flush()
+    return default_category.id
+
+
 @router.get("/help-articles", summary="获取帮助文章列表")
 async def get_admin_help_articles(
     page: int = Query(1, ge=1),
@@ -5485,7 +6068,8 @@ async def get_admin_help_articles(
     query = db.query(HelpArticle)
 
     if category:
-        query = query.filter(HelpArticle.category == category)
+        category_id = _resolve_help_category_id(db, category)
+        query = query.filter(HelpArticle.category_id == category_id)
 
     total = query.count()
     articles = query.order_by(HelpArticle.sort_order.asc(), HelpArticle.id.desc()).offset((page - 1) * page_size).limit(page_size).all()
@@ -5495,7 +6079,8 @@ async def get_admin_help_articles(
             "id": a.id,
             "title": a.title,
             "content": a.content,
-            "category": a.category if hasattr(a, 'category') else "",
+            "category_id": a.category_id,
+            "category": str(a.category_id),
             "sort_order": a.sort_order if hasattr(a, 'sort_order') else 0,
             "is_active": a.is_active if hasattr(a, 'is_active') else True,
             "created_at": a.created_at.isoformat() if a.created_at else None
@@ -5508,8 +6093,9 @@ async def get_admin_help_articles(
 
 @router.post("/help-articles", summary="创建帮助文章")
 async def create_admin_help_article(
-    title: str = Query(...),
-    content: str = Query(...),
+    payload: Optional[dict] = Body(None),
+    title: Optional[str] = Query(None),
+    content: Optional[str] = Query(None),
     category: str = Query(None),
     sort_order: int = Query(0),
     db: Session = Depends(get_db),
@@ -5518,11 +6104,20 @@ async def create_admin_help_article(
     """创建帮助文章"""
     from app.models.help import HelpArticle
 
-    article = HelpArticle(title=title, content=content)
-    if category and hasattr(article, 'category'):
-        article.category = category
-    if hasattr(article, 'sort_order'):
-        article.sort_order = sort_order
+    payload = payload or {}
+    title = title or payload.get("title")
+    content = content or payload.get("content")
+    category = category or payload.get("category") or payload.get("category_id")
+    if not title or not content:
+        raise HTTPException(status_code=400, detail="文章标题和内容不能为空")
+
+    article = HelpArticle(
+        title=title,
+        content=content,
+        category_id=_resolve_help_category_id(db, category),
+        sort_order=payload.get("sort_order", sort_order),
+        is_active=payload.get("is_active", True)
+    )
 
     db.add(article)
     db.commit()
@@ -5534,6 +6129,7 @@ async def create_admin_help_article(
 @router.put("/help-articles/{article_id}", summary="更新帮助文章")
 async def update_admin_help_article(
     article_id: int,
+    payload: Optional[dict] = Body(None),
     title: str = Query(None),
     content: str = Query(None),
     category: str = Query(None),
@@ -5548,14 +6144,20 @@ async def update_admin_help_article(
     if not article:
         return Response.error(message="文章不存在")
 
+    payload = payload or {}
+    title = title or payload.get("title")
+    content = content or payload.get("content")
+    category = category or payload.get("category") or payload.get("category_id")
     if title:
         article.title = title
     if content:
         article.content = content
-    if category is not None and hasattr(article, 'category'):
-        article.category = category
-    if sort_order is not None and hasattr(article, 'sort_order'):
-        article.sort_order = sort_order
+    if category is not None:
+        article.category_id = _resolve_help_category_id(db, category)
+    if sort_order is not None or "sort_order" in payload:
+        article.sort_order = payload.get("sort_order", sort_order)
+    if "is_active" in payload:
+        article.is_active = payload["is_active"]
 
     db.commit()
     return Response.success(message="更新成功")
@@ -5581,35 +6183,115 @@ async def delete_admin_help_article(
 
 # ==================== 客服聊天管理 ====================
 
+def _chat_datetime(value):
+    return value.isoformat() if value else None
+
+
+def _chat_display_name(user: Optional[User], user_id: int) -> str:
+    if not user:
+        return f"用户{user_id}"
+    return user.nickname or user.real_name or user.phone or f"用户{user.id}"
+
+
+def _serialize_admin_chat(db: Session, session) -> dict:
+    from app.models.chat import ChatMessage
+
+    user = getattr(session, "user", None) or db.query(User).filter(User.id == session.user_id).first()
+    last_message = db.query(ChatMessage).filter(
+        ChatMessage.session_id == session.id
+    ).order_by(ChatMessage.created_at.desc(), ChatMessage.id.desc()).first()
+    message_count = db.query(func.count(ChatMessage.id)).filter(
+        ChatMessage.session_id == session.id
+    ).scalar() or 0
+    unread_count = db.query(func.count(ChatMessage.id)).filter(
+        ChatMessage.session_id == session.id,
+        ChatMessage.sender_type == "user",
+        ChatMessage.is_read == False
+    ).scalar() or 0
+
+    if session.status == "closed":
+        ui_status = "completed"
+    elif last_message and last_message.sender_type == "user" and unread_count > 0:
+        ui_status = "pending"
+    else:
+        ui_status = "processing"
+
+    return {
+        "id": session.id,
+        "user_id": session.user_id,
+        "user_name": _chat_display_name(user, session.user_id),
+        "user_nickname": _chat_display_name(user, session.user_id),
+        "user_phone": user.phone if user and user.phone else "",
+        "status": ui_status,
+        "raw_status": session.status,
+        "last_message": last_message.content if last_message else "",
+        "last_message_type": last_message.sender_type if last_message else None,
+        "message_count": message_count,
+        "unread_count": unread_count,
+        "created_at": _chat_datetime(session.created_at),
+        "updated_at": _chat_datetime(session.updated_at),
+    }
+
+
 @router.get("/chats", summary="获取聊天列表")
 async def get_admin_chats(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     status: str = Query(None),
+    search: str = Query(None),
     db: Session = Depends(get_db),
     current_admin: User = Depends(get_current_admin_user)
 ):
     """获取客服聊天列表"""
-    from app.models.chat import ChatSession
+    from app.models.chat import ChatSession, ChatMessage
 
     query = db.query(ChatSession)
 
-    if status:
-        query = query.filter(ChatSession.status == status)
+    search_text = (search or "").strip()
+    if search_text:
+        keyword = f"%{search_text}%"
+        filters = [
+            ChatSession.user_id.in_(
+                db.query(User.id).filter(or_(
+                    User.nickname.like(keyword),
+                    User.phone.like(keyword),
+                    User.real_name.like(keyword)
+                ))
+            ),
+            ChatSession.id.in_(
+                db.query(ChatMessage.session_id).filter(ChatMessage.content.like(keyword))
+            )
+        ]
+        if search_text.isdigit():
+            filters.extend([
+                ChatSession.id == int(search_text),
+                ChatSession.user_id == int(search_text)
+            ])
+        query = query.filter(or_(*filters))
 
-    total = query.count()
-    chats = query.order_by(ChatSession.updated_at.desc()).offset((page - 1) * page_size).limit(page_size).all()
+    derived_status_filter = None
+    if status in ("completed", "closed"):
+        query = query.filter(ChatSession.status == "closed")
+    elif status in ("pending", "processing"):
+        query = query.filter(ChatSession.status == "active")
+        derived_status_filter = status
+    elif status == "active":
+        query = query.filter(ChatSession.status == "active")
+
+    query = query.order_by(ChatSession.updated_at.desc(), ChatSession.id.desc())
+    if derived_status_filter:
+        all_items = [_serialize_admin_chat(db, chat) for chat in query.all()]
+        all_items = [item for item in all_items if item["status"] == derived_status_filter]
+        total = len(all_items)
+        start = (page - 1) * page_size
+        items = all_items[start:start + page_size]
+    else:
+        total = query.count()
+        chats = query.offset((page - 1) * page_size).limit(page_size).all()
+        items = [_serialize_admin_chat(db, chat) for chat in chats]
 
     return Response.success(data={
-        "items": [{
-            "id": c.id,
-            "user_id": c.user_id,
-            "user_nickname": c.user.nickname if c.user else "",
-            "status": c.status if hasattr(c, 'status') else "open",
-            "last_message": c.last_message if hasattr(c, 'last_message') else "",
-            "created_at": c.created_at.isoformat() if c.created_at else None,
-            "updated_at": c.updated_at.isoformat() if c.updated_at else None
-        } for c in chats],
+        "items": items,
         "total": total,
         "page": page,
         "page_size": page_size
@@ -5623,9 +6305,21 @@ async def get_chat_messages(
     current_admin: User = Depends(get_current_admin_user)
 ):
     """获取聊天消息"""
-    from app.models.chat import ChatMessage
+    from app.models.chat import ChatSession, ChatMessage
+
+    session = db.query(ChatSession).filter(ChatSession.id == chat_id).first()
+    if not session:
+        return Response.error(message="聊天会话不存在")
 
     messages = db.query(ChatMessage).filter(ChatMessage.session_id == chat_id).order_by(ChatMessage.created_at.asc()).all()
+    has_unread_user_message = False
+    for message in messages:
+        if message.sender_type == "user" and not message.is_read:
+            message.is_read = True
+            has_unread_user_message = True
+    if has_unread_user_message:
+        session.updated_at = datetime.now()
+        db.commit()
 
     return Response.success(data={
         "items": [{
@@ -5633,6 +6327,7 @@ async def get_chat_messages(
             "content": m.content,
             "sender_type": m.sender_type if hasattr(m, 'sender_type') else "user",
             "is_staff": getattr(m, 'sender_type', '') in ('staff', 'system'),
+            "is_read": m.is_read,
             "created_at": m.created_at.isoformat() if m.created_at else None
         } for m in messages]
     })
@@ -5653,6 +6348,10 @@ async def admin_send_chat_message(
     """管理员发送回复，写入数据库，用户端可见"""
     from app.models.chat import ChatSession, ChatMessage
 
+    content = (body.content or "").strip()
+    if not content:
+        return Response.error(message="请输入回复内容")
+
     session = db.query(ChatSession).filter(ChatSession.id == chat_id).first()
     if not session:
         return Response.error(message="聊天会话不存在")
@@ -5661,10 +6360,15 @@ async def admin_send_chat_message(
         session_id=chat_id,
         sender_type="staff",
         sender_id=current_admin.id,
-        content=body.content.strip(),
-        message_type="text"
+        content=content,
+        message_type="text",
+        is_read=False
     )
     db.add(msg)
+    session.staff_id = current_admin.id
+    session.status = "active"
+    session.closed_at = None
+    session.updated_at = datetime.now()
     db.commit()
     db.refresh(msg)
 
@@ -5690,11 +6394,52 @@ async def close_chat(
     if not chat:
         return Response.error(message="聊天会话不存在")
 
-    if hasattr(chat, 'status'):
-        chat.status = "closed"
+    chat.status = "closed"
+    chat.closed_at = datetime.now()
+    chat.updated_at = datetime.now()
     db.commit()
 
     return Response.success(message="会话已关闭")
+
+
+class AdminPhraseRequest(BaseModel):
+    """管理员维护客服常用语"""
+    title: str
+    content: str
+    category: Optional[str] = "other"
+
+
+def _serialize_phrase(phrase) -> dict:
+    return {
+        "id": phrase.id,
+        "title": phrase.question,
+        "content": phrase.answer,
+        "category": phrase.category or "other",
+        "use_count": 0,
+    }
+
+
+def _ensure_default_phrases(db: Session):
+    from app.models.chat import QuickReply
+
+    has_phrase = db.query(QuickReply).filter(QuickReply.is_active == True).first()
+    if has_phrase:
+        return
+    defaults = [
+        ("问候语", "您好，很高兴为您服务！请问有什么可以帮助您的？", "greeting"),
+        ("检测周期", "一般检测周期为5-7个工作日，具体以检测项目和样品情况为准。", "faq"),
+        ("报告获取", "检测完成后，您可以在订单详情中查看或下载检测报告。", "faq"),
+        ("结束语", "感谢您的咨询，如有其他问题可以随时联系我们。", "other"),
+    ]
+    for index, (title, content, category) in enumerate(defaults, start=1):
+        db.add(QuickReply(
+            question=title,
+            answer=content,
+            category=category,
+            sort_order=index,
+            is_active=True,
+        ))
+    db.commit()
 
 
 @router.get("/phrases", summary="获取快捷回复")
@@ -5703,16 +6448,84 @@ async def get_phrases(
     current_admin: User = Depends(get_current_admin_user)
 ):
     """获取快捷回复短语"""
-    # 返回预设的快捷回复
-    return Response.success(data={
-        "items": [
-            {"id": 1, "content": "您好，请问有什么可以帮助您的？"},
-            {"id": 2, "content": "感谢您的咨询，我们会尽快处理。"},
-            {"id": 3, "content": "您的问题已收到，请耐心等待。"},
-            {"id": 4, "content": "如有其他问题，欢迎随时咨询。"},
-            {"id": 5, "content": "祝您生活愉快！"}
-        ]
-    })
+    from app.models.chat import QuickReply
+
+    _ensure_default_phrases(db)
+    phrases = db.query(QuickReply).filter(
+        QuickReply.is_active == True
+    ).order_by(QuickReply.sort_order.asc(), QuickReply.id.asc()).all()
+
+    return Response.success(data={"items": [_serialize_phrase(phrase) for phrase in phrases]})
+
+
+@router.post("/phrases", summary="创建快捷回复")
+async def create_phrase(
+    body: AdminPhraseRequest,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """创建客服常用语"""
+    from app.models.chat import QuickReply
+
+    title = (body.title or "").strip()
+    content = (body.content or "").strip()
+    if not title or not content:
+        return Response.error(message="请填写标题和内容")
+    max_order = db.query(func.max(QuickReply.sort_order)).scalar() or 0
+    phrase = QuickReply(
+        question=title,
+        answer=content,
+        category=body.category or "other",
+        sort_order=max_order + 1,
+        is_active=True,
+    )
+    db.add(phrase)
+    db.commit()
+    db.refresh(phrase)
+    return Response.success(data=_serialize_phrase(phrase), message="创建成功")
+
+
+@router.put("/phrases/{phrase_id}", summary="更新快捷回复")
+async def update_phrase(
+    phrase_id: int,
+    body: AdminPhraseRequest,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """更新客服常用语"""
+    from app.models.chat import QuickReply
+
+    phrase = db.query(QuickReply).filter(QuickReply.id == phrase_id).first()
+    if not phrase:
+        return Response.error(message="常用语不存在")
+    title = (body.title or "").strip()
+    content = (body.content or "").strip()
+    if not title or not content:
+        return Response.error(message="请填写标题和内容")
+    phrase.question = title
+    phrase.answer = content
+    phrase.category = body.category or "other"
+    phrase.is_active = True
+    db.commit()
+    db.refresh(phrase)
+    return Response.success(data=_serialize_phrase(phrase), message="更新成功")
+
+
+@router.delete("/phrases/{phrase_id}", summary="删除快捷回复")
+async def delete_phrase(
+    phrase_id: int,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """停用客服常用语"""
+    from app.models.chat import QuickReply
+
+    phrase = db.query(QuickReply).filter(QuickReply.id == phrase_id).first()
+    if not phrase:
+        return Response.error(message="常用语不存在")
+    phrase.is_active = False
+    db.commit()
+    return Response.success(message="删除成功")
 
 
 # ==================== 加盟管理 ====================
@@ -5742,6 +6555,14 @@ async def get_franchise_applications(
             "company_name": a.company if hasattr(a, 'company') else "",
             "contact_name": a.name if hasattr(a, 'name') else "",
             "contact_phone": a.phone if hasattr(a, 'phone') else "",
+            "city": a.city or "",
+            "mode": a.mode or "",
+            "business_type": {
+                "agent": "区域代理",
+                "partner": "项目合作",
+                "lab": "实验室入驻"
+            }.get(a.mode or "", a.mode or ""),
+            "intention": a.intention or "",
             "status": a.status if hasattr(a, 'status') else "pending",
             "created_at": a.created_at.isoformat() if a.created_at else None
         } for a in applications],
@@ -5770,6 +6591,13 @@ async def get_franchisees(
             "company_name": f.company if hasattr(f, 'company') else "",
             "contact_name": f.name if hasattr(f, 'name') else "",
             "contact_phone": f.phone if hasattr(f, 'phone') else "",
+            "city": f.city or "",
+            "mode": f.mode or "",
+            "business_type": {
+                "agent": "区域代理",
+                "partner": "项目合作",
+                "lab": "实验室入驻"
+            }.get(f.mode or "", f.mode or ""),
             "status": f.status if hasattr(f, 'status') else "active",
             "created_at": f.created_at.isoformat() if f.created_at else None
         } for f in franchisees]
@@ -7317,6 +8145,8 @@ class AdminUserUpdate(BaseModel):
     phone: Optional[str] = None
     real_name: Optional[str] = None
     email: Optional[str] = None
+    advisor_name: Optional[str] = None
+    advisor_phone: Optional[str] = None
     points_balance: Optional[int] = None
     prepaid_balance: Optional[float] = None
 
@@ -7891,7 +8721,8 @@ async def update_equipment_enhanced(
 @router.put("/invoices/{invoice_id}/upload-report", summary="上传测试报告（管理员）")
 async def upload_invoice_report(
     invoice_id: int,
-    report_url: str = Body(..., embed=True, description="测试报告文件URL"),
+    report_url: Optional[str] = Query(None, description="测试报告文件URL"),
+    payload: Optional[dict] = Body(None),
     db: Session = Depends(get_db),
     current_admin: User = Depends(get_current_admin_user)
 ):
@@ -7902,6 +8733,10 @@ async def upload_invoice_report(
     if not invoice:
         raise HTTPException(status_code=404, detail="发票不存在")
 
+    report_url = report_url or (payload or {}).get("report_url")
+    if not report_url:
+        raise HTTPException(status_code=400, detail="测试报告文件URL不能为空")
+
     invoice.report_url = report_url
     db.commit()
 
@@ -7911,7 +8746,8 @@ async def upload_invoice_report(
 @router.put("/invoices/{invoice_id}/upload-checklist", summary="上传测试清单（管理员）")
 async def upload_invoice_checklist(
     invoice_id: int,
-    checklist_url: str = Body(..., embed=True, description="测试清单文件URL"),
+    checklist_url: Optional[str] = Query(None, description="测试清单文件URL"),
+    payload: Optional[dict] = Body(None),
     db: Session = Depends(get_db),
     current_admin: User = Depends(get_current_admin_user)
 ):
@@ -7921,6 +8757,10 @@ async def upload_invoice_checklist(
     invoice = db.query(Invoice).filter(Invoice.id == invoice_id).first()
     if not invoice:
         raise HTTPException(status_code=404, detail="发票不存在")
+
+    checklist_url = checklist_url or (payload or {}).get("checklist_url")
+    if not checklist_url:
+        raise HTTPException(status_code=400, detail="测试清单文件URL不能为空")
 
     invoice.checklist_url = checklist_url
     db.commit()

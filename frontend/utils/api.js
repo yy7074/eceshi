@@ -29,8 +29,8 @@ export default {
 	},
 	
 	// 微信登录
-	wechatLogin(code) {
-		return request.post('/api/v1/auth/wechat-login', { code })
+		wechatLogin(code, phoneCode = '', inviteParams = {}) {
+			return request.post('/api/v1/auth/wechat-login', { code, phone_code: phoneCode, ...inviteParams })
 	},
 
 	// 扫码登录确认（小程序端扫码后调用）
@@ -362,15 +362,8 @@ export default {
 		return request.get('/api/v1/invites/records', params)
 	},
 	
-	// 申请提现
-	withdrawRewards(amount) {
-		return request.post('/api/v1/invites/withdraw', null, {
-			params: { amount }
-		})
-	},
-
-	// 获取我的推广二维码
-	getInviteQrcodes(params) {
+		// 获取我的推广二维码
+		getInviteQrcodes(params) {
 		return request.get('/api/v1/invites/qrcode/list', params)
 	},
 
@@ -379,10 +372,15 @@ export default {
 		return request.post('/api/v1/invites/qrcode/create', data)
 	},
 
-	// 删除推广二维码
-	deleteInviteQrcode(id) {
-		return request.delete(`/api/v1/invites/qrcode/${id}`)
-	},
+		// 删除推广二维码
+		deleteInviteQrcode(id) {
+			return request.delete(`/api/v1/invites/qrcode/${id}`)
+		},
+
+		// 绑定邀请关系
+		bindInvite(data) {
+			return request.post('/api/v1/invites/bind', data)
+		},
 	
 	// ========== 团队功能相关 ==========
 	
@@ -727,7 +725,7 @@ export default {
 		return request.get('/api/v1/credit/debts', params)
 	},
 
-	// 信用支付
+	// 自动支付：优先预付余额，不足部分使用信用额度
 	creditPay(data) {
 		return request.post('/api/v1/credit/pay', data)
 	},

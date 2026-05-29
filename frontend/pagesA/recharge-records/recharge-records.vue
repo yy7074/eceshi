@@ -26,10 +26,6 @@
 						<text class="label">充值金额：</text>
 						<text class="value">¥{{ record.amount }}</text>
 					</view>
-					<view v-if="record.bonus_amount > 0" class="detail-item">
-						<text class="label">赠送金额：</text>
-						<text class="value bonus">+¥{{ record.bonus_amount }}</text>
-					</view>
 				</view>
 				
 				<view class="record-footer">
@@ -157,7 +153,7 @@ export default {
 		viewDetail(record) {
 			uni.showModal({
 				title: '充值详情',
-				content: `订单号：${record.recharge_no}\n充值金额：¥${record.amount}\n赠送金额：¥${record.bonus_amount}\n到账金额：¥${record.actual_amount}\n状态：${this.statusText[record.status]}\n时间：${this.formatTime(record.created_at)}`,
+				content: `订单号：${record.recharge_no}\n充值金额：¥${record.amount}\n到账金额：¥${record.actual_amount}\n状态：${this.statusText[record.status]}\n时间：${this.formatTime(record.created_at)}`,
 				showCancel: false
 			})
 		},
@@ -339,4 +335,3 @@ export default {
 	color: #999;
 }
 </style>
-

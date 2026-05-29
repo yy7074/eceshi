@@ -21,10 +21,10 @@
 			<text class="section-title">支付方式</text>
 			<view class="method-item card selected">
 				<view class="method-info">
-					<text class="method-icon">信用</text>
+					<text class="method-icon">支付</text>
 					<view class="method-detail">
-						<text class="method-name">信用支付</text>
-						<text class="method-desc">使用当前信用额度支付订单</text>
+						<text class="method-name">自动支付</text>
+						<text class="method-desc">优先扣预付余额，不足部分使用信用额度</text>
 					</view>
 				</view>
 				<view class="radio checked"></view>
@@ -37,8 +37,8 @@
 				<text class="label">需支付：</text>
 				<text class="price">¥{{ formatMoney(orderAmount) }}</text>
 			</view>
-				<button class="btn-pay" :loading="paying" @click="confirmPay">
-				{{ paying ? '支付中...' : '信用支付' }}
+			<button class="btn-pay" :loading="paying" @click="confirmPay">
+				{{ paying ? '支付中...' : '确认支付' }}
 			</button>
 		</view>
 	</view>
@@ -98,7 +98,7 @@
 					}
 					
 					const res = await api.creditPay(data)
-					uni.showToast({ title: res.message || '信用支付成功', icon: 'success' })
+					uni.showToast({ title: res.message || '支付成功', icon: 'success' })
 					setTimeout(() => {
 						uni.redirectTo({
 							url: `/pagesA/order-detail/order-detail?id=${this.orderId}`

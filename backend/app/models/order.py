@@ -30,6 +30,17 @@ class Order(Base):
     # 支付状态（独立于订单状态）
     payment_status = Column(String(20), default="unpaid", index=True, comment="支付状态: unpaid/partial/paid")
     credit_amount = Column(Numeric(10, 2), default=0, comment="信用支付金额")
+    payment_source = Column(String(30), comment="资金来源: prepaid/credit/mixed/wechat/alipay")
+    repayment_status = Column(String(20), default="not_required", index=True, comment="还款状态: not_required/pending/partial/paid")
+    repayment_method = Column(String(30), comment="还款方式: wechat/alipay/transfer/prepaid/other")
+    repayment_amount = Column(Numeric(10, 2), default=0, comment="已登记还款金额")
+    repayment_time = Column(DateTime, comment="最近还款登记时间")
+    repayment_records = Column(JSON, comment="还款记录明细")
+
+    # 对接销售/老师
+    sales_id = Column(BigInteger, comment="对接销售/老师ID")
+    sales_name = Column(String(50), comment="对接销售/老师姓名")
+    sales_phone = Column(String(20), comment="对接销售/老师电话")
 
     # 指派信息
     assigned_lab_id = Column(BigInteger, comment="指派实验室ID")
@@ -58,6 +69,11 @@ class Order(Base):
     # 支付信息
     payment_method = Column(String(20), comment="支付方式")
     payment_time = Column(DateTime, comment="支付时间")
+
+    # 订单相关文件
+    report_url = Column(String(500), comment="测试报告文件链接")
+    checklist_url = Column(String(500), comment="测试清单文件链接")
+    invoice_file_url = Column(String(500), comment="订单发票文件链接")
     
     # 时间信息
     created_at = Column(DateTime, server_default=func.now(), comment="创建时间")
@@ -181,4 +197,3 @@ class UserAddress(Base):
     
     created_at = Column(DateTime, server_default=func.now(), comment="创建时间")
     updated_at = Column(DateTime, onupdate=func.now(), comment="更新时间")
-

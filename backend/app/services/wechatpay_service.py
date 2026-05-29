@@ -15,6 +15,8 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.models.order import Order, Payment
 from app.models.recharge import RechargeRecord, RechargeStatus
+from app.models.user import User
+from app.services.points_service import grant_order_points
 
 
 class WeChatPayService:
@@ -314,7 +316,7 @@ class WeChatPayService:
                 return False
             
             # 检查订单是否已支付
-            if order.status == 'paid':
+            if order.payment_status == 'paid' or order.status == 'paid':
                 return True
             
             # 更新支付记录
@@ -325,13 +327,23 @@ class WeChatPayService:
             
             if payment:
                 payment.status = 'success'
-                payment.transaction_id = transaction_id
+                payment.trade_no = transaction_id
                 payment.paid_at = datetime.now()
             
             # 更新订单状态
             order.status = 'paid'
             order.paid_fee = order.total_fee
+            order.payment_method = 'wechat'
+            order.payment_source = 'wechat'
+            order.payment_status = 'paid'
+            order.repayment_status = 'not_required'
             order.paid_at = datetime.now()
+            order.payment_time = order.paid_at
+            user = db.query(User).filter(User.id == order.user_id).first()
+            if user:
+                user.total_spent = (user.total_spent or Decimal("0")) + (order.total_fee or Decimal("0"))
+                user.total_orders = (user.total_orders or 0) + 1
+                grant_order_points(db, user, order.id, order.order_no, order.total_fee)
             
             db.commit()
             
@@ -526,4 +538,3 @@ class WeChatPayService:
 
 # 创建全局实例
 wechatpay_service = WeChatPayService()
-

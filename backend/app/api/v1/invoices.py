@@ -8,12 +8,14 @@ from typing import Optional, List
 from datetime import datetime
 from pydantic import BaseModel
 import uuid
+import json
 
 from app.core.database import get_db
 from app.core.response import Response
 from app.api.v1.deps import get_current_user
 from app.models.user import User
 from app.models.invoice import Invoice, InvoiceType, InvoiceStatus
+from app.models.order import Order
 
 
 router = APIRouter()
@@ -46,6 +48,17 @@ async def apply_invoice(
     # 验证抬头类型
     if data.title_type == "company" and not data.tax_number:
         raise HTTPException(status_code=400, detail="企业发票需要填写税号")
+
+    invoice_amount = data.amount
+    orders = []
+    if data.order_ids:
+        orders = db.query(Order).filter(
+            Order.user_id == current_user.id,
+            Order.id.in_(data.order_ids)
+        ).all()
+        if len(orders) != len(set(data.order_ids)):
+            raise HTTPException(status_code=400, detail="选择的订单不存在或无权开票")
+        invoice_amount = float(sum((o.total_fee or 0) for o in orders))
     
     # 生成发票申请编号
     invoice_no = f"INV{datetime.now().strftime('%Y%m%d%H%M%S')}{uuid.uuid4().hex[:6].upper()}"
@@ -63,8 +76,8 @@ async def apply_invoice(
         company_address=data.company_address,
         company_phone=data.company_phone,
         content=data.content,
-        amount=data.amount,
-        order_ids=str(data.order_ids) if data.order_ids else None,
+        amount=invoice_amount,
+        order_ids=json.dumps(data.order_ids, ensure_ascii=False) if data.order_ids else None,
         receiver_email=data.receiver_email,
         receiver_phone=data.receiver_phone,
         receiver_address=data.receiver_address,
@@ -72,6 +85,10 @@ async def apply_invoice(
     )
     
     db.add(invoice)
+    db.flush()
+    for order in orders:
+        order.invoice_status = "requested"
+        order.invoice_id = invoice.id
     db.commit()
     db.refresh(invoice)
     
@@ -116,9 +133,12 @@ async def get_invoices(
                 "title_type": inv.title_type,
                 "amount": float(inv.amount) if inv.amount else 0,
                 "content": inv.content,
+                "order_ids": json.loads(inv.order_ids) if inv.order_ids else [],
                 "status": inv.status.value if inv.status else None,
                 "status_text": get_status_text(inv.status),
                 "invoice_url": inv.invoice_url,
+                "report_url": inv.report_url,
+                "checklist_url": inv.checklist_url,
                 "created_at": inv.created_at.isoformat() if inv.created_at else None,
                 "issued_at": inv.issued_at.isoformat() if inv.issued_at else None,
                 "reject_reason": inv.reject_reason
@@ -128,6 +148,35 @@ async def get_invoices(
         "total": total,
         "page": page,
         "page_size": page_size
+    })
+
+
+@router.get("/invoiceable/orders", summary="获取可开票订单")
+async def get_invoiceable_orders(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """获取可开票的订单列表，支持单选/多选后合并开票。"""
+    orders = db.query(Order).filter(
+        Order.user_id == current_user.id,
+        Order.status.in_(["paid", "confirmed", "testing", "completed"]),
+        (Order.invoice_status == None) | (Order.invoice_status.in_(["none", "rejected"]))
+    ).order_by(desc(Order.created_at)).all()
+
+    return Response.success(data={
+        "items": [
+            {
+                "id": o.id,
+                "order_no": o.order_no,
+                "project_name": o.project_name,
+                "total_fee": float(o.total_fee) if o.total_fee else 0,
+                "payment_source": o.payment_source,
+                "repayment_status": o.repayment_status,
+                "created_at": o.created_at.isoformat() if o.created_at else None,
+                "completed_at": o.completed_at.isoformat() if o.completed_at else None
+            }
+            for o in orders
+        ]
     })
 
 
@@ -159,47 +208,21 @@ async def get_invoice_detail(
         "company_phone": invoice.company_phone,
         "content": invoice.content,
         "amount": float(invoice.amount) if invoice.amount else 0,
+        "order_ids": json.loads(invoice.order_ids) if invoice.order_ids else [],
         "receiver_email": invoice.receiver_email,
         "receiver_phone": invoice.receiver_phone,
         "receiver_address": invoice.receiver_address,
         "invoice_code": invoice.invoice_code,
         "invoice_number": invoice.invoice_number,
         "invoice_url": invoice.invoice_url,
+        "report_url": invoice.report_url,
+        "checklist_url": invoice.checklist_url,
         "status": invoice.status.value if invoice.status else None,
         "status_text": get_status_text(invoice.status),
         "reject_reason": invoice.reject_reason,
         "created_at": invoice.created_at.isoformat() if invoice.created_at else None,
         "reviewed_at": invoice.reviewed_at.isoformat() if invoice.reviewed_at else None,
         "issued_at": invoice.issued_at.isoformat() if invoice.issued_at else None
-    })
-
-
-@router.get("/invoiceable/orders", summary="获取可开票订单")
-async def get_invoiceable_orders(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """获取可开票的订单列表"""
-    from app.models.order import Order
-    
-    # 查询已完成且未开票的订单
-    orders = db.query(Order).filter(
-        Order.user_id == current_user.id,
-        Order.status == "completed"
-        # 可以添加未开票的条件
-    ).order_by(desc(Order.completed_at)).all()
-    
-    return Response.success(data={
-        "items": [
-            {
-                "id": o.id,
-                "order_no": o.order_no,
-                "project_name": o.project_name,
-                "total_fee": float(o.total_fee) if o.total_fee else 0,
-                "completed_at": o.completed_at.isoformat() if o.completed_at else None
-            }
-            for o in orders
-        ]
     })
 
 

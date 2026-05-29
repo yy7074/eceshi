@@ -2,9 +2,10 @@
 Redis 客户端
 """
 import redis
+from typing import Optional
 from app.core.config import settings
 
-_client: redis.Redis | None = None
+_client: Optional[redis.Redis] = None
 
 
 def get_redis() -> redis.Redis:

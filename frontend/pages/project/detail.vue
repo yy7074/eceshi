@@ -8,7 +8,7 @@
 			<!-- 轮播图 -->
 			<swiper class="swiper" indicator-dots circular autoplay>
 				<swiper-item v-for="(img, index) in project.images" :key="index">
-					<image :src="img" mode="aspectFill" class="swiper-image"></image>
+					<image :src="img" mode="aspectFill" class="swiper-image" @error="handleProjectImageError(index)"></image>
 				</swiper-item>
 			</swiper>
 			
@@ -19,12 +19,7 @@
 					<text class="lab-name">{{ project.lab_name }}</text>
 					<text class="satisfaction">满意度{{ project.satisfaction }}%</text>
 				</view>
-				<view class="price-row">
-					<view class="price">
-						<text class="price-symbol">¥</text>
-						<text class="current-price">{{ project.current_price }}</text>
-						<text class="original-price">¥{{ project.original_price }}</text>
-					</view>
+				<view class="booking-count-row">
 					<text class="order-count">{{ project.order_count }}人已预约</text>
 				</view>
 			</view>
@@ -146,6 +141,23 @@ export default {
 		}
 	},
 	methods: {
+		getProjectFallbackImage() {
+			return '/static/logo.jpg'
+		},
+
+		normalizeProjectImage(url) {
+			if (!url || `${url}`.includes('b68874e25e5c4cecb9bc845617564274.jpg')) {
+				return this.getProjectFallbackImage()
+			}
+			return url
+		},
+
+		handleProjectImageError(index) {
+			const images = this.project.images || []
+			images.splice(index, 1, this.getProjectFallbackImage())
+			this.project.images = [...images]
+		},
+
 		// 加载项目详情
 		async loadProject() {
 			this.loading = true
@@ -154,9 +166,8 @@ export default {
 				this.project = res.data || {}
 				
 				// 如果没有图片，使用封面图
-				if (!this.project.images || this.project.images.length === 0) {
-					this.project.images = [this.project.cover_image || 'https://picsum.photos/750/400']
-				}
+				const images = this.project.images && this.project.images.length > 0 ? this.project.images : [this.project.cover_image]
+				this.project.images = images.map(img => this.normalizeProjectImage(img))
 			} catch (e) {
 				console.error('加载项目详情失败', e)
 				uni.showToast({
@@ -374,34 +385,10 @@ export default {
 		}
 	}
 	
-	.price-row {
+	.booking-count-row {
 		display: flex;
-		justify-content: space-between;
+		justify-content: flex-end;
 		align-items: center;
-		
-		.price {
-			display: flex;
-			align-items: baseline;
-			
-			.price-symbol {
-				font-size: 28rpx;
-				color: #ff6b6b;
-				margin-right: 5rpx;
-			}
-			
-			.current-price {
-				font-size: 48rpx;
-				font-weight: bold;
-				color: #ff6b6b;
-				margin-right: 15rpx;
-			}
-			
-			.original-price {
-				font-size: 24rpx;
-				color: #999;
-				text-decoration: line-through;
-			}
-		}
 		
 		.order-count {
 			font-size: 24rpx;

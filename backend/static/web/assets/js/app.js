@@ -124,7 +124,6 @@ const api = {
     createGroup: (data) => axios.post('/api/v1/groups/create', data),
     getInviteRecords: (params) => axios.get('/api/v1/invites/records', { params }),
     getInviteStats: () => axios.get('/api/v1/invites/stats'),
-    applyWithdraw: (data) => axios.post('/api/v1/invites/withdraw', data),
     
     // 轮播图/Banner
     getBanners: () => axios.get('/api/v1/banners/list'),
@@ -319,6 +318,19 @@ const WebOptionNode = {
             const selectedChild = (this.option.children || []).find(child => this.selections[child.id]?.selected)
             return selectedChild ? selectedChild.id : null
         },
+        selectedGroupChildren() {
+            if (!this.isGroupType) return []
+            return (this.option.children || []).filter(child => this.selections[child.id]?.selected)
+        },
+        selectedChildHintOptions() {
+            return this.selectedGroupChildren.filter(child => child.hint_text)
+        },
+        groupHasSelection() {
+            return this.selectedGroupChildren.length > 0
+        },
+        usesRadioControl() {
+            return this.option.option_type === 'radio_group' || this.isSemanticRadioGroup(this.option)
+        },
         inputValue() {
             const selection = this.selections[this.option.id]
             if (selection?.input_value) {
@@ -346,6 +358,13 @@ const WebOptionNode = {
     methods: {
         formatPrice(value) {
             return Number(value || 0).toFixed(2)
+        },
+        isSemanticRadioGroup(option) {
+            return !!(option && option.option_type === 'checkbox_group' && /样品状态|测试模式|是否回收|样品是否/.test(option.name || ''))
+        },
+        isExclusiveNoneOption(option) {
+            const name = `${option?.name || ''}`.trim()
+            return ['无', '否', '不需要', '无需', '无特殊要求'].includes(name)
         },
         ensureSelection(option) {
             const optionObj = typeof option === 'object' ? option : { id: option }
@@ -434,15 +453,26 @@ const WebOptionNode = {
             this.$emit('change')
         },
         handleCheckboxGroupChange(values) {
-            const selectedValues = Array.isArray(values) ? values : []
+            let selectedValues = Array.isArray(values) ? values.map(value => `${value}`) : []
+            const noneChild = (this.option.children || []).find(child => this.isExclusiveNoneOption(child))
+            if (noneChild) {
+                const noneValue = `${noneChild.id}`
+                const previousValues = this.selectedCheckboxValues.map(value => `${value}`)
+                if (selectedValues.includes(noneValue) && !previousValues.includes(noneValue)) {
+                    selectedValues = [noneValue]
+                } else if (selectedValues.includes(noneValue) && selectedValues.length > 1) {
+                    selectedValues = selectedValues.filter(value => value !== noneValue)
+                }
+            }
             ;(this.option.children || []).forEach(child => {
-                this.setChildSelection(child, selectedValues.includes(child.id))
+                this.setChildSelection(child, selectedValues.includes(`${child.id}`))
             })
             this.$emit('change')
         },
         handleRadioGroupChange(value) {
+            const selectedValue = `${value}`
             ;(this.option.children || []).forEach(child => {
-                this.setChildSelection(child, child.id === value)
+                this.setChildSelection(child, `${child.id}` === selectedValue)
             })
             this.$emit('change')
         }
@@ -474,7 +504,7 @@ const WebOptionNode = {
                     </el-select>
                 </div>
             </template>
-            <template v-else-if="option.option_type === 'checkbox_group'">
+            <template v-else-if="option.option_type === 'checkbox_group' && !usesRadioControl">
                 <div style="margin-bottom: 12px;">
                     <div style="margin-bottom: 8px; font-weight: 500; color: #303133;">
                         <span v-if="option.is_required" style="color: #f56c6c; margin-right: 4px;">*</span>{{ option.name }}
@@ -487,13 +517,13 @@ const WebOptionNode = {
                     </el-checkbox-group>
                 </div>
             </template>
-            <template v-else-if="option.option_type === 'radio_group'">
+            <template v-else-if="option.option_type === 'radio_group' || usesRadioControl">
                 <div style="margin-bottom: 12px;">
                     <div style="margin-bottom: 8px; font-weight: 500; color: #303133;">
                         <span v-if="option.is_required" style="color: #f56c6c; margin-right: 4px;">*</span>{{ option.name }}
                     </div>
                     <el-radio-group :model-value="selectedRadioValue" @change="handleRadioGroupChange">
-                        <el-radio v-for="child in option.children || []" :key="child.id" :value="child.id">
+                        <el-radio v-for="child in option.children || []" :key="child.id" :label="child.id">
                             {{ child.name }}
                             <span v-if="child.price > 0" style="color: #409eff;"> (+¥{{ formatPrice(child.price) }})</span>
                         </el-radio>
@@ -521,7 +551,17 @@ const WebOptionNode = {
                 </div>
             </template>
 
-            <div v-if="option.hint_text && (isSelected || option.option_type === 'input')" style="margin: -4px 0 10px; color: #f56c6c; font-size: 12px;">
+            <div v-if="selectedChildHintOptions.length > 0" style="margin: -4px 0 10px;">
+                <div
+                    v-for="child in selectedChildHintOptions"
+                    :key="'hint-' + child.id"
+                    style="margin-top: 8px; padding: 8px 10px; border-left: 3px solid #f56c6c; border-radius: 4px; background: #fff5f5; color: #f56c6c; font-size: 12px; line-height: 1.5;"
+                >
+                    {{ child.hint_text }}
+                </div>
+            </div>
+
+            <div v-if="option.hint_text && (isSelected || option.option_type === 'input' || groupHasSelection)" style="margin: -4px 0 10px; color: #f56c6c; font-size: 12px;">
                 {{ option.hint_text }}
             </div>
 
@@ -604,6 +644,40 @@ const WebDynamicOptionsForm = {
                 .map(formatWebOptionSelection)
                 .filter(Boolean)
             this.$emit('change', { selections })
+        },
+        validate() {
+            const errors = []
+            const isGroupControl = option => ['dropdown', 'checkbox_group', 'radio_group'].includes(option.option_type)
+            const requiresInput = option => !!(option.requires_input || option.option_type === 'input')
+            const checkRequired = (options) => {
+                ;(options || []).forEach(option => {
+                    const selection = this.selections[option.id]
+                    if (option.is_required) {
+                        if (isGroupControl(option)) {
+                            const hasSelectedChild = (option.children || []).some(child => this.selections[child.id]?.selected)
+                            if (!hasSelectedChild) {
+                                errors.push(`请选择${option.name}`)
+                            }
+                        } else if (!selection?.selected) {
+                            errors.push(`请选择${option.name}`)
+                        } else if (requiresInput(option) && !hasWebInputValue(selection)) {
+                            errors.push(`请填写${option.name}`)
+                        }
+                    }
+
+                    if (isGroupControl(option)) {
+                        ;(option.children || []).forEach(child => {
+                            if (this.selections[child.id]?.selected && child.allow_children !== false) {
+                                checkRequired(child.children)
+                            }
+                        })
+                    } else if (selection?.selected && option.allow_children !== false) {
+                        checkRequired(option.children)
+                    }
+                })
+            }
+            checkRequired(this.optionsTree)
+            return errors
         }
     },
     template: `
@@ -723,10 +797,6 @@ const HomeView = {
                         <img :src="project.cover_image || '/web/assets/images/no-image.svg'" @error="$event.target.src='/web/assets/images/no-image.svg'" class="project-image" alt="">
                         <div class="project-info">
                             <div class="project-name">{{ project.name }}</div>
-                            <div class="project-price">
-                                <span class="current-price">¥{{ project.current_price }}</span>
-                                <span class="original-price">¥{{ project.original_price }}</span>
-                            </div>
                             <div class="project-tags">
                                 <el-tag v-if="project.is_hot" type="danger" size="small">热门</el-tag>
                                 <el-tag v-if="project.is_recommended" type="warning" size="small">推荐</el-tag>
@@ -849,10 +919,6 @@ const ProjectsView = {
                         <img :src="project.cover_image || '/web/assets/images/no-image.svg'" @error="$event.target.src='/web/assets/images/no-image.svg'" class="project-image" alt="">
                         <div class="project-info">
                             <div class="project-name">{{ project.name }}</div>
-                            <div class="project-price">
-                                <span class="current-price">¥{{ project.current_price }}</span>
-                                <span class="original-price">¥{{ project.original_price }}</span>
-                            </div>
                             <div class="project-tags">
                                 <el-tag v-if="project.is_hot" type="danger" size="small">热门</el-tag>
                                 <el-tag v-if="project.is_recommended" type="warning" size="small">推荐</el-tag>
@@ -955,10 +1021,6 @@ const ProjectDetail = {
                         </div>
                         <div class="detail-info">
                             <h1>{{ project.name }}</h1>
-                            <div class="detail-price">
-                                <span class="current">¥{{ project.current_price }}</span>
-                                <span class="original">¥{{ project.original_price }}</span>
-                            </div>
                             <div class="detail-meta">
                                 <div class="meta-item">
                                     <span class="meta-label">项目编号：</span>
@@ -1096,11 +1158,11 @@ const OrdersView = {
 
             <div class="order-filters">
                 <el-radio-group v-model="status" @change="loadOrders">
-                    <el-radio-button value="">全部</el-radio-button>
-                    <el-radio-button value="pending_payment">待支付</el-radio-button>
-                    <el-radio-button value="paid">已支付</el-radio-button>
-                    <el-radio-button value="testing">实验中</el-radio-button>
-                    <el-radio-button value="completed">已完成</el-radio-button>
+                    <el-radio-button label="">全部</el-radio-button>
+                    <el-radio-button label="pending_payment">待支付</el-radio-button>
+                    <el-radio-button label="paid">已支付</el-radio-button>
+                    <el-radio-button label="testing">实验中</el-radio-button>
+                    <el-radio-button label="completed">已完成</el-radio-button>
                 </el-radio-group>
             </div>
 
@@ -1122,6 +1184,7 @@ const OrdersView = {
                             <div><strong>{{ order.project_name }}</strong></div>
                             <div>样品数量：{{ order.sample_count || order.quantity || 1 }}</div>
                             <div class="order-amount">金额：<span class="price">¥{{ order.total_amount }}</span></div>
+                            <div v-if="order.payment_method">支付方式：{{ getPaymentMethodText(order.payment_method) }}</div>
                         <div class="order-time">下单时间：{{ order.created_at?.slice(0, 16).replace('T', ' ') }}</div>
                     </div>
                         <div class="order-actions">
@@ -1234,6 +1297,16 @@ const OrdersView = {
                 'cancelled': 'danger'
             }
             return map[status] || 'info'
+        },
+        getPaymentMethodText(method) {
+            const map = {
+                balance: '预付余额',
+                credit: '信用额度',
+                mixed: '预付余额 + 信用额度',
+                wechat: '微信支付',
+                alipay: '支付宝'
+            }
+            return map[method] || method
         },
         getProgressStep(status) {
             const map = { 'paid': 1, 'confirmed': 2, 'testing': 3, 'completed': 4 }
@@ -1638,7 +1711,7 @@ const CreditView = {
                     <div class="debt-item" v-for="debt in debts" :key="debt.id">
                         <div class="debt-info">
                             <div class="debt-order">订单: {{ debt.order_no }}</div>
-                            <div class="debt-amount">¥{{ debt.amount }}</div>
+                            <div class="debt-amount">¥{{ debt.remaining_amount || debt.amount || 0 }}</div>
                             <div class="debt-due">到期: {{ debt.due_date?.slice(0, 10) }}</div>
                         </div>
                         <el-tag :type="isOverdue(debt.due_date) ? 'danger' : 'warning'" size="small">
@@ -1694,8 +1767,8 @@ const CreditView = {
                         <el-input-number v-model="repayForm.amount" :min="1" :max="creditInfo.used_credit || 0" :precision="2" style="width: 100%"></el-input-number>
                     </el-form-item>
                     <el-form-item label="还款方式">
-                        <el-radio-group v-model="repayForm.method">
-                            <el-radio value="balance">余额还款</el-radio>
+                        <el-radio-group v-model="repayForm.payment_method">
+                            <el-radio label="balance">余额还款</el-radio>
                         </el-radio-group>
                     </el-form-item>
                 </el-form>
@@ -1717,7 +1790,7 @@ const CreditView = {
             applying: false,
             repaying: false,
             applyForm: { amount: 5000, reason: '' },
-            repayForm: { amount: 0, method: 'balance' }
+            repayForm: { amount: 0, payment_method: 'balance' }
         }
     },
     computed: {
@@ -1750,13 +1823,13 @@ const CreditView = {
         async loadDebts() {
             try {
                 const res = await api.getCreditDebts({ status: 'pending' })
-                this.debts = res.data?.items || []
+                this.debts = res.data?.debts || res.data?.items || []
             } catch (error) {}
         },
         async loadRecords() {
             try {
                 const res = await api.getCreditRecords({ page: 1, page_size: 20 })
-                this.records = res.data?.items || []
+                this.records = res.data?.records || res.data?.items || []
             } catch (error) {}
         },
         isOverdue(dueDate) {
@@ -1764,7 +1837,7 @@ const CreditView = {
             return new Date(dueDate) < new Date()
         },
         getRecordTypeText(type) {
-            const map = { use: '消费', repay: '还款', adjust: '额度调整' }
+            const map = { use: '消费', consume: '消费', repay: '还款', adjust: '额度调整' }
             return map[type] || type
         },
         async submitApply() {
@@ -1852,9 +1925,6 @@ const FavoritesView = {
                     <img :src="item.project?.cover_image || '/web/assets/images/no-image.svg'" @error="$event.target.src='/web/assets/images/no-image.svg'" class="project-image" alt="">
                     <div class="project-info">
                         <div class="project-name">{{ item.project?.name }}</div>
-                        <div class="project-price">
-                            <span class="current-price">¥{{ item.project?.current_price }}</span>
-                        </div>
                     </div>
                 </div>
             </div>
@@ -1937,8 +2007,8 @@ const AddressView = {
             <div v-else class="address-list">
                 <div class="address-card" v-for="addr in addresses" :key="addr.id">
                     <div class="address-info">
-                        <div class="address-name">{{ addr.receiver_name }} <span>{{ addr.receiver_phone }}</span></div>
-                        <div class="address-detail">{{ addr.province }}{{ addr.city }}{{ addr.district }}{{ addr.detail }}</div>
+                        <div class="address-name">{{ addr.receiver_name }} <span>{{ addr.phone }}</span></div>
+                        <div class="address-detail">{{ addr.province }}{{ addr.city }}{{ addr.district || '' }}{{ addr.detail_address }}</div>
                         <el-tag v-if="addr.is_default" size="small" type="success">默认</el-tag>
                     </div>
                     <div class="address-actions">
@@ -1951,11 +2021,11 @@ const AddressView = {
             <el-dialog v-model="dialogVisible" :title="editingId ? '编辑地址' : '新增地址'" width="500px">
                 <el-form :model="form" label-width="80px">
                     <el-form-item label="收货人"><el-input v-model="form.receiver_name" placeholder="请输入收货人姓名"></el-input></el-form-item>
-                    <el-form-item label="手机号"><el-input v-model="form.receiver_phone" placeholder="请输入手机号"></el-input></el-form-item>
+                    <el-form-item label="手机号"><el-input v-model="form.phone" placeholder="请输入手机号"></el-input></el-form-item>
                     <el-form-item label="省份"><el-input v-model="form.province" placeholder="省份"></el-input></el-form-item>
                     <el-form-item label="城市"><el-input v-model="form.city" placeholder="城市"></el-input></el-form-item>
                     <el-form-item label="区县"><el-input v-model="form.district" placeholder="区县"></el-input></el-form-item>
-                    <el-form-item label="详细地址"><el-input v-model="form.detail" type="textarea" placeholder="详细地址"></el-input></el-form-item>
+                    <el-form-item label="详细地址"><el-input v-model="form.detail_address" type="textarea" placeholder="详细地址"></el-input></el-form-item>
                     <el-form-item label="默认地址"><el-switch v-model="form.is_default"></el-switch></el-form-item>
                 </el-form>
                 <template #footer>
@@ -1965,7 +2035,7 @@ const AddressView = {
             </el-dialog>
         </div>
     `,
-    data() { return { addresses: [], loading: false, dialogVisible: false, editingId: null, saving: false, form: { receiver_name: '', receiver_phone: '', province: '', city: '', district: '', detail: '', is_default: false } } },
+    data() { return { addresses: [], loading: false, dialogVisible: false, editingId: null, saving: false, form: { receiver_name: '', phone: '', province: '', city: '', district: '', detail_address: '', is_default: false } } },
     mounted() { this.loadAddresses() },
     methods: {
         async loadAddresses() {
@@ -1975,12 +2045,42 @@ const AddressView = {
                 this.addresses = res.data || []
             } catch (error) {} finally { this.loading = false }
         },
-        showAddDialog() { this.editingId = null; this.form = { receiver_name: '', receiver_phone: '', province: '', city: '', district: '', detail: '', is_default: false }; this.dialogVisible = true },
-        editAddress(addr) { this.editingId = addr.id; this.form = { ...addr }; this.dialogVisible = true },
+        emptyForm() {
+            return { receiver_name: '', phone: '', province: '', city: '', district: '', detail_address: '', is_default: false }
+        },
+        normalizeAddress(addr = {}) {
+            return {
+                receiver_name: addr.receiver_name || addr.name || '',
+                phone: addr.phone || addr.receiver_phone || '',
+                province: addr.province || '',
+                city: addr.city || '',
+                district: addr.district || '',
+                detail_address: addr.detail_address || addr.detail || '',
+                is_default: !!addr.is_default
+            }
+        },
+        buildAddressPayload() {
+            return {
+                receiver_name: this.form.receiver_name,
+                phone: this.form.phone,
+                province: this.form.province,
+                city: this.form.city,
+                district: this.form.district,
+                detail_address: this.form.detail_address,
+                is_default: this.form.is_default
+            }
+        },
+        showAddDialog() { this.editingId = null; this.form = this.emptyForm(); this.dialogVisible = true },
+        editAddress(addr) { this.editingId = addr.id; this.form = this.normalizeAddress(addr); this.dialogVisible = true },
         async saveAddress() {
+            if (!this.form.receiver_name) { ElMessage.error('请输入收货人'); return }
+            if (!/^1[3-9]\d{9}$/.test(this.form.phone || '')) { ElMessage.error('请输入正确的手机号'); return }
+            if (!this.form.province || !this.form.city) { ElMessage.error('请输入省市信息'); return }
+            if (!this.form.detail_address) { ElMessage.error('请输入详细地址'); return }
             this.saving = true
             try {
-                if (this.editingId) { await api.updateAddress(this.editingId, this.form) } else { await api.createAddress(this.form) }
+                const payload = this.buildAddressPayload()
+                if (this.editingId) { await api.updateAddress(this.editingId, payload) } else { await api.createAddress(payload) }
                 ElMessage.success('保存成功'); this.dialogVisible = false; this.loadAddresses()
             } catch (error) {} finally { this.saving = false }
         },
@@ -2031,7 +2131,7 @@ const WalletView = {
             const amount = this.customAmount ? parseFloat(this.customAmount) : this.selectedAmount
             if (!amount || amount <= 0) { ElMessage.error('请选择或输入充值金额'); return }
             this.recharging = true
-            ElMessage.info('充值功能暂未开放，目前所有订单统一使用信用支付')
+            ElMessage.info('充值功能暂未开放，订单会优先使用预付余额，不足部分使用信用额度')
             this.recharging = false
         }
     }
@@ -2122,8 +2222,6 @@ const TeamView = {
             </div>
             <div class="invite-stats">
                 <div class="stat-item"><div class="stat-value">{{ stats.total_invites || 0 }}</div><div class="stat-label">邀请人数</div></div>
-                <div class="stat-item"><div class="stat-value">¥{{ stats.total_commission || 0 }}</div><div class="stat-label">累计佣金</div></div>
-                <div class="stat-item"><div class="stat-value">¥{{ stats.available_commission || 0 }}</div><div class="stat-label">可提现</div></div>
             </div>
             <div class="invite-code-section">
                 <h3>我的邀请码</h3>
@@ -2131,30 +2229,23 @@ const TeamView = {
                 <el-button type="primary" v-if="!group" @click="createGroup">创建团队</el-button>
                 <el-button type="primary" v-else @click="copyInviteCode">复制邀请码</el-button>
             </div>
-            <div class="withdraw-section">
-                <h3>佣金提现</h3>
-                <el-input v-model="withdrawAmount" placeholder="输入提现金额"><template #prepend>¥</template></el-input>
-                <el-button type="success" style="margin-top: 12px" @click="applyWithdraw" :disabled="!withdrawAmount || parseFloat(withdrawAmount) <= 0">申请提现</el-button>
-            </div>
             <h3>邀请记录</h3>
             <div v-if="records.length === 0" class="empty-state" style="padding: 40px"><div class="empty-icon">👥</div><div class="empty-text">暂无邀请记录</div></div>
             <div v-else class="records-list">
                 <div class="record-item" v-for="record in records" :key="record.id">
-                    <div class="record-info"><div class="record-user">{{ record.invitee_nickname || '用户' }}</div><div class="record-time">{{ record.created_at?.slice(0, 10) }}</div></div>
-                    <div class="record-commission">+¥{{ record.commission || 0 }}</div>
+                    <div class="record-info"><div class="record-user">{{ record.invitee_nickname || record.invitee_name || '用户' }}</div><div class="record-time">{{ (record.created_at || record.invited_at || '').slice(0, 10) }}</div></div>
                 </div>
             </div>
         </div>
     `,
-    data() { return { group: null, stats: {}, records: [], withdrawAmount: '' } },
+    data() { return { group: null, stats: {}, records: [] } },
     mounted() { this.loadData() },
     methods: {
         async loadData() {
             try { const [groupRes, statsRes, recordsRes] = await Promise.all([api.getMyGroup(), api.getInviteStats(), api.getInviteRecords({ page: 1, page_size: 50 })]); this.group = groupRes.data; this.stats = statsRes.data; this.records = recordsRes.data?.items || [] } catch (error) {}
         },
         async createGroup() { try { await api.createGroup({ name: '我的团队' }); ElMessage.success('团队创建成功'); this.loadData() } catch (error) {} },
-        copyInviteCode() { navigator.clipboard.writeText(this.group?.invite_code); ElMessage.success('邀请码已复制') },
-        async applyWithdraw() { try { await api.applyWithdraw({ amount: parseFloat(this.withdrawAmount) }); ElMessage.success('提现申请已提交'); this.withdrawAmount = ''; this.loadData() } catch (error) {} }
+        copyInviteCode() { navigator.clipboard.writeText(this.group?.invite_code); ElMessage.success('邀请码已复制') }
     }
 }
 
@@ -2223,7 +2314,7 @@ const HelpView = {
                 this.articles = [
                     { id: 1, title: '如何注册账号？', content: '<p>1. 点击首页右上角"登录"按钮</p><p>2. 输入手机号获取验证码</p><p>3. 输入验证码完成登录/注册</p>' },
                     { id: 2, title: '如何下单？', content: '<p>1. 浏览检测项目，选择需要的检测服务</p><p>2. 点击"立即预约"填写样品信息</p><p>3. 确认订单并支付</p><p>4. 按照指引寄送样品</p>' },
-                    { id: 3, title: '支持哪些支付方式？', content: '<p>当前订单统一使用<strong>信用支付</strong>（根据授信额度先用后付）。如需了解额度，请进入"信用额度"页面查看。</p>' },
+                    { id: 3, title: '支持哪些支付方式？', content: '<p>订单提交后会优先扣减<strong>预付余额</strong>，余额不足的部分自动使用信用额度。</p>' },
                     { id: 4, title: '如何查看检测报告？', content: '<p>1. 登录账号进入"我的订单"</p><p>2. 找到已完成的订单</p><p>3. 点击"下载报告"即可获取检测报告</p>' }
                 ]
             } finally { this.loading = false }
@@ -2279,19 +2370,33 @@ const ChatView = {
             messages: [],
             inputMessage: '',
             sending: false,
+            sessionReady: false,
             quickQuestions: ['如何下单？', '检测周期多久？', '如何获取报告？', '发票问题'],
             chatPollTimer: null
         }
     },
-    mounted() {
-        this.loadHistory()
-        this.chatPollTimer = setInterval(() => { this.loadHistory() }, 5000)
+    async mounted() {
+        if (!localStorage.getItem('token')) {
+            this.messages = [{ id: 0, content: '请先登录后咨询客服，后台客服会在这里回复您。', is_user: false, created_at: '刚刚' }]
+            return
+        }
+        await this.ensureSession()
+        await this.loadHistory()
+        this.chatPollTimer = setInterval(() => { this.loadHistory(false) }, 5000)
     },
     beforeUnmount() {
         if (this.chatPollTimer) clearInterval(this.chatPollTimer)
     },
     methods: {
-        async loadHistory() {
+        async ensureSession() {
+            try {
+                await api.getChatSession()
+                this.sessionReady = true
+            } catch (error) {
+                this.sessionReady = false
+            }
+        },
+        async loadHistory(scroll = true) {
             try {
                 const res = await api.getChatHistory()
                 const items = res.data?.items || res.data?.data?.items || []
@@ -2303,25 +2408,33 @@ const ChatView = {
                         created_at: m.created_at || '刚刚'
                     }))
                 } else if (!this.messages.length) {
-                    this.messages = [{ id: 0, content: '您好！欢迎咨询博才科研百测，请问有什么可以帮助您的？', is_user: false, created_at: '刚刚' }]
+                    this.messages = [{ id: 0, content: '您好！欢迎咨询博才科研百测，请直接描述您的问题。', is_user: false, created_at: '刚刚' }]
                 }
+                if (scroll) this.scrollToBottom()
             } catch (error) {
                 if (!this.messages.length) this.messages = [{ id: 0, content: '您好！欢迎咨询，请问有什么可以帮助您的？', is_user: false, created_at: '刚刚' }]
             }
         },
         async sendMessage() {
             if (!this.inputMessage.trim()) return
+            if (!localStorage.getItem('token')) {
+                ElMessage.warning('请先登录后咨询客服')
+                return
+            }
             const content = this.inputMessage
             this.inputMessage = ''
             this.sending = true
-            this.messages.push({ id: 't' + Date.now(), content, is_user: true, created_at: '刚刚' })
+            const tempId = 't' + Date.now()
+            this.messages.push({ id: tempId, content, is_user: true, created_at: '刚刚' })
             this.scrollToBottom()
             try {
+                if (!this.sessionReady) await this.ensureSession()
                 await api.sendMessage({ content })
                 await this.loadHistory()
                 this.scrollToBottom()
             } catch (error) {
-                this.messages.push({ id: Date.now() + 1, content: '发送失败，请稍后重试。工作时间：9:00-18:00', is_user: false, created_at: '刚刚' })
+                this.messages = this.messages.filter(message => message.id !== tempId)
+                ElMessage.error('发送失败，请稍后重试')
                 this.scrollToBottom()
             } finally { this.sending = false }
         },
@@ -2620,9 +2733,9 @@ const ContractsView = {
             </div>
             <div class="contracts-tabs">
                 <el-radio-group v-model="activeTab" @change="loadContracts">
-                    <el-radio-button value="all">全部合同</el-radio-button>
-                    <el-radio-button value="active">生效中</el-radio-button>
-                    <el-radio-button value="expired">已过期</el-radio-button>
+                    <el-radio-button label="all">全部合同</el-radio-button>
+                    <el-radio-button label="active">生效中</el-radio-button>
+                    <el-radio-button label="expired">已过期</el-radio-button>
                 </el-radio-group>
             </div>
             <div v-if="loading" class="loading-container"><el-icon class="is-loading" :size="40"><loading /></el-icon></div>
@@ -2792,19 +2905,19 @@ const FranchiseView = {
             <div class="franchise-section">
                 <h3 class="section-title">合作模式</h3>
                 <el-radio-group v-model="selectedMode" class="mode-group">
-                    <el-radio-button value="agent">
+                    <el-radio-button label="agent">
                         <div class="mode-content">
                             <span class="mode-icon">🏢</span>
                             <span class="mode-name">区域代理</span>
                         </div>
                     </el-radio-button>
-                    <el-radio-button value="partner">
+                    <el-radio-button label="partner">
                         <div class="mode-content">
                             <span class="mode-icon">🤝</span>
                             <span class="mode-name">项目合作</span>
                         </div>
                     </el-radio-button>
-                    <el-radio-button value="lab">
+                    <el-radio-button label="lab">
                         <div class="mode-content">
                             <span class="mode-icon">🔬</span>
                             <span class="mode-name">实验室入驻</span>
@@ -2992,16 +3105,6 @@ createApp({
             bookingForm: {
                 sample_name: '',
                 quantity: 1,
-                sample_type: 'powder',
-                sample_state: 'dry',
-                sample_properties: [],
-                test_temperature: 'room',
-                test_atmosphere: 'air',
-                scan_range: '',
-                magnification: 'auto',
-                special_treatment: [],
-                urgency: 'normal',
-                report_options: ['raw_data'],
                 address_id: null,
                 coupon_id: null,
                 remark: ''
@@ -3037,7 +3140,7 @@ createApp({
     computed: {
         bookingBaseAmount() {
             if (!this.bookingProject) return 0
-            return this.bookingProject.current_price * this.bookingForm.quantity
+            return 0
         },
         bookingOptionsFeeEstimate() {
             if (!this.bookingProject || this.bookingOptionSelections.length === 0) return 0
@@ -3067,16 +3170,6 @@ createApp({
         orderTotalAmount() {
             if (!this.bookingProject) return 0
             let total = this.bookingSubtotalEstimate
-            // 加急费用
-            if (this.bookingForm.urgency === 'urgent_48h') {
-                total += this.bookingBaseAmount * 0.5
-            } else if (this.bookingForm.urgency === 'urgent_24h') {
-                total += this.bookingBaseAmount * 1
-            }
-            // 纸质报告
-            if (this.bookingForm.report_options?.includes('paper_report')) {
-                total += 30
-            }
             // 优惠券
             total -= this.couponDiscountEstimate
             return Math.max(0, total).toFixed(2)
@@ -3117,16 +3210,6 @@ createApp({
             this.bookingForm = {
                 sample_name: '',
                 quantity: 1,
-                sample_type: 'powder',
-                sample_state: 'dry',
-                sample_properties: [],
-                test_temperature: 'room',
-                test_atmosphere: 'air',
-                scan_range: '',
-                magnification: 'auto',
-                special_treatment: [],
-                urgency: 'normal',
-                report_options: ['raw_data'],
                 address_id: null,
                 coupon_id: null,
                 remark: ''
@@ -3168,22 +3251,26 @@ createApp({
         },
         async submitBooking() {
             if (!this.bookingForm.sample_name) { ElMessage.error('请输入样品名称'); return }
-            if (!this.bookingForm.sample_type) { ElMessage.error('请选择样品类型'); return }
+            const optionErrors = this.$refs.bookingOptionsForm?.validate?.() || []
+            if (optionErrors.length > 0) { ElMessage.error(optionErrors[0]); return }
             if (!this.bookingForm.address_id) { ElMessage.error('请选择收货地址'); return }
             this.bookingLoading = true
             try {
                 const res = await api.createOrder({
                     project_id: this.bookingProject.id,
                     sample_count: this.bookingForm.quantity,
+                    sample_name: this.bookingForm.sample_name,
                     option_selections: this.bookingOptionSelections,
                     shipping_method: 'express',
-                    ...this.bookingForm
+                    address_id: this.bookingForm.address_id,
+                    coupon_id: this.bookingForm.coupon_id,
+                    remark: this.bookingForm.remark
                 })
                 const createdOrder = res.data || {}
                 this.showBooking = false
                 try {
                     await this.payCreatedOrder(createdOrder)
-                    ElMessage.success('订单提交成功，已使用信用额度支付')
+                    ElMessage.success('订单提交成功，已自动使用预付余额/信用额度支付')
                     this.paymentOrder = null
                     this.showPayment = false
                     this.ordersRefreshKey += 1
@@ -3195,7 +3282,7 @@ createApp({
                 }
             } catch (error) {} finally { this.bookingLoading = false }
         },
-        // 支付（统一信用支付）
+        // 支付（自动使用预付余额和信用额度）
         async loadBalance() {
             try { const res = await api.getBalance(); this.balance = res.data } catch (error) {}
             try {
@@ -3211,7 +3298,7 @@ createApp({
             this.paymentLoading = true
             try {
                 await this.payCreatedOrder(this.paymentOrder)
-                ElMessage.success('信用支付成功')
+                ElMessage.success('支付成功')
                 this.showPayment = false
                 this.ordersRefreshKey += 1
                 this.currentView = 'orders'

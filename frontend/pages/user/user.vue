@@ -26,8 +26,11 @@
 					class="avatar"
 				></image>
 				<view class="user-text">
-					<text class="member-id">会员{{ userInfo.member_no || 'ihC12T' }}</text>
-					<text class="advisor">专属顾问{{ userInfo.advisor_name || '孙老师' }}：{{ userInfo.advisor_phone || '13385319048' }}</text>
+					<text class="member-id">会员{{ userInfo.member_no || userInfo.id || '' }}</text>
+					<text class="advisor" v-if="userInfo.advisor_name || userInfo.advisor_phone">
+						专属顾问{{ userInfo.advisor_name || '' }}<text v-if="userInfo.advisor_phone">：{{ userInfo.advisor_phone }}</text>
+					</text>
+					<text class="advisor" v-else>专属顾问：暂未分配</text>
 				</view>
 				<view class="edit-btn" @click="goEditProfile">
 					<text class="edit-icon">✏️</text>
@@ -120,7 +123,7 @@
 				<view class="service-item" @click="goPage('/pagesA/invite/invite')">
 					<view class="icon-wrap">
 						<text class="service-icon">👥</text>
-						<text class="badge rebate">返利</text>
+						<text class="badge trace">溯源</text>
 					</view>
 					<text class="service-text">邀请好友</text>
 				</view>
@@ -141,7 +144,6 @@
 					<text class="service-icon">🧾</text>
 					<text class="service-text">我的发票</text>
 				</view>
-				<!-- 优惠券功能暂不开放
 				<view class="service-item" @click="goPage('/pagesA/coupon/coupon')">
 					<view class="icon-wrap">
 						<text class="service-icon">🎫</text>
@@ -149,7 +151,6 @@
 					</view>
 					<text class="service-text">优惠券</text>
 				</view>
-				-->
 				<view class="service-item" @click="goPage('/pagesA/prepaid/prepaid')">
 					<text class="service-icon">📊</text>
 					<text class="service-text">预付记录</text>
@@ -673,7 +674,7 @@ export default {
 						background: #ff6b6b;
 					}
 					
-					&.rebate {
+					&.trace {
 						background: #ff9500;
 					}
 					

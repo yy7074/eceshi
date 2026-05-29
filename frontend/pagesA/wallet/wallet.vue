@@ -14,9 +14,9 @@
 				<text class="action-icon">💰</text>
 				<text class="action-text">充值</text>
 			</view>
-			<view class="action-item" @click="handleWithdraw">
-				<text class="action-icon">💸</text>
-				<text class="action-text">提现</text>
+			<view class="action-item" @click="showBalanceInfo">
+				<text class="action-icon">ℹ️</text>
+				<text class="action-text">余额说明</text>
 			</view>
 			<view class="action-item" @click="handleTransfer">
 				<text class="action-icon">🔄</text>
@@ -217,11 +217,11 @@ export default {
 			})
 		},
 		
-		// 提现
-		handleWithdraw() {
+		// 余额说明
+		showBalanceInfo() {
 			uni.showModal({
-				title: '提现说明',
-				content: '钱包余额暂不支持提现，可用于支付订单费用',
+				title: '余额说明',
+				content: '钱包余额可用于支付检测订单费用。',
 				showCancel: false
 			})
 		},
@@ -400,4 +400,3 @@ export default {
 	}
 }
 </style>
-

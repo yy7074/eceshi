@@ -17,12 +17,13 @@ from app.models.credit import (
     CreditRecord, CreditDebt, Repayment, CreditLimitApplication,
     CreditTransactionType, CreditTransactionStatus, RepaymentStatus
 )
-from app.models.order import Order, OrderStatusHistory
+from app.models.order import Order, OrderStatusHistory, Payment
 from app.schemas.credit import (
     CreditInfoResponse, CreditPayRequest, RepaymentRequest,
     CreditLimitApplicationRequest
 )
 from app.api.v1.deps import get_current_user
+from app.services.points_service import grant_order_points
 
 
 router = APIRouter()
@@ -43,6 +44,33 @@ def sync_user_used_credit(db: Session, user: User) -> Decimal:
         user.used_credit = used_credit
         db.flush()
     return used_credit
+
+
+def generate_payment_no(prefix: str = "PAY") -> str:
+    return f"{prefix}{datetime.now().strftime('%Y%m%d%H%M%S')}{uuid.uuid4().hex[:8].upper()}"
+
+
+def add_success_payment(
+    db: Session,
+    order: Order,
+    user_id: int,
+    payment_method: str,
+    amount: Decimal,
+    paid_at: datetime
+) -> None:
+    if amount <= 0:
+        return
+    db.add(Payment(
+        payment_no=generate_payment_no(),
+        order_id=order.id,
+        order_no=order.order_no,
+        user_id=user_id,
+        payment_method=payment_method,
+        payment_channel=payment_method,
+        amount=amount,
+        status="success",
+        paid_at=paid_at
+    ))
 
 
 @router.get("/info", summary="获取信用额度信息")
@@ -87,11 +115,14 @@ async def get_debt_list(
     query = db.query(CreditDebt).filter(CreditDebt.user_id == current_user.id)
 
     if status:
-        try:
-            status_enum = RepaymentStatus(status)
-            query = query.filter(CreditDebt.status == status_enum)
-        except ValueError:
-            pass
+        if status in ["pending", "outstanding"]:
+            query = query.filter(CreditDebt.status != RepaymentStatus.PAID)
+        else:
+            try:
+                status_enum = RepaymentStatus(status)
+                query = query.filter(CreditDebt.status == status_enum)
+            except ValueError:
+                pass
 
     # 总欠款
     total_debt = db.query(sql_func.sum(CreditDebt.remaining_amount)).filter(
@@ -129,34 +160,21 @@ async def get_debt_list(
     })
 
 
-@router.post("/pay", summary="信用支付")
+@router.post("/pay", summary="自动支付")
 async def credit_pay(
     request: CreditPayRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    使用信用额度支付订单
-
-    1. 检查是否已认证
-    2. 检查可用额度是否足够
-    3. 创建欠款记录
-    4. 更新用户已用额度
-    5. 创建交易记录
+    自动支付订单：优先扣预付余额，不足部分使用信用额度。
     """
     user = db.query(User).filter(User.id == current_user.id).with_for_update().first()
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="用户不存在")
 
-    # 检查认证
-    if not user.is_certified:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="请先完成实名认证"
-        )
-
     # 检查订单
-    order = db.query(Order).filter(Order.id == request.order_id).first()
+    order = db.query(Order).filter(Order.id == request.order_id).with_for_update().first()
     if not order:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -182,44 +200,78 @@ async def credit_pay(
             detail="订单无需支付"
         )
 
-    # 检查可用额度
+    now = datetime.now()
+    prepaid_before = user.prepaid_balance or Decimal("0")
+    prepaid_amount = min(prepaid_before, amount_to_pay)
+    credit_amount = amount_to_pay - prepaid_amount
+
+    # 不足部分走信用额度，需要认证和足够额度
     current_used_credit = sync_user_used_credit(db, user)
     available_credit = (user.credit_limit or Decimal("0")) - current_used_credit
-    if amount_to_pay > available_credit:
+    if credit_amount > 0 and not user.is_certified:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="预付余额不足，请先完成实名认证后使用信用额度"
+        )
+    if credit_amount > available_credit:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"可用额度不足，当前可用: {available_credit}"
         )
 
-    # 创建欠款记录
-    due_date = datetime.now() + timedelta(days=30)  # 30天后到期
-    debt = CreditDebt(
-        user_id=current_user.id,
-        order_id=order.id,
-        order_no=order.order_no,
-        original_amount=amount_to_pay,
-        paid_amount=Decimal('0'),
-        remaining_amount=amount_to_pay,
-        status=RepaymentStatus.UNPAID,
-        due_date=due_date
-    )
-    db.add(debt)
+    debt = None
+    if prepaid_amount > 0:
+        user.prepaid_balance = prepaid_before - prepaid_amount
+        add_success_payment(db, order, current_user.id, "balance", prepaid_amount, now)
 
-    # 记录交易前余额
-    balance_before = available_credit
+    if credit_amount > 0:
+        due_date = now + timedelta(days=30)
+        debt = CreditDebt(
+            user_id=current_user.id,
+            order_id=order.id,
+            order_no=order.order_no,
+            original_amount=credit_amount,
+            paid_amount=Decimal("0"),
+            remaining_amount=credit_amount,
+            status=RepaymentStatus.UNPAID,
+            due_date=due_date
+        )
+        db.add(debt)
 
-    # 更新用户已用额度
-    user.used_credit = current_used_credit + amount_to_pay
-    balance_after = (user.credit_limit or Decimal("0")) - user.used_credit
+        balance_before = available_credit
+        user.used_credit = current_used_credit + credit_amount
+        balance_after = (user.credit_limit or Decimal("0")) - user.used_credit
+
+        add_success_payment(db, order, current_user.id, "credit", credit_amount, now)
+        db.add(CreditRecord(
+            user_id=current_user.id,
+            transaction_type=CreditTransactionType.CONSUME,
+            amount=credit_amount,
+            balance_before=balance_before,
+            balance_after=balance_after,
+            order_id=order.id,
+            order_no=order.order_no,
+            status=CreditTransactionStatus.SUCCESS,
+            remark=f"订单{order.order_no}信用额度支付"
+        ))
+    else:
+        balance_after = available_credit
 
     # 更新订单支付状态
-    order.credit_amount = amount_to_pay
+    order.credit_amount = (order.credit_amount or Decimal("0")) + credit_amount
     order.paid_fee = (order.paid_fee or Decimal("0")) + amount_to_pay
-    order.payment_method = "credit"
+    if prepaid_amount > 0 and credit_amount > 0:
+        order.payment_method = "mixed"
+    elif prepaid_amount > 0:
+        order.payment_method = "balance"
+    else:
+        order.payment_method = "credit"
+    order.payment_source = "mixed" if prepaid_amount > 0 and credit_amount > 0 else ("prepaid" if prepaid_amount > 0 else "credit")
     order.payment_status = "paid"
+    order.repayment_status = "pending" if credit_amount > 0 else "not_required"
     order.status = "confirmed"
-    order.paid_at = datetime.now()
-    order.payment_time = datetime.now()
+    order.paid_at = now
+    order.payment_time = now
 
     history = OrderStatusHistory(
         order_id=order.id,
@@ -227,32 +279,26 @@ async def credit_pay(
         to_status="confirmed",
         operator_id=current_user.id,
         operator_type="user",
-        remark="信用支付成功"
+        remark="自动支付成功"
     )
     db.add(history)
-
-    # 创建交易记录
-    record = CreditRecord(
-        user_id=current_user.id,
-        transaction_type=CreditTransactionType.CONSUME,
-        amount=amount_to_pay,
-        balance_before=balance_before,
-        balance_after=balance_after,
-        order_id=order.id,
-        order_no=order.order_no,
-        status=CreditTransactionStatus.SUCCESS,
-        remark=f"订单{order.order_no}信用支付"
-    )
-    db.add(record)
+    user.total_spent = (user.total_spent or Decimal("0")) + amount_to_pay
+    user.total_orders = (user.total_orders or 0) + 1
+    grant_order_points(db, user, order.id, order.order_no, amount_to_pay)
 
     db.commit()
-    db.refresh(debt)
+    if debt:
+        db.refresh(debt)
 
     return Response.success(
-        message="信用支付成功",
+        message="支付成功",
         data={
-            "debt_id": debt.id,
-            "remaining_credit": float(balance_after)
+            "debt_id": debt.id if debt else None,
+            "payment_method": order.payment_method,
+            "prepaid_amount": float(prepaid_amount),
+            "credit_amount": float(credit_amount),
+            "remaining_credit": float(balance_after),
+            "prepaid_balance": float(user.prepaid_balance or 0)
         }
     )
 
@@ -270,19 +316,24 @@ async def repay(
     2. 不指定则按时间顺序还款
     3. 支持余额支付或第三方支付
     """
+    user = db.query(User).filter(User.id == current_user.id).with_for_update().first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="用户不存在")
+    sync_user_used_credit(db, user)
+
     # 获取待还欠款
     if request.debt_ids:
         debts = db.query(CreditDebt).filter(
-            CreditDebt.user_id == current_user.id,
+            CreditDebt.user_id == user.id,
             CreditDebt.id.in_(request.debt_ids),
             CreditDebt.status != RepaymentStatus.PAID
-        ).order_by(CreditDebt.created_at).all()
+        ).with_for_update().order_by(CreditDebt.created_at).all()
     else:
         # 按时间顺序获取未还清的欠款
         debts = db.query(CreditDebt).filter(
-            CreditDebt.user_id == current_user.id,
+            CreditDebt.user_id == user.id,
             CreditDebt.status != RepaymentStatus.PAID
-        ).order_by(CreditDebt.created_at).all()
+        ).with_for_update().order_by(CreditDebt.created_at).all()
 
     if not debts:
         raise HTTPException(
@@ -291,7 +342,7 @@ async def repay(
         )
 
     # 计算总欠款
-    total_remaining = sum(d.remaining_amount for d in debts)
+    total_remaining = sum((d.remaining_amount or Decimal("0")) for d in debts)
 
     # 还款金额不能超过总欠款
     repay_amount = min(request.amount, total_remaining)
@@ -299,16 +350,21 @@ async def repay(
     # 生成还款单号
     repayment_no = f"RP{datetime.now().strftime('%Y%m%d%H%M%S')}{uuid.uuid4().hex[:6].upper()}"
 
-    # 如果是余额支付
-    if request.payment_method == "balance":
-        if current_user.prepaid_balance < repay_amount:
+    payment_method = (request.payment_method or "").lower()
+
+    # 如果是预付余额还款
+    if payment_method in ["balance", "prepaid"]:
+        prepaid_balance = user.prepaid_balance or Decimal("0")
+        if prepaid_balance < repay_amount:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="余额不足"
+                detail=f"预付余额不足，当前余额: {prepaid_balance}"
             )
 
+        credit_available_before = (user.credit_limit or Decimal("0")) - (user.used_credit or Decimal("0"))
+
         # 扣除余额
-        current_user.prepaid_balance = current_user.prepaid_balance - repay_amount
+        user.prepaid_balance = prepaid_balance - repay_amount
 
         # 分配还款到各欠款
         remaining_repay = repay_amount
@@ -318,29 +374,32 @@ async def repay(
             if remaining_repay <= 0:
                 break
 
-            if remaining_repay >= debt.remaining_amount:
+            debt_remaining = debt.remaining_amount or Decimal("0")
+            if remaining_repay >= debt_remaining:
                 # 全额还清此欠款
-                pay_this = debt.remaining_amount
-                debt.paid_amount = debt.original_amount
-                debt.remaining_amount = Decimal('0')
+                pay_this = debt_remaining
+                debt.paid_amount = (debt.paid_amount or Decimal("0")) + pay_this
+                debt.remaining_amount = Decimal("0")
                 debt.status = RepaymentStatus.PAID
                 debt.paid_at = datetime.now()
             else:
                 # 部分还款
                 pay_this = remaining_repay
-                debt.paid_amount = debt.paid_amount + pay_this
-                debt.remaining_amount = debt.remaining_amount - pay_this
+                debt.paid_amount = (debt.paid_amount or Decimal("0")) + pay_this
+                debt.remaining_amount = debt_remaining - pay_this
                 debt.status = RepaymentStatus.PARTIAL
 
             remaining_repay -= pay_this
             repaid_debt_ids.append(debt.id)
 
         # 释放信用额度
-        current_user.used_credit = current_user.used_credit - repay_amount
+        db.flush()
+        user.used_credit = get_outstanding_credit(db, user.id)
+        credit_available_after = (user.credit_limit or Decimal("0")) - user.used_credit
 
         # 创建还款记录
         repayment = Repayment(
-            user_id=current_user.id,
+            user_id=user.id,
             repayment_no=repayment_no,
             amount=repay_amount,
             payment_method="balance",
@@ -352,11 +411,11 @@ async def repay(
 
         # 创建交易记录
         record = CreditRecord(
-            user_id=current_user.id,
+            user_id=user.id,
             transaction_type=CreditTransactionType.REPAY,
             amount=repay_amount,
-            balance_before=current_user.credit_limit - current_user.used_credit - repay_amount,
-            balance_after=current_user.credit_limit - current_user.used_credit,
+            balance_before=credit_available_before,
+            balance_after=credit_available_after,
             status=CreditTransactionStatus.SUCCESS,
             remark=f"还款{repay_amount}元"
         )
@@ -376,10 +435,10 @@ async def repay(
     else:
         # 第三方支付，创建待支付的还款记录
         repayment = Repayment(
-            user_id=current_user.id,
+            user_id=user.id,
             repayment_no=repayment_no,
             amount=repay_amount,
-            payment_method=request.payment_method,
+            payment_method=payment_method,
             debt_ids=json.dumps([d.id for d in debts]),
             status=CreditTransactionStatus.PENDING
         )

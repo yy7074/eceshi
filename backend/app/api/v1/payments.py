@@ -16,6 +16,7 @@ from app.core.response import SuccessResponse
 from app.core.security import verify_password
 from app.services.alipay_service import alipay_service
 from app.services.wechatpay_service import wechatpay_service
+from app.services.points_service import grant_order_points
 
 router = APIRouter()
 
@@ -97,7 +98,11 @@ async def create_payment(
             order.paid_fee = order.total_fee
             order.status = "confirmed"
             order.payment_method = "balance"
+            order.payment_source = "prepaid"
+            order.payment_status = "paid"
+            order.repayment_status = "not_required"
             order.paid_at = datetime.now()
+            order.payment_time = order.paid_at
             
             # 记录状态变更
             history = OrderStatusHistory(
@@ -114,6 +119,7 @@ async def create_payment(
             current_user.prepaid_balance = current_user.prepaid_balance - amount_to_pay
             current_user.total_spent = (current_user.total_spent or Decimal("0")) + amount_to_pay
             current_user.total_orders = (current_user.total_orders or 0) + 1
+            grant_order_points(db, current_user, order.id, order.order_no, amount_to_pay)
             
             db.commit()
             db.refresh(payment)
@@ -307,7 +313,11 @@ async def balance_pay(
     order.paid_fee = order.total_fee
     order.status = "confirmed"
     order.payment_method = "balance"
+    order.payment_source = "prepaid"
+    order.payment_status = "paid"
+    order.repayment_status = "not_required"
     order.paid_at = datetime.now()
+    order.payment_time = order.paid_at
     
     # 记录状态变更
     history = OrderStatusHistory(
@@ -324,6 +334,7 @@ async def balance_pay(
     current_user.prepaid_balance = current_user.prepaid_balance - amount_to_pay
     current_user.total_spent = (current_user.total_spent or Decimal("0")) + amount_to_pay
     current_user.total_orders = (current_user.total_orders or 0) + 1
+    grant_order_points(db, current_user, order.id, order.order_no, amount_to_pay)
     
     db.commit()
     db.refresh(payment)
@@ -444,4 +455,3 @@ async def wechat_notify(
             content='<xml><return_code><![CDATA[FAIL]]></return_code><return_msg><![CDATA[FAIL]]></return_msg></xml>',
             media_type='application/xml'
         )
-

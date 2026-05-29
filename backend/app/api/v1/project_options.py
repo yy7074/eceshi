@@ -167,12 +167,12 @@ async def calculate_options_price(
     计算选项总价格
     实时计算用户选择的选项费用
     """
-    # 获取项目基础价格
+    # 项目展示价不参与下单计费；选项费用只按测试条件自身价格计算。
     project = db.query(Project).filter(Project.id == data.project_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="项目不存在")
 
-    base_price = Decimal(str(project.current_price)) * data.sample_count
+    base_price = Decimal("0")
 
     # 计算各选项价格
     total_options_fee = Decimal("0")

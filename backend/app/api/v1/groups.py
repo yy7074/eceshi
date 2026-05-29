@@ -11,7 +11,7 @@ import string
 from app.core.database import get_db
 from app.core.response import Response
 from app.api.v1.deps import get_current_user
-from app.models.user import User
+from app.models.user import User, UserCertification
 from app.models.group import UserGroup, GroupMember, GroupRole, GroupStatus
 
 
@@ -21,6 +21,20 @@ router = APIRouter()
 def generate_invite_code() -> str:
     """生成邀请码"""
     return ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
+
+
+def ensure_user_certified(db: Session, user: User) -> bool:
+    """Use an approved certification record as a fallback for older user rows."""
+    if user.is_certified:
+        return True
+    approved_cert = db.query(UserCertification).filter(
+        UserCertification.user_id == user.id,
+        UserCertification.status == "approved"
+    ).first()
+    if approved_cert:
+        user.is_certified = True
+        return True
+    return False
 
 
 class CreateGroupRequest(BaseModel):
@@ -44,6 +58,16 @@ async def create_group(
     """
     创建团队
     """
+    leader_phone = (request.leader_phone or "").strip()
+    if not leader_phone:
+        raise HTTPException(status_code=400, detail="请填写团长手机号")
+
+    if len(leader_phone) != 11 or not leader_phone.isdigit():
+        raise HTTPException(status_code=400, detail="团长手机号格式不正确")
+
+    if not ensure_user_certified(db, current_user):
+        raise HTTPException(status_code=400, detail="创建团队需要先完成实名认证")
+
     # 检查用户是否已经是某个团队的负责人
     existing_group = db.query(UserGroup).filter(
         UserGroup.owner_id == current_user.id,
@@ -52,6 +76,12 @@ async def create_group(
     
     if existing_group:
         raise HTTPException(status_code=400, detail="您已经创建过团队，一个用户只能创建一个团队")
+
+    if not current_user.phone:
+        phone_owner = db.query(User).filter(User.phone == leader_phone, User.id != current_user.id).first()
+        if phone_owner:
+            raise HTTPException(status_code=400, detail="该手机号已绑定其他账号")
+        current_user.phone = leader_phone
     
     # 生成唯一的邀请码
     invite_code = generate_invite_code()
@@ -60,17 +90,18 @@ async def create_group(
     
     # 创建团队
     group = UserGroup(
-        name=request.name,
+        name=request.name.strip(),
         avatar=request.avatar,
         description=f"{request.unit_type} - {request.region}",
         owner_id=current_user.id,
-        owner_name=request.leader_name,
-        owner_phone=request.leader_phone,
+        owner_name=request.leader_name.strip(),
+        owner_phone=leader_phone,
         university=request.region,
         department=request.address,
         invite_code=invite_code,
         member_count=1,
-        status=GroupStatus.ACTIVE
+        status=GroupStatus.ACTIVE,
+        is_certified=True
     )
     db.add(group)
     db.flush()
@@ -81,7 +112,7 @@ async def create_group(
         user_id=current_user.id,
         nickname=current_user.nickname or request.leader_name,
         avatar=current_user.avatar,
-        phone=current_user.phone,
+        phone=leader_phone,
         role=GroupRole.OWNER
     )
     db.add(member)
@@ -296,4 +327,3 @@ async def join_group_by_phone(
         "group_name": group.name,
         "invite_code": group.invite_code
     }, message="加入团队成功")
-

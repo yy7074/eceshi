@@ -67,6 +67,8 @@ export default {
 			inputText: '',
 			scrollTop: 0,
 			sessionId: null,
+			sending: false,
+			pollTimer: null,
 			quickQuestions: [
 				'如何下单？',
 				'检测周期多久？',
@@ -80,8 +82,32 @@ export default {
 	async onLoad() {
 		await this.loadSession()
 		await this.loadHistory()
+		this.startPolling()
+	},
+	onShow() {
+		this.startPolling()
+	},
+	onHide() {
+		this.stopPolling()
+	},
+	onUnload() {
+		this.stopPolling()
 	},
 	methods: {
+		startPolling() {
+			if (this.pollTimer) return
+			this.pollTimer = setInterval(() => {
+				this.loadHistory(false)
+			}, 5000)
+		},
+
+		stopPolling() {
+			if (this.pollTimer) {
+				clearInterval(this.pollTimer)
+				this.pollTimer = null
+			}
+		},
+
 		async loadSession() {
 			try {
 				const res = await api.getChatSession()
@@ -91,7 +117,7 @@ export default {
 			}
 		},
 
-		async loadHistory() {
+		async loadHistory(scroll = true) {
 			try {
 				const res = await api.getChatHistory()
 				const items = res.data?.items || []
@@ -103,63 +129,49 @@ export default {
 						time: (item.created_at || '').slice(11, 16) || '刚刚'
 					}))
 				}
-				this.scrollToBottom()
+				if (scroll) this.scrollToBottom()
 			} catch (e) {
 				console.error('加载聊天记录失败', e)
 			}
 		},
 
-		sendMessage() {
-			if (!this.inputText.trim()) return
+		async sendMessage() {
+			if (!this.inputText.trim() || this.sending) return
 			
-			const content = this.inputText
+			const content = this.inputText.trim()
 			this.inputText = ''
+			this.sending = true
 			
-			// 添加用户消息
+			const tempId = Date.now()
 			this.messages.push({
-				id: Date.now(),
+				id: tempId,
 				content: content,
 				isUser: true,
 				time: this.formatTime(new Date())
 			})
 			
 			this.scrollToBottom()
-			
-			this.handleReply(content)
+
+			try {
+				await api.sendChatMessage({
+					content,
+					message_type: 'text'
+				})
+				await this.loadHistory()
+			} catch (e) {
+				this.messages = this.messages.filter(msg => msg.id !== tempId)
+				uni.showToast({
+					title: e.message || '发送失败，请稍后重试',
+					icon: 'none'
+				})
+			} finally {
+				this.sending = false
+			}
 		},
-		
+
 		sendQuickQuestion(question) {
 			this.inputText = question
 			this.sendMessage()
-		},
-		
-		async handleReply(question) {
-			try {
-				const res = await api.sendChatMessage({
-					content: question,
-					message_type: 'text'
-				})
-				const reply = res.data?.auto_reply
-				if (reply) {
-					this.messages.push({
-						id: Date.now(),
-						content: reply,
-						isUser: false,
-						time: this.formatTime(new Date())
-					})
-					this.scrollToBottom()
-					return
-				}
-				await this.loadHistory()
-			} catch (e) {
-				this.messages.push({
-					id: Date.now(),
-					content: '消息已发送，客服会尽快回复您。',
-					isUser: false,
-					time: this.formatTime(new Date())
-				})
-				this.scrollToBottom()
-			}
 		},
 		
 		scrollToBottom() {

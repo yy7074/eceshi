@@ -289,8 +289,8 @@ async def calculate_order(
     if not project:
         raise HTTPException(status_code=404, detail="项目不存在")
 
-    # 基础费用：项目单价 × 样品数量
-    project_fee = Decimal(str(project.current_price)) * sample_count
+    # 项目展示价不参与订单计费；订单只统计测试条件/选项、加急和配送等费用。
+    project_fee = Decimal("0")
 
     # 选项费用计算
     options_fee = Decimal("0")
@@ -303,12 +303,8 @@ async def calculate_order(
     # 加急费用
     urgent_fee = Decimal("100.00") if is_urgent else Decimal("0")
 
-    # 运费计算
+    # 运费已按新规则取消，小程序与 Web 端均不再计算快递费。
     shipping_fee = Decimal("0")
-    if shipping_method == "express":
-        shipping_fee = Decimal("20.00")
-    elif shipping_method == "platform":
-        shipping_fee = Decimal("30.00")
 
     subtotal = project_fee + options_fee + urgent_fee + shipping_fee
 
@@ -332,15 +328,11 @@ async def calculate_order(
     total_fee = subtotal - discount_amount
 
     # 费用明细
-    fee_details = [
-        {"fee_type": "project", "fee_name": "检测费用", "amount": float(project_fee)}
-    ]
+    fee_details = []
     if options_fee > 0:
         fee_details.append({"fee_type": "options", "fee_name": "选项费用", "amount": float(options_fee)})
     if urgent_fee > 0:
         fee_details.append({"fee_type": "urgent", "fee_name": "加急费用", "amount": float(urgent_fee)})
-    if shipping_fee > 0:
-        fee_details.append({"fee_type": "shipping", "fee_name": "运费", "amount": float(shipping_fee)})
     if discount_amount > 0:
         fee_details.append({"fee_type": "discount", "fee_name": coupon_label or "优惠", "amount": float(-discount_amount)})
 
@@ -442,9 +434,9 @@ async def create_order(
         raise HTTPException(status_code=422, detail=f"数据格式错误: {str(e)}")
     
     print(f"[订单创建] 验证通过，开始创建订单")
-    # 验证地址（如果需要）
+    # 只要前端提供地址就保存到订单，兼容“自行邮寄”和“上门取样”。
     address = None
-    if data.shipping_method in ["express", "platform"] and data.address_id:
+    if data.address_id:
         address = db.query(UserAddress).filter(
             UserAddress.id == data.address_id,
             UserAddress.user_id == current_user.id
@@ -458,15 +450,14 @@ async def create_order(
         raise HTTPException(status_code=404, detail="项目不存在")
     
     project_id = data.project_id
-    project_unit_price = Decimal(str(project.current_price or 0))  # 从数据库获取项目单价
     project_name = project.name
     lab_id = project.lab_id if project.lab_id else 1
     lab_name = project.lab_name if hasattr(project, 'lab_name') else "平台实验室"
 
     total_sample_count = sum(max(1, int(sample.quantity or 1)) for sample in data.samples)
 
-    # 计算费用：项目单价 × 样品数量
-    project_fee = project_unit_price * total_sample_count
+    # 项目展示价不参与订单计费；订单只统计测试条件/选项、加急和配送等费用。
+    project_fee = Decimal("0")
 
     # 选项费用计算
     option_selections = request_data.get("option_selections", [])
@@ -480,12 +471,8 @@ async def create_order(
     # 加急费用
     urgent_fee = Decimal("100.00") if data.is_urgent else Decimal("0")
 
-    # 运费
+    # 运费已取消。
     shipping_fee = Decimal("0")
-    if data.shipping_method == "express":
-        shipping_fee = Decimal("20.00")
-    elif data.shipping_method == "platform":
-        shipping_fee = Decimal("30.00")
 
     subtotal = project_fee + options_fee + urgent_fee + shipping_fee
 
@@ -524,6 +511,10 @@ async def create_order(
         paid_fee=Decimal("0"),
         sample_count=total_sample_count,
         shipping_method=data.shipping_method,
+        payment_status="unpaid",
+        repayment_status="not_required",
+        sales_name=current_user.advisor_name,
+        sales_phone=current_user.advisor_phone,
         is_urgent=data.is_urgent,
         remark=data.remark
     )
@@ -565,15 +556,11 @@ async def create_order(
             db.add(option_selection)
 
     # 创建费用明细
-    fee_items = [
-        ("project", "检测费用", project_fee),
-    ]
+    fee_items = []
     if options_fee > 0:
         fee_items.append(("options", "选项费用", options_fee))
     if urgent_fee > 0:
         fee_items.append(("urgent", "加急费用", urgent_fee))
-    if shipping_fee > 0:
-        fee_items.append(("shipping", "运费", shipping_fee))
     if discount_amount > 0:
         fee_items.append(("discount", "优惠", -discount_amount))
 
@@ -622,6 +609,11 @@ async def create_order(
         "paid_fee": float(order.paid_fee),
         "sample_count": order.sample_count,
         "shipping_method": order.shipping_method,
+        "payment_status": order.payment_status,
+        "payment_source": order.payment_source,
+        "repayment_status": order.repayment_status,
+        "sales_name": order.sales_name,
+        "sales_phone": order.sales_phone,
         "receiver_name": order.receiver_name,
         "receiver_phone": order.receiver_phone,
         "receiver_address": order.receiver_address,
@@ -691,7 +683,18 @@ async def get_order_list(
             "project_image": None,
             "is_draft": order.is_draft if hasattr(order, 'is_draft') else False,
             "invoice_status": order.invoice_status if hasattr(order, 'invoice_status') else "none",
-            "payment_status": order.payment_status if hasattr(order, 'payment_status') else "unpaid"
+            "payment_status": order.payment_status if hasattr(order, 'payment_status') else "unpaid",
+            "payment_method": order.payment_method,
+            "payment_source": order.payment_source,
+            "repayment_status": order.repayment_status,
+            "repayment_method": order.repayment_method,
+            "repayment_amount": float(order.repayment_amount or 0),
+            "repayment_time": order.repayment_time.isoformat() if order.repayment_time else None,
+            "sales_name": order.sales_name,
+            "sales_phone": order.sales_phone,
+            "report_url": order.report_url,
+            "checklist_url": order.checklist_url,
+            "invoice_file_url": order.invoice_file_url
         }
         items.append(add_order_amount_aliases(item))
 
@@ -879,15 +882,11 @@ async def save_draft_order(
 
     sample_count = len(samples) if samples else request_data.get("sample_count", 1)
 
-    # 计算费用
-    project_fee = Decimal(str(project.current_price)) * sample_count
+    # 项目展示价不参与草稿计费
+    project_fee = Decimal("0")
     urgent_fee = Decimal("100.00") if request_data.get("is_urgent") else Decimal("0")
     shipping_fee = Decimal("0")
     shipping_method = request_data.get("shipping_method") or request_data.get("delivery_method") or "self"
-    if shipping_method == "express":
-        shipping_fee = Decimal("20.00")
-    elif shipping_method == "platform":
-        shipping_fee = Decimal("30.00")
     total_fee = project_fee + urgent_fee + shipping_fee
 
     # 创建草稿订单
@@ -991,14 +990,9 @@ async def update_draft_order(
     # 重新计算费用
     project = db.query(Project).filter(Project.id == order.project_id).first()
     if project:
-        order.project_fee = Decimal(str(project.current_price)) * order.sample_count
+        order.project_fee = Decimal("0")
         order.urgent_fee = Decimal("100.00") if order.is_urgent else Decimal("0")
-        if order.shipping_method == "express":
-            order.shipping_fee = Decimal("20.00")
-        elif order.shipping_method == "platform":
-            order.shipping_fee = Decimal("30.00")
-        else:
-            order.shipping_fee = Decimal("0")
+        order.shipping_fee = Decimal("0")
         order.total_fee = order.project_fee + order.urgent_fee + order.shipping_fee - order.discount_amount
 
     db.commit()

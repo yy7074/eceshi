@@ -146,19 +146,23 @@
 					return uni.showToast({ title: '密码至少6位', icon: 'none' })
 				}
 				
-				this.loading = true
-				try {
-					const res = await api.register(this.form)
-					
-					// 保存登录信息
-					this.$store.dispatch('login', {
+					this.loading = true
+					try {
+						const res = await api.register({
+							...this.form,
+							...this.getPendingInvitePayload()
+						})
+						
+						// 保存登录信息
+						this.$store.dispatch('login', {
 						token: res.data.access_token,
 						userInfo: {
 							id: res.data.user_id,
 							phone: res.data.phone,
-							nickname: res.data.nickname
-						}
-					})
+								nickname: res.data.nickname
+							}
+						})
+						this.clearPendingInvite()
 					
 					uni.showToast({
 						title: '注册成功',
@@ -179,12 +183,31 @@
 				}
 			},
 			
-			// 返回登录
-			goLogin() {
-				uni.navigateBack()
+				// 返回登录
+				goLogin() {
+					uni.navigateBack()
+				},
+
+				getPendingInvitePayload() {
+					const stored = uni.getStorageSync('pendingInvite')
+					if (!stored) {
+						return {}
+					}
+					if (typeof stored === 'string') {
+						try {
+							return JSON.parse(stored)
+						} catch (error) {
+							return {}
+						}
+					}
+					return stored
+				},
+
+				clearPendingInvite() {
+					uni.removeStorageSync('pendingInvite')
+				}
 			}
 		}
-	}
 </script>
 
 <style lang="scss" scoped>
@@ -283,4 +306,3 @@
 		}
 	}
 </style>
-

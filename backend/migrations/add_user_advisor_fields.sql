@@ -1,0 +1,3 @@
+ALTER TABLE users
+  ADD COLUMN advisor_name VARCHAR(50) DEFAULT NULL COMMENT '专属顾问姓名',
+  ADD COLUMN advisor_phone VARCHAR(20) DEFAULT NULL COMMENT '专属顾问电话';

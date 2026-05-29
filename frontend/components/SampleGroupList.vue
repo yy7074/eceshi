@@ -51,12 +51,8 @@
 
     <!-- 底部价格汇总 -->
     <view class="price-summary" v-if="groups.length > 0">
-      <view class="summary-row">
-        <text class="label">基础费用</text>
-        <text class="value">¥{{ totalBasePrice.toFixed(2) }}</text>
-      </view>
       <view class="summary-row" v-if="totalOptionsFee > 0">
-        <text class="label">选项费用</text>
+        <text class="label">测试条件费用</text>
         <text class="value">¥{{ totalOptionsFee.toFixed(2) }}</text>
       </view>
       <view class="summary-row total">
@@ -110,7 +106,7 @@ export default {
       }, 0)
     },
     totalBasePrice() {
-      return this.basePrice * this.totalSampleCount
+      return 0
     },
     totalOptionsFee() {
       return this.groups.reduce((sum, group) => {
@@ -155,7 +151,7 @@ export default {
       try {
         const res = await api.getSampleGroupDetail(groupId)
         if (res.code === 200 && res.data) {
-          this.$set(this.groups, index, res.data)
+          this.groups.splice(index, 1, res.data)
         }
       } catch (e) {
         console.error('加载分组详情失败', e)
@@ -190,7 +186,10 @@ export default {
       const group = this.groups[index]
       try {
         await api.updateSampleGroup(groupId, { is_collapsed: !group.is_collapsed })
-        this.$set(this.groups[index], 'is_collapsed', !group.is_collapsed)
+        this.groups.splice(index, 1, {
+          ...this.groups[index],
+          is_collapsed: !group.is_collapsed
+        })
       } catch (e) {
         console.error('更新折叠状态失败', e)
       }
@@ -203,7 +202,7 @@ export default {
       try {
         const res = await api.updateSampleGroup(groupId, data)
         if (res.code === 200) {
-          this.$set(this.groups, index, { ...this.groups[index], ...res.data })
+          this.groups.splice(index, 1, { ...this.groups[index], ...res.data })
           this.emitChange()
         }
       } catch (e) {
@@ -254,10 +253,8 @@ export default {
         if (res.code === 200) {
           const index = this.groups.findIndex(g => g.id === groupId)
           if (index !== -1) {
-            if (!this.groups[index].items) {
-              this.$set(this.groups[index], 'items', [])
-            }
-            this.groups[index].items.push(res.data)
+            const items = [...(this.groups[index].items || []), res.data]
+            this.groups.splice(index, 1, { ...this.groups[index], items })
           }
           uni.showToast({ title: '添加成功', icon: 'success' })
           this.emitChange()
@@ -275,7 +272,9 @@ export default {
           if (groupIndex !== -1) {
             const itemIndex = this.groups[groupIndex].items.findIndex(i => i.id === itemId)
             if (itemIndex !== -1) {
-              this.$set(this.groups[groupIndex].items, itemIndex, res.data)
+              const items = [...this.groups[groupIndex].items]
+              items.splice(itemIndex, 1, res.data)
+              this.groups.splice(groupIndex, 1, { ...this.groups[groupIndex], items })
             }
           }
           uni.showToast({ title: '更新成功', icon: 'success' })
@@ -294,7 +293,9 @@ export default {
           if (groupIndex !== -1) {
             const itemIndex = this.groups[groupIndex].items.findIndex(i => i.id === itemId)
             if (itemIndex !== -1) {
-              this.groups[groupIndex].items.splice(itemIndex, 1)
+              const items = [...this.groups[groupIndex].items]
+              items.splice(itemIndex, 1)
+              this.groups.splice(groupIndex, 1, { ...this.groups[groupIndex], items })
             }
           }
           uni.showToast({ title: '删除成功', icon: 'success' })
@@ -311,10 +312,11 @@ export default {
         if (res.code === 200) {
           const groupIndex = this.groups.findIndex(g => g.id === groupId)
           if (groupIndex !== -1) {
-            if (!this.groups[groupIndex].items) {
-              this.$set(this.groups[groupIndex], 'items', [])
-            }
-            this.groups[groupIndex].items.push(...res.data.items)
+            const items = [
+              ...(this.groups[groupIndex].items || []),
+              ...(res.data.items || [])
+            ]
+            this.groups.splice(groupIndex, 1, { ...this.groups[groupIndex], items })
           }
           uni.showToast({ title: res.data.message || '添加成功', icon: 'success' })
           this.emitChange()
@@ -329,12 +331,15 @@ export default {
       if (index === -1) return
 
       const selections = data.selections || []
-      const fee = data.totalOptionsFee || 0
+      const fee = Number(data.totalOptionsFee || 0)
 
       try {
         await api.updateSampleGroup(groupId, { option_selections: selections })
-        this.$set(this.groups[index], 'option_selections', selections)
-        this.$set(this.groups[index], 'options_fee', fee)
+        this.groups.splice(index, 1, {
+          ...this.groups[index],
+          option_selections: selections,
+          options_fee: fee
+        })
         this.emitChange()
       } catch (e) {
         console.error('更新选项失败', e)

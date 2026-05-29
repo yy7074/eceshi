@@ -53,7 +53,7 @@
 				<SampleGroupList
 					ref="sampleGroupList"
 					:project-id="projectId"
-					:base-price="projectPrice"
+					:base-price="0"
 					:options-tree="optionsTree"
 					@change="handleGroupsChange"
 				/>
@@ -228,24 +228,16 @@
 				<view class="section-title">费用明细</view>
 				<view class="fee-list">
 					<view class="fee-row">
-						<text class="fee-label">测试费用</text>
-						<text class="fee-value">¥{{ projectPrice.toFixed(2) }}</text>
-					</view>
-					<view class="fee-row">
 						<text class="fee-label">样品数量</text>
 						<text class="fee-value">x{{ formData.sampleCount }}</text>
 					</view>
 					<view class="fee-row" v-if="optionsFee > 0">
-						<text class="fee-label">选项费用</text>
+						<text class="fee-label">测试条件费用</text>
 						<text class="fee-value">¥{{ optionsFee.toFixed(2) }}</text>
 					</view>
 					<view class="fee-row" v-if="couponDiscount > 0">
 						<text class="fee-label">优惠券</text>
 						<text class="fee-value discount">-¥{{ couponDiscount.toFixed(2) }}</text>
-					</view>
-					<view class="fee-row">
-						<text class="fee-label">配送费用</text>
-						<text class="fee-value">¥{{ deliveryFee.toFixed(2) }}</text>
 					</view>
 					<view class="fee-row total">
 						<text class="fee-label">总计</text>
@@ -254,7 +246,7 @@
 				</view>
 			</view>
 			
-			<!-- 支付方式（统一信用支付，不再展示选择） -->
+			<!-- 支付方式（自动使用预付余额和信用额度，不再展示选择） -->
 			<view class="form-section" v-if="false">
 				<view class="section-title">支付方式</view>
 				<view class="payment-methods">
@@ -324,7 +316,7 @@ export default {
 				{ value: 'self', label: '上门取样', desc: '部分院校支持，请提前联系确认' }
 			],
 			paymentMethods: [
-				{ value: 'credit', name: '信用支付', icon: '/static/wechat-pay.svg' }
+				{ value: 'credit', name: '自动支付', icon: '/static/wechat-pay.svg' }
 			],
 			
 			// 选中的地址
@@ -351,10 +343,12 @@ export default {
 	},
 	computed: {
 		subtotalPrice() {
+			const deliveryFee = Number(this.deliveryFee || 0)
 			if (this.sampleMode === 'group') {
-				return this.groupsTotalPrice + this.deliveryFee
+				return Number(this.groupsTotalPrice || 0) + deliveryFee
 			}
-			return this.projectPrice * this.formData.sampleCount + this.optionsFee + this.deliveryFee
+			const optionsFee = Number(this.optionsFee || 0)
+			return optionsFee + deliveryFee
 		},
 		selectedCoupon() {
 			return this.availableCoupons.find(coupon => coupon.id === this.formData.couponId) || null
@@ -407,15 +401,15 @@ export default {
 	// 加载项目信息
 		async loadProjectInfo() {
 		try {
-			if (this.projectId) {
-				const res = await api.getProjectDetail(this.projectId)
-				const project = res.data
+				if (this.projectId) {
+					const res = await api.getProjectDetail(this.projectId)
+					const project = res.data
 
 				// 设置项目价格
 				this.projectPrice = project.current_price || 0
 
-					// 配送费用（可以根据地区或项目类型计算）
-					this.deliveryFee = 20.00
+					// 已取消小程序端快递费用
+					this.deliveryFee = 0
 
 					// 加载项目选项
 					this.loadProjectOptions()
@@ -424,7 +418,7 @@ export default {
 			console.error('加载项目信息失败', e)
 			// 失败时使用默认值
 			this.projectPrice = 0
-			this.deliveryFee = 20.00
+			this.deliveryFee = 0
 		}
 	},
 
@@ -457,14 +451,14 @@ export default {
 	// 处理选项变化
 	handleOptionsChange(data) {
 		this.optionSelections = data.selections || []
-		this.optionsFee = data.totalOptionsFee || 0
+		this.optionsFee = Number(data.totalOptionsFee || 0)
 		this.optionsFormData = data.formData || {}
 	},
 
 	// 处理样品分组变化
 	handleGroupsChange(data) {
 		this.sampleGroups = data.groups || []
-		this.groupsTotalPrice = data.totalPrice || 0
+		this.groupsTotalPrice = Number(data.totalPrice || 0)
 	},
 
 	async loadCoupons() {
@@ -788,14 +782,14 @@ export default {
 						amount: this.totalPrice
 					})
 				}
-				uni.showToast({ title: '提交成功，已扣减信用额度', icon: 'success' })
+				uni.showToast({ title: '提交成功，已自动支付', icon: 'success' })
 				setTimeout(() => {
 					uni.redirectTo({
 						url: `/pagesA/order-detail/order-detail?id=${ids[0]}`
 					})
 				}, 1200)
 			} catch (e) {
-				console.error('信用支付失败，转入支付页', e)
+				console.error('自动支付失败，转入支付页', e)
 				uni.showToast({
 					title: e.message || e.detail || '订单已创建，请完成支付',
 					icon: 'none'
@@ -844,7 +838,7 @@ export default {
 			})
 		},
 		
-		// 跳转支付（统一走信用支付页）
+		// 跳转支付（统一走自动支付页）
 		goPay(orderId) {
 			uni.removeStorageSync('booking_draft')
 			uni.redirectTo({

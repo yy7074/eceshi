@@ -37,6 +37,10 @@ class Settings(BaseSettings):
     JWT_SECRET_KEY: str = "jwt-secret-key"
     JWT_ALGORITHM: str = "HS256"
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440  # 24小时
+
+    # 后台管理员配置
+    ADMIN_USERNAME: str = "admin"
+    ADMIN_BOOTSTRAP_PASSWORD: str = ""  # 仅首次无管理员账号时用于初始化，不在页面展示
     
     # 阿里云OSS配置
     ALIYUN_OSS_ACCESS_KEY_ID: str = ""

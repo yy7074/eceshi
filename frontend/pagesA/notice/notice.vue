@@ -28,6 +28,7 @@
 						<text class="notice-time">{{ notice.time }}</text>
 					</view>
 					<text class="notice-summary">{{ notice.summary }}</text>
+					<text class="notice-corner">{{ getTypeText(notice.type) }}</text>
 					<view class="notice-tag" v-if="!notice.read">
 						<text class="unread-dot"></text>
 					</view>
@@ -51,58 +52,21 @@
 </template>
 
 <script>
+import api from '@/utils/api.js'
+
 export default {
 	data() {
 		return {
 			activeTab: 'all',
-			notices: [
-				{
-					id: 1,
-					type: 'system',
-					title: '平台服务升级通知',
-					summary: '为提供更好的服务体验，我们将于12月10日进行系统升级维护...',
-					content: '尊敬的用户：\n\n为提供更好的服务体验，我们将于2025年12月10日00:00-06:00进行系统升级维护，届时部分功能可能暂时无法使用，给您带来的不便敬请谅解。\n\n博才科研百测',
-					time: '12-01',
-					read: false
-				},
-				{
-					id: 2,
-					type: 'order',
-					title: '订单状态更新',
-					summary: '您的订单ORD2025120100001已完成检测，报告已生成...',
-					content: '您的订单ORD2025120100001（X射线衍射分析）已完成检测，报告已生成，请前往订单详情页下载。',
-					time: '11-30',
-					read: false
-				},
-				{
-					id: 3,
-					type: 'activity',
-					title: '12月优惠活动',
-					summary: '金秋检测季，多项热门检测项目6折起，优惠券限时领取...',
-					content: '金秋检测季活动火热进行中！\n\n活动时间：12月1日-12月31日\n\n优惠内容：\n1. XPS、SEM、FT-IR等热门检测项目6折起\n2. 新用户首单立减50元\n3. 老客户回馈：充值满1000送150测试费\n\n快来参与吧！',
-					time: '12-01',
-					read: true
-				},
-				{
-					id: 4,
-					type: 'system',
-					title: '新增检测项目上线',
-					summary: '新增材料表征、生物科学等多个检测类目，欢迎体验...',
-					content: '平台新增多个检测项目类目：\n\n1. 材料表征\n2. 高端测试\n3. 组织成分\n4. 生物科学\n5. 环境检测\n\n更多优质检测服务，敬请期待！',
-					time: '11-28',
-					read: true
-				},
-				{
-					id: 5,
-					type: 'order',
-					title: '样品已签收',
-					summary: '您的样品已被实验室签收，正在安排检测...',
-					content: '您好，您寄送的样品已被实验室签收，订单ORD2025112800002正在安排检测，预计3-5个工作日完成。',
-					time: '11-28',
-					read: true
-				}
-			]
+			notices: [],
+			loading: false
 		}
+	},
+	onLoad() {
+		this.loadNotices()
+	},
+	onPullDownRefresh() {
+		this.loadNotices().finally(() => uni.stopPullDownRefresh())
 	},
 	computed: {
 		filteredNotices() {
@@ -111,6 +75,59 @@ export default {
 		}
 	},
 	methods: {
+		getReadAnnouncementIds() {
+			const stored = uni.getStorageSync('readAnnouncementIds')
+			if (!stored) return []
+			try {
+				return typeof stored === 'string' ? JSON.parse(stored) : stored
+			} catch (e) {
+				return []
+			}
+		},
+		setReadAnnouncement(id) {
+			const ids = new Set(this.getReadAnnouncementIds())
+			ids.add(id)
+			uni.setStorageSync('readAnnouncementIds', JSON.stringify([...ids]))
+		},
+		async loadNotices() {
+			this.loading = true
+			try {
+				const [noticeRes, annRes] = await Promise.all([
+					api.getNotifications({ page: 1, page_size: 50 }).catch(() => ({ data: { items: [] } })),
+					api.getAnnouncements({ page: 1, page_size: 50 }).catch(() => ({ data: { items: [] } }))
+				])
+				const readAnnouncementIds = this.getReadAnnouncementIds()
+				const notifications = (noticeRes.data?.items || []).map(item => ({
+					id: `n-${item.id}`,
+					rawId: item.id,
+					source: 'notification',
+					type: item.category || 'system',
+					title: item.title,
+					summary: item.content || '',
+					content: item.content || '',
+					time: this.formatTime(item.created_at),
+					read: !!item.is_read
+				}))
+				const announcements = (annRes.data?.items || []).map(item => ({
+					id: `a-${item.id}`,
+					rawId: item.id,
+					source: 'announcement',
+					type: item.category || 'system',
+					title: item.title,
+					summary: item.summary || '',
+					content: item.summary || '',
+					time: this.formatTime(item.created_at),
+					read: readAnnouncementIds.includes(item.id)
+				}))
+				this.notices = [...notifications, ...announcements]
+			} finally {
+				this.loading = false
+			}
+		},
+		formatTime(value) {
+			if (!value) return ''
+			return String(value).replace('T', ' ').slice(5, 16)
+		},
 		getIcon(type) {
 			const icons = {
 				system: '📢',
@@ -118,6 +135,15 @@ export default {
 				activity: '🎁'
 			}
 			return icons[type] || '📌'
+		},
+		getTypeText(type) {
+			const map = {
+				system: '系统',
+				order: '订单',
+				activity: '活动',
+				notice: '公告'
+			}
+			return map[type] || '消息'
 		},
 		getIconBg(type) {
 			const colors = {
@@ -127,7 +153,14 @@ export default {
 			}
 			return colors[type] || '#f5f5f5'
 		},
-		showDetail(notice) {
+		async showDetail(notice) {
+			if (notice.source === 'notification') {
+				await api.markNotificationRead(notice.rawId).catch(() => {})
+			} else {
+				const res = await api.getAnnouncementDetail(notice.rawId).catch(() => null)
+				notice.content = res?.data?.content || notice.content || notice.summary
+				this.setReadAnnouncement(notice.rawId)
+			}
 			notice.read = true
 			uni.showModal({
 				title: notice.title,
@@ -136,7 +169,10 @@ export default {
 				confirmText: '我知道了'
 			})
 		},
-		markAllRead() {
+		async markAllRead() {
+			await api.markAllNotificationsRead().catch(() => {})
+			const announcementIds = this.notices.filter(n => n.source === 'announcement').map(n => n.rawId)
+			uni.setStorageSync('readAnnouncementIds', JSON.stringify(announcementIds))
 			this.notices.forEach(n => n.read = true)
 			uni.showToast({ title: '已全部标为已读', icon: 'success' })
 		}
@@ -190,8 +226,9 @@ export default {
 		display: flex;
 		background: #fff;
 		padding: 24rpx;
-		border-radius: 12rpx;
-		margin-bottom: 16rpx;
+		border-radius: 18rpx;
+		margin-bottom: 18rpx;
+		box-shadow: 0 6rpx 18rpx rgba(23, 37, 84, 0.06);
 		
 		.notice-icon {
 			width: 80rpx;
@@ -208,6 +245,9 @@ export default {
 		.notice-content {
 			flex: 1;
 			position: relative;
+			background: #f8fafc;
+			border-radius: 16rpx;
+			padding: 18rpx 18rpx 44rpx;
 			
 			.notice-header {
 				display: flex;
@@ -235,11 +275,22 @@ export default {
 				-webkit-box-orient: vertical;
 				overflow: hidden;
 			}
+
+			.notice-corner {
+				position: absolute;
+				right: 16rpx;
+				bottom: 12rpx;
+				padding: 4rpx 14rpx;
+				border-radius: 999rpx;
+				background: #e8f3ff;
+				color: #1677ff;
+				font-size: 22rpx;
+			}
 			
 			.notice-tag {
 				position: absolute;
-				top: 0;
-				right: 0;
+				top: -4rpx;
+				right: -4rpx;
 				
 				.unread-dot {
 					display: block;
@@ -287,4 +338,3 @@ export default {
 	}
 }
 </style>
-

@@ -12,6 +12,7 @@ const PROD_BASE_URL = 'https://www.keyanbaice.com'
 // 根据环境选择API地址
 const BASE_URL = process.env.NODE_ENV === 'development' ? DEV_BASE_URL : PROD_BASE_URL
 let isRedirectingToLogin = false
+let lastLoginPromptAt = 0
 
 function clearLoginState() {
 	uni.removeStorageSync('token')
@@ -29,17 +30,37 @@ function redirectToLogin() {
 		return
 	}
 
+	const now = Date.now()
+	if (now - lastLoginPromptAt < 3000) {
+		return
+	}
+	lastLoginPromptAt = now
 	isRedirectingToLogin = true
-	setTimeout(() => {
-		uni.reLaunch({
-			url: '/pages/login/login?force=1',
-			complete: () => {
-				setTimeout(() => {
-					isRedirectingToLogin = false
-				}, 500)
+	uni.showModal({
+		title: '需要登录',
+		content: '登录后可继续使用该功能，也可以先返回首页浏览。',
+		confirmText: '去登录',
+		cancelText: '先逛逛',
+		success: (res) => {
+			if (res.confirm) {
+				uni.navigateTo({
+					url: '/pages/login/login?force=1',
+					fail: () => {
+						uni.reLaunch({ url: '/pages/login/login?force=1' })
+					}
+				})
+				return
 			}
-		})
-	}, 600)
+			uni.switchTab({
+				url: '/pages/index/index'
+			})
+		},
+		complete: () => {
+			setTimeout(() => {
+				isRedirectingToLogin = false
+			}, 500)
+		}
+	})
 }
 
 function buildUrl(url, params) {
@@ -84,8 +105,9 @@ function request(options) {
 			headers['Authorization'] = `Bearer ${token}`
 		}
 		
+		const requestUrl = BASE_URL + buildUrl(options.url, options.params)
 		uni.request({
-			url: BASE_URL + buildUrl(options.url, options.params),
+			url: requestUrl,
 			method: options.method || 'GET',
 			data: options.data || {},
 			header: headers,
@@ -105,10 +127,6 @@ function request(options) {
 				} else if (res.statusCode === 401 || (res.statusCode === 403 && res.data && res.data.detail === 'Not authenticated')) {
 					// 未授权或未登录，跳转登录
 					clearLoginState()
-					uni.showToast({
-						title: '请先登录',
-						icon: 'none'
-					})
 					redirectToLogin()
 					reject(res.data)
 				} else {
@@ -121,9 +139,17 @@ function request(options) {
 				}
 			},
 			fail: (err) => {
+				const rawMessage = err && err.errMsg ? err.errMsg : '网络请求失败'
+				const toastMessage = rawMessage.replace(/^request:fail\s*/, '') || '网络请求失败'
+				console.error('网络请求失败', {
+					url: requestUrl,
+					method: options.method || 'GET',
+					err
+				})
 				uni.showToast({
-					title: '网络请求失败',
-					icon: 'none'
+					title: toastMessage.length > 28 ? toastMessage.slice(0, 28) : toastMessage,
+					icon: 'none',
+					duration: 3000
 				})
 				reject(err)
 			}
@@ -138,7 +164,7 @@ export default {
 		return request({
 			url,
 			method: 'GET',
-			data,
+			params: options.params || data,
 			...options
 		})
 	},

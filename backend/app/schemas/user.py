@@ -14,6 +14,8 @@ class UserRegister(BaseModel):
     phone: str = Field(..., min_length=11, max_length=11, description="手机号")
     password: str = Field(..., min_length=6, description="密码")
     sms_code: str = Field(..., min_length=6, max_length=6, description="短信验证码")
+    invite_code: Optional[str] = Field(None, description="邀请二维码的邀请码")
+    inviter_id: Optional[int] = Field(None, description="邀请人用户ID")
     
     @validator('phone')
     def validate_phone(cls, v):
@@ -26,6 +28,8 @@ class UserLogin(BaseModel):
     """用户登录请求"""
     phone: str = Field(..., description="手机号")
     password: str = Field(..., description="密码")
+    invite_code: Optional[str] = Field(None, description="邀请二维码的邀请码")
+    inviter_id: Optional[int] = Field(None, description="邀请人用户ID")
 
 
 class SMSCodeRequest(BaseModel):
@@ -44,6 +48,8 @@ class SMSLoginRequest(BaseModel):
     """短信验证码登录请求"""
     phone: str = Field(..., min_length=11, max_length=11, description="手机号")
     sms_code: str = Field(..., min_length=6, max_length=6, description="短信验证码")
+    invite_code: Optional[str] = Field(None, description="邀请二维码的邀请码")
+    inviter_id: Optional[int] = Field(None, description="邀请人用户ID")
     
     @validator('phone')
     def validate_phone(cls, v):
@@ -55,6 +61,9 @@ class SMSLoginRequest(BaseModel):
 class WechatLoginRequest(BaseModel):
     """微信登录请求"""
     code: str = Field(..., description="微信登录code")
+    phone_code: Optional[str] = Field(None, description="微信手机号授权code")
+    invite_code: Optional[str] = Field(None, description="邀请二维码的邀请码")
+    inviter_id: Optional[int] = Field(None, description="邀请人用户ID")
 
 
 class TokenResponse(BaseModel):
@@ -146,4 +155,3 @@ class CertificationResponse(BaseModel):
 
     class Config:
         from_attributes = True
-

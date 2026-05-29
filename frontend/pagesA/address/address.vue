@@ -66,10 +66,12 @@
 					
 					<view class="form-item">
 						<text class="label"><text class="required">*</text>所在地区</text>
-						<view class="region-input" @click="selectRegion">
-							<text :class="{ placeholder: !regionText }">{{ regionText || '请选择省市区' }}</text>
-							<text class="arrow">▶</text>
-						</view>
+						<picker mode="region" :value="regionValue" @change="onRegionChange">
+							<view class="region-input">
+								<text :class="{ placeholder: !regionText }">{{ regionText || '请选择省市区' }}</text>
+								<text class="arrow">▶</text>
+							</view>
+						</picker>
 					</view>
 					
 					<view class="form-item">
@@ -84,8 +86,8 @@
 					
 					<view class="form-item checkbox">
 						<label>
-							<checkbox :checked="form.is_default" @click="form.is_default = !form.is_default" />
 							<text>设为默认地址</text>
+							<switch :checked="form.is_default" color="#4facfe" @change="onDefaultChange" />
 						</label>
 					</view>
 				</scroll-view>
@@ -125,10 +127,14 @@ export default {
 	},
 	computed: {
 		regionText() {
-			if (this.form.province && this.form.city && this.form.district) {
-				return `${this.form.province} ${this.form.city} ${this.form.district}`
+			const values = [this.form.province, this.form.city, this.form.district].filter(Boolean)
+			return values.join(' ')
+		},
+		regionValue() {
+			if (this.form.province && this.form.city) {
+				return [this.form.province, this.form.city, this.form.district || '']
 			}
-			return ''
+			return []
 		}
 	},
 	onLoad(options) {
@@ -180,17 +186,15 @@ export default {
 		},
 		
 		// 选择地区
-		selectRegion() {
-			uni.showActionSheet({
-				itemList: ['北京市 北京市 东城区', '北京市 北京市 西城区', '上海市 上海市 黄浦区', '广东省 广州市 天河区', '浙江省 杭州市 西湖区'],
-				success: (res) => {
-					const selected = ['北京市 北京市 东城区', '北京市 北京市 西城区', '上海市 上海市 黄浦区', '广东省 广州市 天河区', '浙江省 杭州市 西湖区'][res.tapIndex]
-					const parts = selected.split(' ')
-					this.form.province = parts[0]
-					this.form.city = parts[1]
-					this.form.district = parts[2]
-				}
-			})
+		onRegionChange(e) {
+			const value = e.detail.value || []
+			this.form.province = value[0] || ''
+			this.form.city = value[1] || ''
+			this.form.district = value[2] || ''
+		},
+
+		onDefaultChange(e) {
+			this.form.is_default = !!e.detail.value
 		},
 		
 		// 保存地址
@@ -204,7 +208,7 @@ export default {
 				uni.showToast({ title: '请输入正确的手机号', icon: 'none' })
 				return
 			}
-			if (!this.form.province || !this.form.city || !this.form.district) {
+			if (!this.form.province || !this.form.city) {
 				uni.showToast({ title: '请选择所在地区', icon: 'none' })
 				return
 			}
@@ -218,13 +222,11 @@ export default {
 			try {
 				const data = {
 					receiver_name: this.form.name,
-					name: this.form.name,
 					phone: this.form.phone,
 					province: this.form.province,
 					city: this.form.city,
 					district: this.form.district,
 					detail_address: this.form.detail,
-					detail: this.form.detail,
 					is_default: this.form.is_default
 				}
 				
@@ -542,11 +544,13 @@ export default {
 				label {
 					display: flex;
 					align-items: center;
+					justify-content: space-between;
 					font-size: 28rpx;
 					color: #666;
 					
-					checkbox {
-						margin-right: 15rpx;
+					switch {
+						transform: scale(0.82);
+						transform-origin: right center;
 					}
 				}
 			}

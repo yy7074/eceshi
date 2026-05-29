@@ -317,7 +317,7 @@ export default {
 				})
 				
 				uni.hideLoading()
-				uni.showToast({ title: res.message || '信用支付成功', icon: 'success' })
+				uni.showToast({ title: res.message || '支付成功', icon: 'success' })
 				this.loadOrders(true)
 			} catch (e) {
 				uni.hideLoading()

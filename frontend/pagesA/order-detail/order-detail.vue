@@ -104,6 +104,38 @@
 					<text class="value">¥{{ formatMoney(getOrderTotal(order)) }}</text>
 				</view>
 			</view>
+
+			<view class="section-card">
+				<view class="section-title">支付与还款</view>
+				<view class="info-row">
+					<text class="label">资金来源</text>
+					<text class="value">{{ getPaymentSourceText(order.payment_source || order.payment_method) }}</text>
+				</view>
+				<view class="info-row">
+					<text class="label">还款状态</text>
+					<text class="value">{{ getRepaymentStatusText(order.repayment_status) }}</text>
+				</view>
+				<view class="info-row" v-if="order.repayment_method">
+					<text class="label">还款方式</text>
+					<text class="value">{{ getRepaymentMethodText(order.repayment_method) }}</text>
+				</view>
+			</view>
+
+			<view class="section-card" v-if="report.file_url || order.report_url || order.checklist_url || order.invoice_file_url">
+				<view class="section-title">订单文件</view>
+				<view class="file-row" v-if="report.file_url || order.report_url" @click="downloadUrl(report.file_url || order.report_url, '测试报告')">
+					<text class="file-name">测试报告</text>
+					<text class="file-action">查看/下载</text>
+				</view>
+				<view class="file-row" v-if="order.checklist_url" @click="downloadUrl(order.checklist_url, '测试清单')">
+					<text class="file-name">测试清单</text>
+					<text class="file-action">查看/下载</text>
+				</view>
+				<view class="file-row" v-if="order.invoice_file_url" @click="downloadUrl(order.invoice_file_url, '发票文件')">
+					<text class="file-name">发票文件</text>
+					<text class="file-action">查看/下载</text>
+				</view>
+			</view>
 			
 			<!-- 订单信息 -->
 			<view class="section-card">
@@ -119,6 +151,10 @@
 				<view class="info-row" v-if="order.paid_at">
 					<text class="label">支付时间</text>
 					<text class="value">{{ formatDateTime(order.paid_at) }}</text>
+				</view>
+				<view class="info-row" v-if="order.payment_method">
+					<text class="label">支付方式</text>
+					<text class="value">{{ getPaymentMethodText(order.payment_method) }}</text>
 				</view>
 				<view class="info-row" v-if="order.completed_at">
 					<text class="label">完成时间</text>
@@ -321,6 +357,89 @@ export default {
 			const value = Number(amount)
 			return Number.isFinite(value) ? value.toFixed(2) : '0.00'
 		},
+
+		getPaymentMethodText(method) {
+			const map = {
+				balance: '预付余额',
+				credit: '信用额度',
+				mixed: '预付余额 + 信用额度',
+				wechat: '微信支付',
+				alipay: '支付宝'
+			}
+			return map[method] || method
+		},
+
+		getPaymentSourceText(source) {
+			const map = {
+				credit: '信用额度',
+				balance: '预付余额',
+				prepaid: '预付余额',
+				mixed: '预付余额 + 信用额度',
+				wechat: '微信支付',
+				alipay: '支付宝'
+			}
+			return map[source] || source || '未记录'
+		},
+
+		getRepaymentStatusText(status) {
+			const map = {
+				not_required: '无需还款',
+				pending: '待还款',
+				partial: '部分还款',
+				paid: '已还款'
+			}
+			return map[status] || status || '未记录'
+		},
+
+		getRepaymentMethodText(method) {
+			const map = {
+				wechat: '微信',
+				alipay: '支付宝',
+				transfer: '对公转账',
+				prepaid: '个人预付',
+				balance: '预存余额',
+				manual: '人工登记',
+				other: '其他'
+			}
+			return map[method] || method || '未记录'
+		},
+
+		downloadUrl(url, title = '订单文件') {
+			if (!url) {
+				uni.showToast({ title: `${title}不存在`, icon: 'none' })
+				return
+			}
+
+			const fileUrl = url.startsWith('http') ? url : `${api.baseUrl}${url}`
+			uni.showLoading({ title: '准备下载...' })
+			uni.downloadFile({
+				url: fileUrl,
+				success: (res) => {
+					uni.hideLoading()
+					if (res.statusCode === 200) {
+						uni.openDocument({
+							filePath: res.tempFilePath,
+							showMenu: true,
+							fail: () => {
+								uni.setClipboardData({
+									data: fileUrl,
+									success: () => uni.showToast({ title: '链接已复制', icon: 'success' })
+								})
+							}
+						})
+						return
+					}
+					uni.showToast({ title: '下载失败', icon: 'none' })
+				},
+				fail: () => {
+					uni.hideLoading()
+					uni.setClipboardData({
+						data: fileUrl,
+						success: () => uni.showToast({ title: '链接已复制', icon: 'success' })
+					})
+				}
+			})
+		},
 		
 		// 复制物流单号
 		copyLogisticsNo() {
@@ -337,7 +456,7 @@ export default {
 		
 		// 支付订单
 		async payOrder() {
-			uni.showLoading({ title: '信用支付中...' })
+			uni.showLoading({ title: '支付中...' })
 			
 			try {
 				const res = await api.creditPay({
@@ -346,7 +465,7 @@ export default {
 				})
 				
 				uni.hideLoading()
-				uni.showToast({ title: res.message || '信用支付成功', icon: 'success' })
+				uni.showToast({ title: res.message || '支付成功', icon: 'success' })
 				setTimeout(() => {
 					this.loadOrderDetail()
 				}, 1500)
@@ -614,6 +733,32 @@ export default {
 		color: white;
 		border-radius: 6rpx;
 		font-size: 22rpx;
+	}
+}
+
+.file-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 24rpx 0;
+	border-bottom: 1rpx solid #f0f0f0;
+
+	&:last-child {
+		border-bottom: none;
+	}
+
+	.file-name {
+		font-size: 28rpx;
+		color: #333;
+		font-weight: 500;
+	}
+
+	.file-action {
+		padding: 8rpx 18rpx;
+		border-radius: 6rpx;
+		background: #e6f4ff;
+		color: #1677ff;
+		font-size: 24rpx;
 	}
 }
 

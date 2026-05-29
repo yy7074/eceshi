@@ -19,6 +19,8 @@ import time
 
 from app.core.config import settings
 from app.models.order import Order, Payment
+from app.models.user import User
+from app.services.points_service import grant_order_points
 
 logger = logging.getLogger(__name__)
 
@@ -314,7 +316,18 @@ class AlipayService:
                 order = db.query(Order).filter(Order.id == payment.order_id).first()
                 if order:
                     order.status = "paid"
+                    order.payment_method = "alipay"
+                    order.payment_source = "alipay"
+                    order.payment_status = "paid"
+                    order.repayment_status = "not_required"
+                    order.paid_fee = order.total_fee
                     order.paid_at = datetime.utcnow()
+                    order.payment_time = order.paid_at
+                    user = db.query(User).filter(User.id == order.user_id).first()
+                    if user:
+                        user.total_spent = (user.total_spent or Decimal("0")) + (order.total_fee or Decimal("0"))
+                        user.total_orders = (user.total_orders or 0) + 1
+                        grant_order_points(db, user, order.id, order.order_no, order.total_fee)
                 
                 db.commit()
                 logger.info(f"支付成功：支付ID={payment_id}, 订单ID={payment.order_id}")
@@ -477,4 +490,3 @@ class AlipayService:
 
 # 创建全局实例
 alipay_service = AlipayService()
-

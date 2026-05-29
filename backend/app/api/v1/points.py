@@ -24,10 +24,11 @@ async def get_points_balance(
     """
     获取当前用户的积分余额
     """
-    # 计算用户积分余额
-    total_points = db.query(func.sum(PointsRecord.points)).filter(
+    # 计算用户积分余额，兼容后台直接调整 users.points_balance 的场景。
+    record_points = db.query(func.sum(PointsRecord.points)).filter(
         PointsRecord.user_id == current_user.id
     ).scalar() or 0
+    total_points = max(int(record_points), int(current_user.points_balance or 0))
     
     # 获取积分明细统计  
     earned = db.query(func.sum(PointsRecord.points)).filter(
@@ -137,7 +138,7 @@ async def exchange_points_goods(
         )
     
     # 查询收货地址
-    from app.models.user import UserAddress
+    from app.models.order import UserAddress
     address = db.query(UserAddress).filter(
         UserAddress.id == address_id,
         UserAddress.user_id == current_user.id
@@ -157,12 +158,12 @@ async def exchange_points_goods(
         points=goods.points,
         status="pending",
         address_snapshot=json.dumps({
-            "name": address.name,
+            "name": address.receiver_name,
             "phone": address.phone,
             "province": address.province,
             "city": address.city,
             "district": address.district,
-            "address": address.address
+            "address": address.detail_address
         }, ensure_ascii=False)
     )
     db.add(exchange_record)
@@ -176,6 +177,8 @@ async def exchange_points_goods(
         description=f"兑换商品：{goods.name}"
     )
     db.add(points_record)
+    current_user.points_balance = max(0, (current_user.points_balance or int(total_points)) - goods.points)
+    current_user.total_points_used = (current_user.total_points_used or 0) + goods.points
     
     # 扣减库存
     goods.stock -= 1
@@ -276,4 +279,3 @@ async def get_exchange_records(
         "page": page,
         "page_size": page_size
     })
-

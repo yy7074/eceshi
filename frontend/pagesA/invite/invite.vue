@@ -3,128 +3,37 @@
 		<!-- 顶部统计卡片 -->
 		<view class="top-card">
 			<view class="card-left">
-				<text class="card-label">可提现奖励(元)</text>
-				<text class="card-amount">{{ withdrawable.toFixed(2) }}</text>
-				<text class="card-link" @click="handleWithdraw">立即提现 ›</text>
+				<text class="card-label">已绑定邀请(人)</text>
+				<text class="card-amount">{{ myInvites }}</text>
+				<text class="card-link">仅用于订单邀请来源追踪</text>
 			</view>
 			<view class="card-right">
-				<text class="bag-emoji">💰</text>
-			</view>
-			<view class="rule-badge" @click="showRulesModal">规则</view>
-		</view>
-		
-		<!-- 四项指标 -->
-		<view class="stats-grid">
-			<view class="stat-item">
-				<text class="stat-value">{{ myInvites }}</text>
-				<text class="stat-label">我的邀请(人)</text>
-			</view>
-			<view class="stat-item">
-				<text class="stat-value">{{ predictedOrders }}</text>
-				<text class="stat-label">预测收益(单)</text>
-			</view>
-			<view class="stat-item">
-				<text class="stat-value">{{ predictedRewards.toFixed(2) }}</text>
-				<text class="stat-label">预测奖励(元)</text>
-			</view>
-			<view class="stat-item">
-				<text class="stat-value">{{ earnedRewards.toFixed(2) }}</text>
-				<text class="stat-label">已得奖励(元)</text>
+				<text class="bag-emoji">🔗</text>
 			</view>
 		</view>
-		
-		<!-- 邀请奖励 -->
-		<view class="reward-panel">
-			<view class="panel-header orange">
-				<text>邀请奖励</text>
-				<text class="header-emoji">🎁</text>
-			</view>
-			<view class="panel-body">
-				<view class="reward-item">
-					<text class="reward-tag">奖励一</text>
-				</view>
-				<text class="reward-text">好友注册30天内下单（不限量），邀请人可获得订单金额的 <text class="highlight orange">8%</text>现金奖励；</text>
-				
-				<view class="reward-item">
-					<text class="reward-tag">奖励二</text>
-				</view>
-				<text class="reward-text">好友注册31—100天内下单（不限量），邀请人可获得订单金额的 <text class="highlight orange">4%</text>现金奖励；</text>
-			</view>
-		</view>
-		
-		<!-- 好友福利 -->
-		<view class="reward-panel">
-			<view class="panel-header blue">
-				<text>好友福利</text>
-				<text class="header-emoji">👥</text>
-			</view>
-			<view class="panel-body">
-				<view class="reward-item">
-					<text class="reward-tag blue">福利一</text>
-				</view>
-				<text class="reward-text">好友注册30天内并下单，好友可获得订单金额<text class="highlight blue">2%</text>的现金奖励；好友注册31—100天内并下单，好友可获得订单金额<text class="highlight blue">1%</text>的现金奖励；</text>
-				
-				<view class="reward-item">
-					<text class="reward-tag blue">福利二</text>
-				</view>
-				<text class="reward-text">注册即得首样免费<text class="highlight orange">200元</text>门槛券 + 新客专区<text class="highlight orange">6折</text>起测试优惠（价值500元）</text>
-			</view>
-		</view>
-		
+
 		<!-- 邀请好友流程 -->
 		<view class="flow-section">
-			<view class="section-title">邀请好友流程</view>
+			<view class="section-title">邀请流程</view>
 			<view class="flow-list">
-				<view class="flow-item">
-					<text class="flow-number">01.</text>
+				<view class="flow-item" v-for="(item, index) in flowItems" :key="item.badge">
+					<text class="flow-number">{{ String(index + 1).padStart(2, '0') }}.</text>
 					<view class="flow-content">
-						<view class="flow-step">邀请好友完成注册</view>
-						<button class="flow-btn" open-type="share">立即分享好友</button>
-					</view>
-				</view>
-				<view class="flow-item">
-					<text class="flow-number">02.</text>
-					<view class="flow-content">
-						<view class="flow-step">好友完成注册</view>
-						<text class="flow-desc">好友获得<text class="highlight orange">200元</text>首样优惠券 + 价值<text class="highlight orange">500元</text>新客专区<text class="highlight orange">6折</text>优惠</text>
-					</view>
-				</view>
-				<view class="flow-item">
-					<text class="flow-number">03.</text>
-					<view class="flow-content">
-						<view class="flow-step">好友注册30天内下单（不限量）</view>
-						<text class="flow-desc">您可获得订单金额的<text class="highlight orange">8%</text>奖励，好友获得订单金额<text class="highlight blue">2%</text>奖励</text>
-					</view>
-				</view>
-				<view class="flow-item">
-					<text class="flow-number">04.</text>
-					<view class="flow-content">
-						<view class="flow-step">好友注册31—100天内下单（不限量）</view>
-						<text class="flow-desc">您可获得订单金额的<text class="highlight orange">4%</text>奖励，好友获得订单金额<text class="highlight blue">1%</text>奖励</text>
-					</view>
-				</view>
-				<view class="flow-item">
-					<text class="flow-number">05.</text>
-					<view class="flow-content">
-						<view class="flow-step">好友订单完成（信用支付需还款）</view>
-						<text class="flow-desc">订单奖励全部解冻</text>
-					</view>
-				</view>
-				<view class="flow-item">
-					<text class="flow-number">06.</text>
-					<view class="flow-content">
-						<view class="flow-step">【钱包】里自动提醒</view>
-						<button class="flow-btn orange">查看钱包</button>
-						<text class="flow-desc">提现需实名认证</text>
+						<view class="flow-bubble">
+							<text class="flow-badge">{{ item.badge }}</text>
+							<view class="flow-step">{{ item.title }}</view>
+							<text class="flow-desc" v-if="item.desc">{{ item.desc }}</text>
+							<button v-if="item.share" class="flow-btn" open-type="share">立即分享好友</button>
+						</view>
 					</view>
 				</view>
 			</view>
 		</view>
 
-		<!-- 推广二维码 -->
-		<view class="reward-panel">
+			<!-- 邀请二维码 -->
+			<view class="invite-panel">
 			<view class="panel-header orange">
-				<text>推广二维码</text>
+				<text>邀请链接/二维码</text>
 				<text class="header-emoji">📣</text>
 			</view>
 			<view class="panel-body">
@@ -137,35 +46,21 @@
 						@click="previewPromotionQrcode"
 					/>
 					<view v-else class="promo-qrcode empty">
-						<text>暂无推广码</text>
+						<text>暂无二维码</text>
 					</view>
-					<text class="qrcode-desc">适合线上分享、线下海报和推广抽奖使用</text>
+					<text class="qrcode-desc">好友通过链接或二维码进入并登录后，会记录邀请来源。</text>
+					<view v-if="inviteCode" class="invite-code-box">
+						<text class="invite-code-label">邀请码</text>
+						<text class="invite-code-value">{{ inviteCode }}</text>
+					</view>
 					<view class="qrcode-actions">
 						<button class="flow-btn orange" @click="createPromotionQrcode" :disabled="qrcodeLoading">
-							{{ qrcodeLoading ? '生成中...' : '生成推广码' }}
+							{{ qrcodeLoading ? '生成中...' : latestQrcode ? '重新生成' : '生成二维码' }}
 						</button>
 						<button class="flow-btn" v-if="latestQrcode" @click="previewPromotionQrcode">查看大图</button>
+						<button class="flow-btn" v-if="inviteLink" @click="copyInviteLink">复制链接</button>
 					</view>
 				</view>
-			</view>
-		</view>
-		
-		<!-- 活动规则 -->
-		<view class="text-section">
-			<view class="section-title">活动规则</view>
-			<view class="text-content">
-				<text>1. 被邀请人通过邀请人分享的邀请链接注册成功，并在注册后30天内下单（不限平台、不限单量），邀请人即可获得邀请订单金额的现金奖励；被邀请人可获得订单金额2%与1%的现金奖励；</text>
-				<text>2. 现金奖励的计算方式：按订单实际支付金额（含使用抵扣后金额）计算；</text>
-				<text>3. 若被邀请人订单产生退款，系统将自动扣减对应奖励；若存在恶意刷单行为，平台将取消其奖励资格；</text>
-				<text>4. 奖励到账时间为订单完成后；</text>
-			</view>
-		</view>
-		
-		<!-- 提现规则 -->
-		<view class="text-section">
-			<view class="section-title">提现规则</view>
-			<view class="text-content">
-				<text>支持在"可提现奖励"处发起提现，需完成实名认证；平台保留规则最终解释权。</text>
 			</view>
 		</view>
 		
@@ -182,13 +77,28 @@ import api from '@/utils/api.js'
 export default {
 	data() {
 		return {
-			withdrawable: 0,
 			myInvites: 0,
-			predictedOrders: 0,
-			predictedRewards: 0,
-			earnedRewards: 0,
 			latestQrcode: null,
-			qrcodeLoading: false
+			qrcodeLoading: false,
+			flowItems: [
+				{ badge: '生成', title: '生成邀请链接或二维码', desc: '分享给好友后用于记录来源。', share: true },
+				{ badge: '绑定', title: '好友打开链接并登录', desc: '系统自动绑定邀请人与被邀请人关系。' },
+				{ badge: '溯源', title: '后台按邀请人筛选订单', desc: '订单管理可按邀请人姓名、手机号或ID查询来源订单。' }
+			]
+		}
+	},
+
+	computed: {
+		inviteCode() {
+			return this.latestQrcode?.invite_code || ''
+		},
+
+		inviteLink() {
+			if (this.inviteCode) {
+				return `/pages/index/index?inviter=${this.inviteCode}`
+			}
+			const userInfo = this.getStoredUserInfo()
+			return userInfo.id ? `/pages/index/index?inviteUserId=${userInfo.id}` : ''
 		}
 	},
 	
@@ -199,31 +109,43 @@ export default {
 	
 	// 分享配置
 	onShareAppMessage() {
-		const userInfo = uni.getStorageSync('userInfo') || {}
 		return {
-			title: '我在博才科研百测发现了超好用的检测服务！注册即享优惠！',
-			path: `/pages/index/index?inviteUserId=${userInfo.id}`
+			title: '博才科研百测检测服务邀请',
+			path: this.inviteLink || '/pages/index/index'
+		}
+	},
+	onShareTimeline() {
+		const code = this.inviteCode ? `inviter=${this.inviteCode}` : ''
+		return {
+			title: '博才科研百测检测服务邀请',
+			query: code
 		}
 	},
 	
 	methods: {
+		getStoredUserInfo() {
+			const stored = uni.getStorageSync('userInfo')
+			if (!stored) {
+				return {}
+			}
+			if (typeof stored === 'string') {
+				try {
+					return JSON.parse(stored)
+				} catch (error) {
+					return {}
+				}
+			}
+			return stored
+		},
+
 		// 加载邀请数据
 		async loadInviteData() {
 			try {
 				const res = await api.getInviteStats()
-				this.withdrawable = res.data.withdrawable || 0
-				this.myInvites = res.data.my_invites || 0
-				this.predictedOrders = res.data.predicted_orders || 0
-				this.predictedRewards = res.data.predicted_rewards || 0
-				this.earnedRewards = res.data.earned_rewards || 0
+				this.myInvites = res.data.total_invites || res.data.my_invites || 0
 			} catch (error) {
 				console.error('加载邀请数据失败', error)
-				// 如果API调用失败，使用默认值
-				this.withdrawable = 0
 				this.myInvites = 0
-				this.predictedOrders = 0
-				this.predictedRewards = 0
-				this.earnedRewards = 0
 			}
 		},
 
@@ -241,12 +163,12 @@ export default {
 			try {
 				this.qrcodeLoading = true
 				const res = await api.createInviteQrcode({
-					name: `推广二维码-${Date.now()}`,
-					scene: 'activity'
+					name: `邀请二维码-${Date.now()}`,
+					scene: 'trace'
 				})
 				this.latestQrcode = res.data || null
 				uni.showToast({
-					title: '推广二维码已生成',
+					title: '二维码已生成',
 					icon: 'success'
 				})
 			} catch (error) {
@@ -276,44 +198,22 @@ export default {
 			const url = this.getQrcodeImage(this.latestQrcode)
 			uni.previewImage({
 				urls: [url],
-				current: url
-			})
-		},
-		
-		// 提现
-		handleWithdraw() {
-			if (this.withdrawable <= 0) {
-				uni.showToast({
-					title: '暂无可提现奖励',
-					icon: 'none'
+					current: url
 				})
-				return
-			}
-			
-			uni.showModal({
-				title: '提现',
-				content: `确认提现 ¥${this.withdrawable.toFixed(2)} 到钱包吗？需要先完成实名认证。`,
-				success: (res) => {
-					if (res.confirm) {
-						// 检查是否实名
-						uni.navigateTo({
-							url: '/pagesA/certification/certification'
+			},
+
+			copyInviteLink() {
+				uni.setClipboardData({
+					data: this.inviteLink,
+					success: () => {
+						uni.showToast({
+							title: '邀请链接已复制',
+							icon: 'success'
 						})
 					}
-				}
-			})
-		},
-		
-		// 显示规则
-		showRulesModal() {
-			uni.showModal({
-				title: '邀请活动规则',
-				content: '好友注册30天内下单奖励8%，31-100天内下单奖励4%；好友现金奖励：30天内2%，31-100天内1%。奖励以实际支付金额计算，退款将扣减奖励。订单完成后到账。',
-				showCancel: false,
-				confirmText: '我知道了'
-			})
+				})
+			}
 		}
-	}
 }
 </script>
 
@@ -364,10 +264,33 @@ export default {
 	text-align: center;
 }
 
-.qrcode-actions {
-	display: flex;
-	gap: 16rpx;
-}
+	.qrcode-actions {
+		display: flex;
+		gap: 16rpx;
+		flex-wrap: wrap;
+		justify-content: center;
+	}
+
+	.invite-code-box {
+		display: flex;
+		align-items: center;
+		gap: 12rpx;
+		padding: 12rpx 20rpx;
+		background: #f6f8fb;
+		border-radius: 12rpx;
+	}
+
+	.invite-code-label {
+		font-size: 24rpx;
+		color: #666;
+	}
+
+	.invite-code-value {
+		font-size: 28rpx;
+		color: #333;
+		font-weight: 700;
+		letter-spacing: 0;
+	}
 
 .card-left {
 	flex: 1;
@@ -416,48 +339,12 @@ export default {
 	font-size: 24rpx;
 }
 
-/* 四项指标 */
-.stats-grid {
-	display: grid;
-	grid-template-columns: repeat(4, 1fr);
-	background: white;
-	margin: 0 30rpx 20rpx;
-	border-radius: 12rpx;
-	padding: 24rpx 0;
-	gap: 0;
-}
-
-.stat-item {
-	display: flex;
-	flex-direction: column;
-	align-items: center;
-	border-right: 1rpx solid #f0f0f0;
-}
-
-.stat-item:last-child {
-	border-right: none;
-}
-
-.stat-value {
-	font-size: 36rpx;
-	font-weight: 700;
-	color: #333;
-	margin-bottom: 8rpx;
-}
-
-.stat-label {
-	font-size: 22rpx;
-	color: #666;
-	text-align: center;
-}
-
-/* 奖励面板 */
-.reward-panel {
-	background: white;
-	margin: 0 30rpx 20rpx;
-	border-radius: 16rpx;
-	overflow: hidden;
-}
+	.invite-panel {
+		background: white;
+		margin: 0 30rpx 20rpx;
+		border-radius: 16rpx;
+		overflow: hidden;
+	}
 
 .panel-header {
 	padding: 20rpx 24rpx;
@@ -483,44 +370,6 @@ export default {
 
 .panel-body {
 	padding: 24rpx;
-}
-
-.reward-item {
-	margin-bottom: 12rpx;
-}
-
-.reward-tag {
-	background: #ffedd5;
-	color: #ff7e5f;
-	padding: 8rpx 20rpx;
-	border-radius: 30rpx;
-	font-size: 22rpx;
-	display: inline-block;
-}
-
-.reward-tag.blue {
-	background: #e7f5ff;
-	color: #4dabf7;
-}
-
-.reward-text {
-	font-size: 26rpx;
-	color: #333;
-	line-height: 1.8;
-	display: block;
-	margin-bottom: 20rpx;
-}
-
-.highlight {
-	font-weight: 700;
-}
-
-.highlight.orange {
-	color: #ff7e5f;
-}
-
-.highlight.blue {
-	color: #4dabf7;
 }
 
 /* 邀请流程 */
@@ -563,6 +412,25 @@ export default {
 	flex: 1;
 }
 
+.flow-bubble {
+	position: relative;
+	background: #f8fbff;
+	border-radius: 18rpx;
+	padding: 20rpx 22rpx 18rpx;
+}
+
+.flow-badge {
+	position: absolute;
+	right: 18rpx;
+	top: 14rpx;
+	padding: 4rpx 14rpx;
+	border-radius: 999rpx;
+	background: #fff0e6;
+	color: #ff7e5f;
+	font-size: 22rpx;
+	font-weight: 700;
+}
+
 .flow-step {
 	background: linear-gradient(135deg, #6ec1ff 0%, #4dabf7 100%);
 	color: white;
@@ -571,6 +439,7 @@ export default {
 	font-size: 24rpx;
 	display: inline-block;
 	margin-bottom: 8rpx;
+	margin-right: 92rpx;
 }
 
 .flow-btn {
@@ -594,24 +463,6 @@ export default {
 	line-height: 1.6;
 	display: block;
 	margin-top: 8rpx;
-}
-
-/* 文字区块 */
-.text-section {
-	background: white;
-	margin: 0 30rpx 20rpx;
-	border-radius: 16rpx;
-	padding: 24rpx;
-}
-
-.text-content {
-	text {
-		font-size: 24rpx;
-		color: #666;
-		line-height: 1.8;
-		display: block;
-		margin-bottom: 12rpx;
-	}
 }
 
 /* 底部按钮 */

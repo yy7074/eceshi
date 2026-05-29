@@ -3,7 +3,7 @@
 		<!-- 页面标题 -->
 		<view class="page-header">
 			<view class="header-title">开票充值</view>
-			<view class="header-desc">大额充值可开发票，享受同等优惠</view>
+			<view class="header-desc">大额充值可开发票，到账金额等于充值金额</view>
 		</view>
 
 		<!-- 充值金额 -->
@@ -18,11 +18,7 @@
 					class="amount-input"
 				/>
 			</view>
-			<view class="bonus-preview" v-if="bonusAmount > 0">
-				<text class="bonus-label">预计赠送：</text>
-				<text class="bonus-value">¥{{ bonusAmount }}</text>
-				<text class="bonus-total">，到账 ¥{{ totalAmount }}</text>
-			</view>
+			<view class="balance-preview">到账 ¥{{ totalAmount }}</view>
 		</view>
 
 		<!-- 发票信息 -->
@@ -195,12 +191,7 @@ export default {
 
 	computed: {
 		bonusAmount() {
-			const amount = parseFloat(this.form.amount) || 0
-			if (amount < 100) return 0
-			if (amount < 500) return Math.floor(amount * 0.05)
-			if (amount < 1000) return Math.floor(amount * 0.10)
-			if (amount < 5000) return Math.floor(amount * 0.15)
-			return Math.floor(amount * 0.20)
+			return 0
 		},
 
 		totalAmount() {
@@ -278,7 +269,7 @@ export default {
 				if (res.code === 200) {
 					uni.showModal({
 						title: '提交成功',
-						content: `充值金额：¥${amount}，预计赠送：¥${this.bonusAmount}，到账：¥${this.totalAmount}。我们将在1-2个工作日内确认到账。`,
+						content: `充值金额：¥${amount}，到账：¥${this.totalAmount}。我们将在1-2个工作日内确认到账。`,
 						showCancel: false,
 						success: () => {
 							uni.navigateBack()
@@ -365,29 +356,14 @@ export default {
 	color: #333;
 }
 
-.bonus-preview {
+.balance-preview {
 	margin-top: 16rpx;
 	padding: 16rpx 20rpx;
-	background: #fff5eb;
+	background: #f0f7ff;
 	border-radius: 8rpx;
-	display: flex;
-	align-items: center;
-}
-
-.bonus-label {
 	font-size: 26rpx;
 	color: #666;
-}
-
-.bonus-value {
-	font-size: 30rpx;
-	font-weight: bold;
-	color: #ff6b00;
-}
-
-.bonus-total {
-	font-size: 26rpx;
-	color: #666;
+	line-height: 1.5;
 }
 
 .form-item {

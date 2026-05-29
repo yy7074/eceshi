@@ -50,10 +50,8 @@ def get_user_group(db: Session, group_id: int, user_id: int) -> SampleGroup:
 
 
 def get_project_unit_price(project: Optional[Project]) -> Decimal:
-    """当前项目单价。Project 模型使用 current_price，不再使用旧的 price 字段。"""
-    if not project:
-        return Decimal("0")
-    return Decimal(str(getattr(project, "current_price", None) or 0))
+    """项目展示价不参与订单计费，样品分组只统计测试条件费用。"""
+    return Decimal("0")
 
 
 def get_project_lab_name(project: Optional[Project]) -> str:
@@ -718,7 +716,8 @@ async def submit_sample_groups(
                 ))
 
         # 添加费用明细
-        db.add(OrderFee(order_id=order.id, fee_type="project", fee_name="检测费用", amount=base_amount))
+        if base_amount > 0:
+            db.add(OrderFee(order_id=order.id, fee_type="project", fee_name="检测费用", amount=base_amount))
         if total_options_fee > 0:
             db.add(OrderFee(order_id=order.id, fee_type="options", fee_name="选项费用", amount=total_options_fee))
         if shipping_fee > 0:
@@ -807,7 +806,8 @@ async def submit_sample_groups(
                 ))
 
             # 添加费用明细
-            db.add(OrderFee(order_id=order.id, fee_type="project", fee_name="检测费用", amount=base_price))
+            if base_price > 0:
+                db.add(OrderFee(order_id=order.id, fee_type="project", fee_name="检测费用", amount=base_price))
             if options_fee > 0:
                 db.add(OrderFee(order_id=order.id, fee_type="options", fee_name="选项费用", amount=options_fee))
             if shipping_fee > 0:

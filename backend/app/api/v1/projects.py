@@ -36,6 +36,7 @@ class ProjectCreate(BaseModel):
     cover_image: Optional[str] = None
     is_hot: bool = False
     is_recommended: bool = False
+    order_count: int = 0
     sort_order: int = 0
 
 
@@ -55,6 +56,7 @@ class ProjectUpdate(BaseModel):
     cover_image: Optional[str] = None
     is_hot: Optional[bool] = None
     is_recommended: Optional[bool] = None
+    order_count: Optional[int] = None
     sort_order: Optional[int] = None
     status: Optional[str] = None
 
@@ -73,6 +75,7 @@ async def get_project_categories(
         "name": cat.name,
         "description": cat.description,
         "icon": cat.icon,
+        "cover_image": cat.cover_image,
         "sort_order": cat.sort_order
     } for cat in categories])
 
@@ -133,6 +136,7 @@ async def get_admin_projects_list(
             "is_hot": p.is_hot,
             "is_recommended": p.is_recommended,
             "view_count": p.view_count,
+            "order_count": p.order_count or 0,
             "booking_count": p.booking_count,
             "sort_order": p.sort_order,
             "created_at": p.created_at.isoformat() if p.created_at else None
@@ -174,6 +178,7 @@ async def get_admin_project_detail(
         "is_hot": project.is_hot,
         "is_recommended": project.is_recommended,
         "view_count": project.view_count,
+        "order_count": project.order_count or 0,
         "booking_count": project.booking_count,
         "satisfaction": float(project.satisfaction) if project.satisfaction else 100.0,
         "sort_order": project.sort_order,
@@ -212,6 +217,7 @@ async def create_project(
         cover_image=request.cover_image,
         is_hot=request.is_hot,
         is_recommended=request.is_recommended,
+        order_count=max(0, request.order_count or 0),
         sort_order=request.sort_order,
         status="active"
     )
@@ -463,4 +469,3 @@ async def get_project_detail(
     }
     
     return Response.success(data=project)
-

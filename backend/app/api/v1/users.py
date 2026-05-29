@@ -26,9 +26,13 @@ async def get_current_user_info(
     return Response.success(data={
         "id": current_user.id,
         "phone": current_user.phone,
+        "member_no": str(current_user.id),
         "nickname": current_user.nickname,
         "avatar": current_user.avatar,
         "email": current_user.email,
+        "real_name": current_user.real_name,
+        "advisor_name": current_user.advisor_name,
+        "advisor_phone": current_user.advisor_phone,
         "credit_limit": float(current_user.credit_limit) if current_user.credit_limit else 0,
         "is_certified": current_user.is_certified,
         "membership_level": current_user.membership_level.value if current_user.membership_level else "normal",
@@ -79,9 +83,12 @@ async def update_profile(
     return Response.success(data={
         "id": current_user.id,
         "phone": current_user.phone,
+        "member_no": str(current_user.id),
         "nickname": current_user.nickname,
         "avatar": current_user.avatar,
-        "email": current_user.email
+        "email": current_user.email,
+        "advisor_name": current_user.advisor_name,
+        "advisor_phone": current_user.advisor_phone
     })
 
 

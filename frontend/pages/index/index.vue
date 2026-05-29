@@ -38,7 +38,8 @@
 							<view class="banner-btn" v-if="banner.btnText">{{ banner.btnText }}</view>
 						</view>
 						<view class="banner-right">
-							<text class="banner-emoji">{{ banner.emoji }}</text>
+							<image v-if="banner.image" :src="banner.image" mode="aspectFill" class="banner-image" @error="banner.image = ''"></image>
+							<text v-else class="banner-emoji">{{ banner.emoji }}</text>
 						</view>
 					</view>
 				</view>
@@ -88,11 +89,6 @@
 					</view>
 						</view>
 						<view class="project-footer">
-							<view class="project-price">
-								<text class="price-symbol">¥</text>
-								<text class="price-value">{{ item.current_price }}</text>
-								<text class="price-unit">起</text>
-							</view>
 							<view class="book-btn" @click.stop="goBooking(item)">立即预约</view>
 						</view>
 					</view>
@@ -111,11 +107,11 @@
 	export default {
 		data() {
 			return {
-				unreadCount: 2, // 未读消息数
+				unreadCount: 0,
 				banners: [
 					{ id: 1, title: '金秋检测季', subtitle: 'XPS 6折 SEM/FT-IR 6折', btnText: '立即参与', emoji: '🎉', bgColor: 'linear-gradient(135deg, #faad14 0%, #fa8c16 100%)' },
 					{ id: 2, title: '新用户专享', subtitle: '首单立减50元 注册送100积分', btnText: '领取优惠', emoji: '🎁', bgColor: 'linear-gradient(135deg, #1890ff 0%, #096dd9 100%)' },
-					{ id: 3, title: '充值有礼', subtitle: '充1000送150测试费 充5000送1000测试费', btnText: '去充值', emoji: '💰', bgColor: 'linear-gradient(135deg, #52c41a 0%, #389e0d 100%)' }
+					{ id: 3, title: '预付余额', subtitle: '充值后可用于订单支付和信用还款', btnText: '去充值', emoji: '💰', bgColor: 'linear-gradient(135deg, #52c41a 0%, #389e0d 100%)' }
 				],
 				announcements: [
 					{ id: 1, title: '12月优惠活动火热进行中', content: '金秋检测季活动详情...' },
@@ -131,14 +127,87 @@
 				projects: []
 			}
 		},
-		onLoad() {
-			this.loadData()
-			this.loadBanners()
-			this.loadAnnouncements()
-		},
-		methods: {
-			normalizeAssetUrl(url, fallback = '') {
+			onLoad(options = {}) {
+				this.captureInviteOptions(options)
+				this.loadData()
+				this.loadBanners()
+				this.loadAnnouncements()
+				this.loadUnreadCount()
+			},
+			onShow() {
+				if (uni.getStorageSync('token')) {
+					this.bindPendingInvite()
+					this.loadUnreadCount()
+				}
+			},
+			onShareAppMessage() {
+				return {
+					title: '博才科研百测检测服务',
+					path: '/pages/index/index'
+				}
+			},
+			onShareTimeline() {
+				return {
+					title: '博才科研百测检测服务',
+					query: ''
+				}
+			},
+			methods: {
+				captureInviteOptions(options = {}) {
+					const params = { ...options }
+					if (params.scene) {
+						const scene = decodeURIComponent(params.scene)
+						scene.split('&').forEach(item => {
+							const [key, value] = item.split('=')
+							if (key && value && !params[key]) {
+								params[key] = value
+							}
+						})
+					}
+					const inviteCode = params.inviter || params.invite_code || params.code
+					const inviterId = params.inviteUserId || params.inviter_id
+					if (!inviteCode && !inviterId) {
+						return
+					}
+					uni.setStorageSync('pendingInvite', JSON.stringify({
+						invite_code: inviteCode || '',
+						inviter_id: inviterId ? Number(inviterId) : null
+					}))
+				},
+
+				getPendingInvitePayload() {
+					const stored = uni.getStorageSync('pendingInvite')
+					if (!stored) {
+						return {}
+					}
+					if (typeof stored === 'string') {
+						try {
+							return JSON.parse(stored)
+						} catch (error) {
+							return {}
+						}
+					}
+					return stored
+				},
+
+				async bindPendingInvite() {
+					const payload = this.getPendingInvitePayload()
+					if (!payload.invite_code && !payload.inviter_id) {
+						return
+					}
+					try {
+						await api.bindInvite(payload)
+						uni.removeStorageSync('pendingInvite')
+					} catch (error) {
+						console.error('绑定邀请关系失败', error)
+					}
+				},
+
+				normalizeAssetUrl(url, fallback = '') {
 				if (!url) {
+					return fallback
+				}
+				if (`${url}`.includes('b68874e25e5c4cecb9bc845617564274.jpg')) {
 					return fallback
 				}
 				if (/^https?:\/\//i.test(url)) {
@@ -154,7 +223,7 @@
 			},
 
 			getProjectFallbackImage(projectId) {
-				return `https://picsum.photos/400/300?random=${projectId || Date.now()}`
+				return '/static/logo.jpg'
 			},
 
 			handleProjectImageError(item) {
@@ -177,6 +246,7 @@
 							subtitle: b.subtitle,
 							btnText: b.button_text || '了解详情',
 							emoji: '🎉',
+							image: this.normalizeAssetUrl(b.image, ''),
 							bgColor: bgColors[i % bgColors.length],
 							link_type: b.link_type,
 							link_value: b.link_value
@@ -184,6 +254,19 @@
 					}
 				} catch (e) {
 					console.error('加载轮播图失败', e)
+				}
+			},
+
+			async loadUnreadCount() {
+				if (!uni.getStorageSync('token')) {
+					this.unreadCount = 0
+					return
+				}
+				try {
+					const res = await api.getNotifications({ page: 1, page_size: 1, is_read: false })
+					this.unreadCount = res.data?.unread_count || 0
+				} catch (e) {
+					this.unreadCount = 0
 				}
 			},
 			
@@ -395,7 +478,16 @@
 			uni.navigateTo({ url: '/pagesA/chat/chat' })
 		},
 		handleBannerClick(banner) {
-			// 根据banner类型跳转
+			api.recordBannerClick(banner.id).catch(() => {})
+			if (banner.link_type === 'project' && banner.link_value) {
+				uni.navigateTo({ url: `/pages/project/detail?id=${banner.link_value}` })
+				return
+			}
+			if (banner.link_type === 'page' && banner.link_value) {
+				const method = banner.link_value.startsWith('/pages/') ? 'switchTab' : 'navigateTo'
+				uni[method]({ url: banner.link_value })
+				return
+			}
 			if (banner.title.includes('充值')) {
 				const token = uni.getStorageSync('token')
 				if (!token) {
@@ -554,6 +646,18 @@
 			}
 			
 			.banner-right {
+				width: 220rpx;
+				height: 180rpx;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+
+				.banner-image {
+					width: 220rpx;
+					height: 180rpx;
+					border-radius: 12rpx;
+				}
+
 				.banner-emoji {
 					font-size: 100rpx;
 				}
@@ -754,30 +858,8 @@
 					
 					.project-footer {
 						display: flex;
-						justify-content: space-between;
+						justify-content: flex-end;
 						align-items: center;
-						
-						.project-price {
-							display: flex;
-							align-items: baseline;
-							
-							.price-symbol {
-								font-size: 22rpx;
-								color: #ff4d4f;
-							}
-							
-							.price-value {
-								font-size: 30rpx;
-								font-weight: 600;
-								color: #ff4d4f;
-							}
-							
-							.price-unit {
-								font-size: 20rpx;
-								color: #ff4d4f;
-								margin-left: 2rpx;
-							}
-						}
 						
 						.book-btn {
 							background: #1890ff;
